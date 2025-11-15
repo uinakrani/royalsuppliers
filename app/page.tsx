@@ -24,29 +24,80 @@ export default function Dashboard() {
   const [filters, setFilters] = useState<OrderFilters>({})
   const [showFilters, setShowFilters] = useState(false)
   const [duration, setDuration] = useState('currentMonth')
-  const [partyName, setPartyName] = useState('')
+  const [filterPartyName, setFilterPartyName] = useState('')
+  const [filterMaterial, setFilterMaterial] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [partyNames, setPartyNames] = useState<string[]>([])
+
+  useEffect(() => {
+    loadPartyNames()
+  }, [])
 
   useEffect(() => {
     loadOrders()
   }, [filters, duration])
 
+  const loadPartyNames = async () => {
+    try {
+      const uniquePartyNames = await orderService.getUniquePartyNames()
+      setPartyNames(uniquePartyNames)
+    } catch (error) {
+      console.error('Error loading party names:', error)
+    }
+  }
+
   const loadOrders = async () => {
     setLoading(true)
     try {
-      let orderFilters: OrderFilters = { ...filters }
-
+      // Get all orders first
+      const allOrders = await orderService.getAllOrders()
+      
+      // Apply client-side filters for multiple party names and materials
+      let filteredOrders = allOrders
+      
       // Apply duration filter
       if (duration) {
         const { start, end } = getDateRangeForDuration(duration)
-        orderFilters.startDate = start.toISOString().split('T')[0]
-        orderFilters.endDate = end.toISOString().split('T')[0]
+        filteredOrders = filteredOrders.filter((order) => {
+          const orderDate = new Date(order.date)
+          return orderDate >= start && orderDate <= end
+        })
       }
-
-      const allOrders = await orderService.getAllOrders(orderFilters)
-      setOrders(allOrders)
-      setStats(calculateStats(allOrders))
+      
+      if (filters.partyName) {
+        const filterPartyNames = filters.partyName.split(',').map(p => p.trim().toLowerCase())
+        filteredOrders = filteredOrders.filter((o) =>
+          filterPartyNames.some(fp => o.partyName.toLowerCase() === fp)
+        )
+      }
+      
+      if (filters.material) {
+        const filterMaterials = filters.material.split(',').map(m => m.trim().toLowerCase())
+        filteredOrders = filteredOrders.filter((o) => {
+          const orderMaterials = Array.isArray(o.material) 
+            ? o.material.map(m => m.toLowerCase())
+            : [o.material.toLowerCase()]
+          return filterMaterials.some(fm => orderMaterials.some(om => om.includes(fm)))
+        })
+      }
+      
+      // Apply date range filter
+      if (filters.startDate || filters.endDate) {
+        filteredOrders = filteredOrders.filter((order) => {
+          const orderDate = new Date(order.date)
+          if (filters.startDate && orderDate < new Date(filters.startDate)) {
+            return false
+          }
+          if (filters.endDate && orderDate > new Date(filters.endDate)) {
+            return false
+          }
+          return true
+        })
+      }
+      
+      setOrders(filteredOrders)
+      setStats(calculateStats(filteredOrders))
     } catch (error) {
       console.error('Error loading orders:', error)
     } finally {
@@ -56,7 +107,8 @@ export default function Dashboard() {
 
   const applyFilters = () => {
     const newFilters: OrderFilters = {}
-    if (partyName) newFilters.partyName = partyName
+    if (filterPartyName) newFilters.partyName = filterPartyName
+    if (filterMaterial) newFilters.material = filterMaterial
     if (startDate) newFilters.startDate = startDate
     if (endDate) newFilters.endDate = endDate
     setFilters(newFilters)
@@ -64,7 +116,8 @@ export default function Dashboard() {
   }
 
   const resetFilters = () => {
-    setPartyName('')
+    setFilterPartyName('')
+    setFilterMaterial('')
     setStartDate('')
     setEndDate('')
     setDuration('currentMonth')
@@ -130,13 +183,56 @@ export default function Dashboard() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Party Name
             </label>
-            <input
-              type="text"
-              value={partyName}
-              onChange={(e) => setPartyName(e.target.value)}
-              placeholder="Enter party name"
-              className="w-full p-2 border border-gray-300 rounded-lg bg-white"
-            />
+            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+              {partyNames.map((partyNameOption) => (
+              <label key={partyNameOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+                <input
+                  type="checkbox"
+                  checked={filterPartyName.split(',').includes(partyNameOption)}
+                  onChange={(e) => {
+                    const currentFilters = filterPartyName.split(',').filter(p => p.trim())
+                    let newFilters: string[]
+                    if (e.target.checked) {
+                      newFilters = [...currentFilters, partyNameOption]
+                    } else {
+                      newFilters = currentFilters.filter(p => p !== partyNameOption)
+                    }
+                    setFilterPartyName(newFilters.join(','))
+                  }}
+                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="text-xs text-gray-700">{partyNameOption}</span>
+              </label>
+            ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Material
+            </label>
+            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+              {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
+              <label key={materialOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+                <input
+                  type="checkbox"
+                  checked={filterMaterial.split(',').includes(materialOption)}
+                  onChange={(e) => {
+                    const currentFilters = filterMaterial.split(',').filter(m => m.trim())
+                    let newFilters: string[]
+                    if (e.target.checked) {
+                      newFilters = [...currentFilters, materialOption]
+                    } else {
+                      newFilters = currentFilters.filter(m => m !== materialOption)
+                    }
+                    setFilterMaterial(newFilters.join(','))
+                  }}
+                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="text-xs text-gray-700">{materialOption}</span>
+              </label>
+            ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

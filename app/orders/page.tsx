@@ -25,14 +25,23 @@ export default function OrdersPage() {
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
   const [filterMaterial, setFilterMaterial] = useState('')
-  const [filterTruckOwner, setFilterTruckOwner] = useState('')
-  const [filterTruckNo, setFilterTruckNo] = useState('')
   const [filterStartDate, setFilterStartDate] = useState('')
   const [filterEndDate, setFilterEndDate] = useState('')
+  const [partyNames, setPartyNames] = useState<string[]>([])
 
   useEffect(() => {
     loadOrders()
+    loadPartyNames()
   }, [])
+
+  const loadPartyNames = async () => {
+    try {
+      const uniquePartyNames = await orderService.getUniquePartyNames()
+      setPartyNames(uniquePartyNames)
+    } catch (error) {
+      console.error('Error loading party names:', error)
+    }
+  }
 
   useEffect(() => {
     applyFilters()
@@ -60,8 +69,9 @@ export default function OrdersPage() {
 
     // Apply other filters
     if (filters.partyName) {
+      const filterPartyNames = filters.partyName.split(',').map(p => p.trim().toLowerCase())
       filtered = filtered.filter((o) =>
-        o.partyName.toLowerCase().includes(filters.partyName!.toLowerCase())
+        filterPartyNames.some(fp => o.partyName.toLowerCase() === fp)
       )
     }
     if (filters.material) {
@@ -72,16 +82,6 @@ export default function OrdersPage() {
           : [o.material.toLowerCase()]
         return filterMaterials.some(fm => orderMaterials.some(om => om.includes(fm)))
       })
-    }
-    if (filters.truckOwner) {
-      filtered = filtered.filter((o) =>
-        o.truckOwner.toLowerCase().includes(filters.truckOwner!.toLowerCase())
-      )
-    }
-    if (filters.truckNo) {
-      filtered = filtered.filter((o) =>
-        o.truckNo.toLowerCase().includes(filters.truckNo!.toLowerCase())
-      )
     }
     if (filters.startDate) {
       filtered = filtered.filter((o) => new Date(o.date) >= new Date(filters.startDate!))
@@ -464,8 +464,6 @@ export default function OrdersPage() {
     const newFilters: OrderFilters = {}
     if (filterPartyName) newFilters.partyName = filterPartyName
     if (filterMaterial) newFilters.material = filterMaterial
-    if (filterTruckOwner) newFilters.truckOwner = filterTruckOwner
-    if (filterTruckNo) newFilters.truckNo = filterTruckNo
     if (filterStartDate) newFilters.startDate = filterStartDate
     if (filterEndDate) newFilters.endDate = filterEndDate
     setFilters(newFilters)
@@ -475,8 +473,6 @@ export default function OrdersPage() {
   const resetFilters = () => {
     setFilterPartyName('')
     setFilterMaterial('')
-    setFilterTruckOwner('')
-    setFilterTruckNo('')
     setFilterStartDate('')
     setFilterEndDate('')
     setFilters({})
@@ -493,22 +489,22 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-primary-600 text-white p-4 sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center mb-3">
-          <h1 className="text-2xl font-bold">Orders</h1>
+      <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
+        <div className="flex justify-between items-center mb-2">
+          <h1 className="text-xl font-bold">Orders</h1>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="p-2 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors"
+            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors"
           >
-            <Filter size={20} />
+            <Filter size={18} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <button
             onClick={() => setActiveTab('latest')}
-            className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+            className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'latest'
                 ? 'bg-white text-primary-600 shadow-sm'
                 : 'bg-primary-500 text-white hover:bg-primary-500/90'
@@ -518,7 +514,7 @@ export default function OrdersPage() {
           </button>
           <button
             onClick={() => setActiveTab('paymentDue')}
-            className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+            className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'paymentDue'
                 ? 'bg-white text-primary-600 shadow-sm'
                 : 'bg-primary-500 text-white hover:bg-primary-500/90'
@@ -531,32 +527,52 @@ export default function OrdersPage() {
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className="bg-white border-b border-gray-200 p-4 space-y-3 shadow-sm">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-semibold text-gray-900">Filters</h3>
+        <div className="bg-white border-b border-gray-200 p-2.5 space-y-2 shadow-sm">
+          <div className="flex justify-between items-center mb-1.5">
+            <h3 className="text-sm font-semibold text-gray-900">Filters</h3>
             <button 
               onClick={() => setShowFilters(false)}
               className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
-          <input
-            type="text"
-            placeholder="Party Name"
-            value={filterPartyName}
-            onChange={(e) => setFilterPartyName(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Party Name
+            </label>
+            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+              {partyNames.map((partyNameOption) => (
+              <label key={partyNameOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+                <input
+                  type="checkbox"
+                  checked={filterPartyName.split(',').includes(partyNameOption)}
+                  onChange={(e) => {
+                    const currentFilters = filterPartyName.split(',').filter(p => p.trim())
+                    let newFilters: string[]
+                    if (e.target.checked) {
+                      newFilters = [...currentFilters, partyNameOption]
+                    } else {
+                      newFilters = currentFilters.filter(p => p !== partyNameOption)
+                    }
+                    setFilterPartyName(newFilters.join(','))
+                  }}
+                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="text-xs text-gray-700">{partyNameOption}</span>
+              </label>
+            ))}
+            </div>
+          </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
               Material
             </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
               {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
-              <label key={materialOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
+              <label key={materialOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterMaterial.split(',').includes(materialOption)}
@@ -570,57 +586,41 @@ export default function OrdersPage() {
                     }
                     setFilterMaterial(newFilters.join(','))
                   }}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className="text-sm text-gray-700">{materialOption}</span>
+                <span className="text-xs text-gray-700">{materialOption}</span>
               </label>
             ))}
             </div>
           </div>
 
-          <input
-            type="text"
-            placeholder="Truck Owner"
-            value={filterTruckOwner}
-            onChange={(e) => setFilterTruckOwner(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-
-          <input
-            type="text"
-            placeholder="Truck No"
-            value={filterTruckNo}
-            onChange={(e) => setFilterTruckNo(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <input
               type="date"
               placeholder="Start Date"
               value={filterStartDate}
               onChange={(e) => setFilterStartDate(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
             <input
               type="date"
               placeholder="End Date"
               value={filterEndDate}
               onChange={(e) => setFilterEndDate(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
           <div className="flex gap-2">
             <button
               onClick={applyFilterForm}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
               Apply
             </button>
             <button
               onClick={resetFilters}
-              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
@@ -629,23 +629,23 @@ export default function OrdersPage() {
       )}
 
       {/* Action Buttons */}
-      <div className="p-4 flex gap-2">
+      <div className="p-2.5 flex gap-2">
         <button
           onClick={() => {
             setEditingOrder(null)
             setShowForm(true)
           }}
-          className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-primary-700 transition-colors shadow-sm"
+          className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-primary-700 transition-colors shadow-sm"
         >
-          <Plus size={20} />
+          <Plus size={18} />
           Add Order
         </button>
         {selectedOrders.size > 0 && (
           <button
             onClick={handleGenerateMultiplePDFs}
-            className="bg-green-600 text-white py-3 px-4 rounded-lg font-medium flex items-center gap-2 hover:bg-green-700 transition-colors shadow-sm"
+            className="bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
           >
-            <FileText size={20} />
+            <FileText size={18} />
             PDF ({selectedOrders.size})
           </button>
         )}
@@ -653,16 +653,16 @@ export default function OrdersPage() {
 
       {/* Orders List */}
       {loading ? (
-        <div className="p-4 text-center text-gray-500">Loading...</div>
+        <div className="p-2.5 text-center text-sm text-gray-500">Loading...</div>
       ) : filteredOrders.length === 0 ? (
-        <div className="p-4 text-center text-gray-500">No orders found</div>
+        <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
       ) : (
-        <div className="px-4 pb-4 overflow-x-auto">
+        <div className="px-2.5 pb-2.5 overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrders.has(o.id!))}
@@ -677,22 +677,22 @@ export default function OrdersPage() {
                     className="w-4 h-4"
                   />
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Party Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Site Name</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Material</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Weight</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Rate</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Total</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Truck Owner</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Truck No</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Original Weight</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Original Rate</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Original Total</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Additional Cost</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Profit</th>
-                <th className="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
-                <th className="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Actions</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
+                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
+                <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Status</th>
+                <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -703,58 +703,58 @@ export default function OrdersPage() {
                     selectedOrders.has(order.id!) ? 'bg-primary-50' : ''
                   }`}
                 >
-                  <td className="px-3 py-3 whitespace-nowrap">
+                  <td className="px-2 py-1.5 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={selectedOrders.has(order.id!)}
                       onChange={() => toggleOrderSelection(order.id!)}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                     />
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
                     {format(new Date(order.date), 'dd MMM yyyy')}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs font-medium text-gray-900">
                     {order.partyName}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
                     {order.siteName}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
                     {Array.isArray(order.material) ? order.material.join(', ') : order.material}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {order.weight.toFixed(2)}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {formatCurrency(order.rate)}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
                     {formatCurrency(order.total)}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
                     {order.truckOwner}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
                     {order.truckNo}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {order.originalWeight.toFixed(2)}
                   </td>
-                  <td className={`px-3 py-3 whitespace-nowrap text-sm text-right ${
+                  <td className={`px-2 py-1.5 whitespace-nowrap text-xs text-right ${
                     order.originalRate > order.rate && order.rate > 0
                       ? 'text-red-600 font-semibold'
                       : 'text-gray-900'
                   }`}>
                     {formatCurrency(order.originalRate)}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
                     {formatCurrency(order.originalTotal)}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {formatCurrency(order.additionalCost)}
                   </td>
-                  <td className={`px-3 py-3 whitespace-nowrap text-sm text-right font-medium ${
+                  <td className={`px-2 py-1.5 whitespace-nowrap text-xs text-right font-medium ${
                     order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {formatCurrency(order.profit)}
