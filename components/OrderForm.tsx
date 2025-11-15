@@ -32,9 +32,18 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   const [saving, setSaving] = useState(false)
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [showCustomPartyName, setShowCustomPartyName] = useState(false)
+  const [siteNames, setSiteNames] = useState<string[]>([])
+  const [showCustomSiteName, setShowCustomSiteName] = useState(false)
+  const [truckOwners, setTruckOwners] = useState<string[]>([])
+  const [showCustomTruckOwner, setShowCustomTruckOwner] = useState(false)
+  const [truckNumbers, setTruckNumbers] = useState<string[]>([])
+  const [showCustomTruckNo, setShowCustomTruckNo] = useState(false)
 
   useEffect(() => {
     loadPartyNames()
+    loadSiteNames()
+    loadTruckOwners()
+    loadTruckNumbers()
   }, [])
 
   useEffect(() => {
@@ -59,8 +68,20 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       if (order.partyName && partyNames.length > 0 && !partyNames.includes(order.partyName)) {
         setShowCustomPartyName(true)
       }
+      // Check if site name exists in the list
+      if (order.siteName && siteNames.length > 0 && !siteNames.includes(order.siteName)) {
+        setShowCustomSiteName(true)
+      }
+      // Check if truck owner exists in the list
+      if (order.truckOwner && truckOwners.length > 0 && !truckOwners.includes(order.truckOwner)) {
+        setShowCustomTruckOwner(true)
+      }
+      // Check if truck number exists in the list
+      if (order.truckNo && truckNumbers.length > 0 && !truckNumbers.includes(order.truckNo)) {
+        setShowCustomTruckNo(true)
+      }
     }
-  }, [order, partyNames])
+  }, [order, partyNames, siteNames, truckOwners, truckNumbers])
 
   const loadPartyNames = async () => {
     try {
@@ -72,6 +93,45 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       }
     } catch (error) {
       console.error('Error loading party names:', error)
+    }
+  }
+
+  const loadTruckOwners = async () => {
+    try {
+      const owners = await orderService.getUniqueTruckOwners()
+      setTruckOwners(owners)
+      // If current truck owner is not in the list, show custom input
+      if (formData.truckOwner && !owners.includes(formData.truckOwner)) {
+        setShowCustomTruckOwner(true)
+      }
+    } catch (error) {
+      console.error('Error loading truck owners:', error)
+    }
+  }
+
+  const loadSiteNames = async () => {
+    try {
+      const names = await orderService.getUniqueSiteNames()
+      setSiteNames(names)
+      // If current site name is not in the list, show custom input
+      if (formData.siteName && !names.includes(formData.siteName)) {
+        setShowCustomSiteName(true)
+      }
+    } catch (error) {
+      console.error('Error loading site names:', error)
+    }
+  }
+
+  const loadTruckNumbers = async () => {
+    try {
+      const numbers = await orderService.getUniqueTruckNumbers()
+      setTruckNumbers(numbers)
+      // If current truck number is not in the list, show custom input
+      if (formData.truckNo && !numbers.includes(formData.truckNo)) {
+        setShowCustomTruckNo(true)
+      }
+    } catch (error) {
+      console.error('Error loading truck numbers:', error)
     }
   }
 
@@ -210,13 +270,51 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Site Name *
             </label>
-            <input
-              type="text"
-              value={formData.siteName}
-              onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+            {!showCustomSiteName ? (
+              <div className="space-y-2">
+                <select
+                  value={formData.siteName}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setShowCustomSiteName(true)
+                    } else {
+                      setFormData({ ...formData, siteName: e.target.value })
+                    }
+                  }}
+                  required={!showCustomSiteName}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Select a site name</option>
+                  {siteNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Add New Site Name</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={formData.siteName}
+                  onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
+                  placeholder="Enter site name"
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomSiteName(false)
+                    setFormData({ ...formData, siteName: '' })
+                  }}
+                  className="text-sm text-primary-600 hover:text-primary-700"
+                >
+                  ← Select from existing names
+                </button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -275,8 +373,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               <input
                 type="number"
                 step="0.01"
-                value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
+                value={formData.weight || ''}
+                onChange={(e) => setFormData({ ...formData, weight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                 required
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
@@ -288,8 +386,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               <input
                 type="number"
                 step="0.01"
-                value={formData.rate}
-                onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) || 0 })}
+                value={formData.rate || ''}
+                onChange={(e) => setFormData({ ...formData, rate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                 required
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
@@ -307,26 +405,102 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Truck Owner *
             </label>
-            <input
-              type="text"
-              value={formData.truckOwner}
-              onChange={(e) => setFormData({ ...formData, truckOwner: e.target.value })}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+            {!showCustomTruckOwner ? (
+              <div className="space-y-2">
+                <select
+                  value={formData.truckOwner}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setShowCustomTruckOwner(true)
+                    } else {
+                      setFormData({ ...formData, truckOwner: e.target.value })
+                    }
+                  }}
+                  required={!showCustomTruckOwner}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Select a truck owner</option>
+                  {truckOwners.map((owner) => (
+                    <option key={owner} value={owner}>
+                      {owner}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Add New Truck Owner</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={formData.truckOwner}
+                  onChange={(e) => setFormData({ ...formData, truckOwner: e.target.value })}
+                  placeholder="Enter truck owner name"
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomTruckOwner(false)
+                    setFormData({ ...formData, truckOwner: '' })
+                  }}
+                  className="text-sm text-primary-600 hover:text-primary-700"
+                >
+                  ← Select from existing owners
+                </button>
+              </div>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Truck No *
             </label>
-            <input
-              type="text"
-              value={formData.truckNo}
-              onChange={(e) => setFormData({ ...formData, truckNo: e.target.value })}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+            {!showCustomTruckNo ? (
+              <div className="space-y-2">
+                <select
+                  value={formData.truckNo}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setShowCustomTruckNo(true)
+                    } else {
+                      setFormData({ ...formData, truckNo: e.target.value })
+                    }
+                  }}
+                  required={!showCustomTruckNo}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Select a truck number</option>
+                  {truckNumbers.map((number) => (
+                    <option key={number} value={number}>
+                      {number}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Add New Truck Number</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={formData.truckNo}
+                  onChange={(e) => setFormData({ ...formData, truckNo: e.target.value })}
+                  placeholder="Enter truck number"
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomTruckNo(false)
+                    setFormData({ ...formData, truckNo: '' })
+                  }}
+                  className="text-sm text-primary-600 hover:text-primary-700"
+                >
+                  ← Select from existing numbers
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -337,11 +511,20 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               <input
                 type="number"
                 step="0.01"
-                value={formData.originalWeight}
-                onChange={(e) => setFormData({ ...formData, originalWeight: parseFloat(e.target.value) || 0 })}
+                value={formData.originalWeight || ''}
+                onChange={(e) => setFormData({ ...formData, originalWeight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                 required
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
+                  formData.originalWeight > formData.weight && formData.weight > 0
+                    ? 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500'
+                    : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
+                }`}
               />
+              {formData.originalWeight > formData.weight && formData.weight > 0 && (
+                <p className="mt-1 text-xs text-red-600 font-medium">
+                  ⚠️ Original weight is greater than selling weight!
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -350,8 +533,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               <input
                 type="number"
                 step="0.01"
-                value={formData.originalRate}
-                onChange={(e) => setFormData({ ...formData, originalRate: parseFloat(e.target.value) || 0 })}
+                value={formData.originalRate || ''}
+                onChange={(e) => setFormData({ ...formData, originalRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                 required
                 className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
                   formData.originalRate > formData.rate && formData.rate > 0

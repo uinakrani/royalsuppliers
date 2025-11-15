@@ -11,6 +11,7 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     totalOrders: orders.length,
     paidOrders: 0,
     unpaidOrders: 0,
+    partialOrders: 0,
   }
 
   orders.forEach((order) => {
@@ -22,7 +23,19 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
       stats.currentBalance += order.total
       stats.paidOrders++
     } else {
-      stats.unpaidOrders++
+      // Calculate total from partialPayments array if available, otherwise use paidAmount
+      const partialTotal = order.partialPayments && order.partialPayments.length > 0
+        ? order.partialPayments.reduce((sum, p) => sum + p.amount, 0)
+        : (order.paidAmount || 0)
+      
+      if (partialTotal > 0) {
+        // Include partial payments in balance
+        stats.currentBalance += partialTotal
+        stats.partialOrders++
+        stats.unpaidOrders++
+      } else {
+        stats.unpaidOrders++
+      }
     }
   })
 

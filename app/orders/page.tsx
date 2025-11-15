@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { orderService } from '@/lib/orderService'
 import { generateInvoicePDF, generateMultipleInvoicesPDF } from '@/lib/pdfService'
-import { Order, OrderFilters } from '@/types/order'
+import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
@@ -180,7 +180,10 @@ export default function OrdersPage() {
       }
 
       const totalAmount = order.total
-      const alreadyPaid = order.paidAmount || 0
+      // Calculate already paid from partialPayments array if available, otherwise use paidAmount
+      const alreadyPaid = order.partialPayments && order.partialPayments.length > 0
+        ? order.partialPayments.reduce((sum, p) => sum + p.amount, 0)
+        : (order.paidAmount || 0)
       const remainingAmount = totalAmount - alreadyPaid
       const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-IN', {
@@ -215,13 +218,14 @@ export default function OrdersPage() {
         const promptText = alreadyPaid > 0 
           ? `Enter total paid amount (Already paid: ${formatCurrency(alreadyPaid)}, Remaining: ${formatCurrency(remainingAmount)}):`
           : `Enter paid amount (Total: ${formatCurrency(totalAmount)}):`
-        const amountStr = prompt(promptText, totalAmount.toString())
+        const amountStr = prompt(promptText, alreadyPaid > 0 ? remainingAmount.toString() : totalAmount.toString())
         if (amountStr) {
           const amount = parseFloat(amountStr)
           if (!isNaN(amount) && amount > 0) {
             try {
-              await orderService.markAsPaid(id, amount)
-              showToast(amount >= totalAmount ? 'Order marked as fully paid!' : `Payment of ${formatCurrency(amount)} recorded!`, 'success')
+              const newTotalPaid = alreadyPaid > 0 ? alreadyPaid + amount : amount
+              await orderService.markAsPaid(id, newTotalPaid)
+              showToast(newTotalPaid >= totalAmount ? 'Order marked as fully paid!' : `Payment of ${formatCurrency(newTotalPaid)} recorded!`, 'success')
               await loadOrders()
             } catch (error: any) {
               showToast(`Failed to update order: ${error?.message || 'Unknown error'}`, 'error')
@@ -231,6 +235,24 @@ export default function OrdersPage() {
         return
       }
 
+      // Build existing payments list HTML
+      const existingPayments = order.partialPayments || []
+      const paymentsListHtml = existingPayments.length > 0 ? `
+        <div style="margin-bottom: 15px; padding: 10px; background-color: #f9fafb; border-radius: 6px;">
+          <p style="margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #374151;">Existing Payments:</p>
+          ${existingPayments.map((p, idx) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: ${idx < existingPayments.length - 1 ? '1px solid #e5e7eb' : 'none'};">
+              <span style="font-size: 13px; color: #4b5563;">
+                ${format(new Date(p.date), 'dd MMM yyyy')} - ${formatCurrency(p.amount)}
+              </span>
+            </div>
+          `).join('')}
+          <p style="margin-top: 8px; font-size: 13px; color: #059669; font-weight: 600;">
+            Total Paid: ${formatCurrency(alreadyPaid)}
+          </p>
+        </div>
+      ` : ''
+
       // Use SweetAlert2 with custom HTML
       const result = await Swal.fire({
         title: alreadyPaid > 0 ? 'Add Payment' : 'Record Payment',
@@ -239,6 +261,7 @@ export default function OrdersPage() {
             <p style="margin-bottom: 10px; font-size: 14px; color: #666;">
               Total Amount: <strong style="color: #000;">${formatCurrency(totalAmount)}</strong>
             </p>
+            ${paymentsListHtml}
             ${alreadyPaid > 0 ? `
               <p style="margin-bottom: 10px; font-size: 14px; color: #666;">
                 Already Paid: <strong style="color: #059669;">${formatCurrency(alreadyPaid)}</strong>
@@ -254,7 +277,7 @@ export default function OrdersPage() {
               id="swal-paid-amount" 
               type="number" 
               step="0.01" 
-              min="${alreadyPaid > 0 ? 0 : 0}" 
+              min="0" 
               max="${alreadyPaid > 0 ? remainingAmount : totalAmount}" 
               value="${alreadyPaid > 0 ? remainingAmount : totalAmount}" 
               placeholder="Enter amount"
@@ -287,7 +310,6 @@ export default function OrdersPage() {
           if (fullyPaidBtn) {
             fullyPaidBtn.addEventListener('click', () => {
               if (input) {
-                // Set to remaining amount if partial payment exists, otherwise full amount
                 const valueToSet = alreadyPaid > 0 ? remainingAmount : totalAmount
                 input.value = valueToSet.toString()
                 input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -308,7 +330,6 @@ export default function OrdersPage() {
             return false
           }
           
-          // If there's already a partial payment, calculate the new total
           if (alreadyPaid > 0) {
             const newTotalPaid = alreadyPaid + inputAmount
             if (newTotalPaid > totalAmount) {
@@ -317,7 +338,6 @@ export default function OrdersPage() {
             }
             return newTotalPaid
           } else {
-            // For new payments, just validate against total
             if (inputAmount > totalAmount) {
               Swal.showValidationMessage(`Amount cannot exceed total (${formatCurrency(totalAmount)})`)
               return false
@@ -347,6 +367,72 @@ export default function OrdersPage() {
     } catch (error: any) {
       console.error('Error showing payment dialog:', error)
       showToast('Failed to open payment dialog', 'error')
+    }
+  }
+
+  const handleRemovePartialPayment = async (orderId: string, paymentId: string) => {
+    try {
+      console.log('Removing payment:', { orderId, paymentId })
+      const order = filteredOrders.find((o) => o.id === orderId)
+      if (!order) {
+        console.error('Order not found:', orderId)
+        showToast('Order not found', 'error')
+        return
+      }
+
+      console.log('Order found:', { 
+        orderId: order.id, 
+        partialPayments: order.partialPayments,
+        paymentIds: order.partialPayments?.map(p => p.id)
+      })
+
+      const payment = order.partialPayments?.find(p => p.id === paymentId)
+      if (!payment) {
+        console.error('Payment not found:', { 
+          paymentId, 
+          availableIds: order.partialPayments?.map(p => p.id),
+          partialPayments: order.partialPayments
+        })
+        showToast('Payment record not found', 'error')
+        return
+      }
+
+      const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 2,
+        }).format(amount)
+      }
+
+      const confirmed = await sweetAlert.confirm({
+        title: 'Remove Payment?',
+        text: `Are you sure you want to remove payment of ${formatCurrency(payment.amount)}?`,
+        icon: 'warning',
+        confirmText: 'Remove',
+        cancelText: 'Cancel'
+      })
+
+      if (confirmed) {
+        try {
+          console.log('Calling removePartialPayment:', { orderId, paymentId })
+          await orderService.removePartialPayment(orderId, paymentId)
+          console.log('Payment removed successfully')
+          showToast('Payment removed!', 'success')
+          await loadOrders()
+        } catch (error: any) {
+          console.error('Error removing partial payment:', error)
+          console.error('Error details:', {
+            message: error?.message,
+            code: error?.code,
+            stack: error?.stack
+          })
+          showToast(`Failed to remove payment: ${error?.message || 'Unknown error'}`, 'error')
+        }
+      }
+    } catch (error: any) {
+      console.error('Error in handleRemovePartialPayment:', error)
+      showToast('Failed to remove partial payment', 'error')
     }
   }
 
@@ -678,6 +764,34 @@ export default function OrdersPage() {
                       <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
                         Paid
                       </span>
+                    ) : order.partialPayments && order.partialPayments.length > 0 ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
+                          Partial
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {formatCurrency(order.paidAmount || 0)} / {formatCurrency(order.total)}
+                        </span>
+                        <div className="flex flex-col gap-1 mt-1">
+                          {order.partialPayments.map((payment) => (
+                            <div key={payment.id} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded text-xs">
+                              <span className="text-gray-700">
+                                {formatCurrency(payment.amount)}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRemovePartialPayment(order.id!, payment.id)
+                                }}
+                                className="p-0.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                                title="Remove this payment"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     ) : order.paidAmount && order.paidAmount > 0 ? (
                       <div className="flex flex-col items-center gap-1">
                         <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
@@ -710,7 +824,7 @@ export default function OrdersPage() {
                         <button
                           onClick={() => handleMarkAsPaid(order.id!)}
                           className="p-1.5 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors"
-                          title={order.paidAmount && order.paidAmount > 0 ? "Add Payment" : "Mark as Paid"}
+                          title={(order.paidAmount && order.paidAmount > 0) || (order.partialPayments && order.partialPayments.length > 0) ? "Add Payment" : "Mark as Paid"}
                         >
                           <CheckCircle size={16} />
                         </button>

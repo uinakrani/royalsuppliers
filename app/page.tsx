@@ -18,6 +18,7 @@ export default function Dashboard() {
     totalOrders: 0,
     paidOrders: 0,
     unpaidOrders: 0,
+    partialOrders: 0,
   })
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<OrderFilters>({})
@@ -247,6 +248,12 @@ export default function Dashboard() {
                 <span className="text-gray-600">Unpaid Orders</span>
                 <span className="font-semibold text-red-600">{stats.unpaidOrders}</span>
               </div>
+              {stats.partialOrders > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Partial Payments</span>
+                  <span className="font-semibold text-yellow-600">{stats.partialOrders}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

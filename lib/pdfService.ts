@@ -45,12 +45,6 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.text(`#${order.id?.substring(0, 8) || 'N/A'}`, infoRight, yPos, { align: 'right', charSpace: 0 })
   yPos += 7
   
-  // Order time
-  doc.setFont('helvetica', 'bold')
-  doc.text('Order time:', infoLeft, yPos, { charSpace: 0 })
-  doc.setFont('helvetica', 'normal')
-  doc.text(format(new Date(order.date), 'dd MMM yyyy, hh:mm a'), infoRight, yPos, { align: 'right', charSpace: 0 })
-  yPos += 7
   
   // Party Name
   doc.setFont('helvetica', 'bold')
@@ -83,17 +77,20 @@ export const generateInvoicePDF = (order: Order): void => {
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional)
-  const itemNameWidth = tableWidth * 0.45  // 45% for item name
-  const qtyWidth = tableWidth * 0.20        // 20% for quantity
-  const unitPriceWidth = tableWidth * 0.17  // 17% for unit price
-  const priceWidth = tableWidth * 0.18     // 18% for price
+  // Column widths (proportional) - adjusted to include date
+  const dateWidth = tableWidth * 0.15      // 15% for date
+  const itemNameWidth = tableWidth * 0.35   // 35% for item name
+  const qtyWidth = tableWidth * 0.18        // 18% for quantity
+  const unitPriceWidth = tableWidth * 0.15  // 15% for unit price
+  const priceWidth = tableWidth * 0.17      // 17% for price
   
-  const itemNameX = tableStartX
+  const dateX = tableStartX
+  const itemNameX = dateX + dateWidth
   const qtyX = itemNameX + itemNameWidth
   const unitPriceX = qtyX + qtyWidth
   const priceX = unitPriceX + unitPriceWidth
   
+  doc.text('Date', dateX, yPos, { charSpace: 0 })
   doc.text('Item Name', itemNameX, yPos, { charSpace: 0 })
   doc.text('Quantity', qtyX, yPos, { charSpace: 0 })
   doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0 })
@@ -116,7 +113,9 @@ export const generateInvoicePDF = (order: Order): void => {
   const materialDisplay = materials.join(', ')
   
   // Single row with all materials - wrap long material names if needed
+  const orderDate = format(new Date(order.date), 'dd MMM yyyy')
   const materialLines = doc.splitTextToSize(materialDisplay, itemNameWidth - 5)
+  doc.text(orderDate, dateX, yPos, { charSpace: 0 })
   doc.text(materialLines, itemNameX, yPos, { charSpace: 0 })
   doc.text(order.weight.toFixed(2), qtyX, yPos, { charSpace: 0 })
   doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, { charSpace: 0 })
@@ -141,15 +140,6 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.text(`₹${order.total.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
   yPos += 7
   
-  // Additional Cost (if any)
-  if (order.additionalCost > 0) {
-    doc.setFont('helvetica', 'bold')
-    doc.text('Additional Charges:', summaryX - 60, yPos, { charSpace: 0 })
-    doc.setFont('helvetica', 'normal')
-    doc.text(`₹${order.additionalCost.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
-    yPos += 7
-  }
-  
   // Discount (if profit is negative, show as discount)
   if (order.profit < 0) {
     doc.setFont('helvetica', 'bold')
@@ -171,7 +161,7 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(14, 184, 166) // Teal green
   doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0 })
-  const grandTotal = order.total + (order.additionalCost || 0) + (order.profit < 0 ? order.profit : 0)
+  const grandTotal = order.total + (order.profit < 0 ? order.profit : 0)
   doc.text(`₹${grandTotal.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
   
   // Payment Status
@@ -182,12 +172,19 @@ export const generateInvoicePDF = (order: Order): void => {
   if (order.paid) {
     doc.setTextColor(34, 197, 94) // Green
     doc.text('Payment Status: Paid', infoLeft, yPos, { charSpace: 0 })
-  } else if (order.paidAmount && order.paidAmount > 0) {
-    doc.setTextColor(234, 179, 8) // Yellow
-    doc.text(`Payment Status: Partial (₹${order.paidAmount.toFixed(2)} paid)`, infoLeft, yPos, { charSpace: 0 })
   } else {
-    doc.setTextColor(239, 68, 68) // Red
-    doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0 })
+    // Calculate total from partialPayments array if available, otherwise use paidAmount
+    const partialTotal = order.partialPayments && order.partialPayments.length > 0
+      ? order.partialPayments.reduce((sum, p) => sum + p.amount, 0)
+      : (order.paidAmount || 0)
+    
+    if (partialTotal > 0) {
+      doc.setTextColor(234, 179, 8) // Yellow
+      doc.text(`Payment Status: Partial (₹${partialTotal.toFixed(2)} paid)`, infoLeft, yPos, { charSpace: 0 })
+    } else {
+      doc.setTextColor(239, 68, 68) // Red
+      doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0 })
+    }
   }
   
   // Save PDF
@@ -195,9 +192,197 @@ export const generateInvoicePDF = (order: Order): void => {
 }
 
 export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
-  // Generate individual invoices for each order
+  if (orders.length === 0) return
+  
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  
+  // Set default font settings
+  doc.setFont('helvetica', 'normal')
+  
+  // Margins
+  const margin = 20
+  const contentWidth = pageWidth - (margin * 2)
+  const contentX = margin
+  
+  let yPos = margin + 20
+  
+  // Logo/Brand name
+  doc.setFontSize(24)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(14, 184, 166) // Teal green
+  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0 })
+  yPos += 8
+  
+  // Greeting - use first order's party name
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(50, 50, 50)
+  const partyName = orders[0].partyName
+  doc.text(`Hi ${partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0 })
+  yPos += 15
+  
+  // Order Information Section
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(30, 30, 30)
+  
+  const infoLeft = contentX
+  const infoRight = contentX + contentWidth
+  
+  // Order No
+  doc.text('Order No:', infoLeft, yPos, { charSpace: 0 })
+  doc.setFont('helvetica', 'normal')
+  doc.text(`#${orders.length} order(s)`, infoRight, yPos, { align: 'right', charSpace: 0 })
+  yPos += 7
+  
+  // Party Name
+  doc.setFont('helvetica', 'bold')
+  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0 })
+  doc.setFont('helvetica', 'normal')
+  doc.text(partyName, infoRight, yPos, { align: 'right', charSpace: 0 })
+  yPos += 7
+  
+  // Site Name (use first order's site name)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0 })
+  doc.setFont('helvetica', 'normal')
+  doc.text(orders[0].siteName, infoRight, yPos, { align: 'right', charSpace: 0 })
+  yPos += 12
+  
+  // Itemized List Section
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(30, 30, 30)
+  doc.text('Items:', infoLeft, yPos, { charSpace: 0 })
+  yPos += 8
+  
+  // Table header
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(100, 100, 100)
+  
+  const tableStartX = infoLeft
+  const tableEndX = infoRight
+  const tableWidth = tableEndX - tableStartX
+  
+  // Column widths (proportional) - adjusted to include date
+  const dateWidth = tableWidth * 0.15      // 15% for date
+  const itemNameWidth = tableWidth * 0.35   // 35% for item name
+  const qtyWidth = tableWidth * 0.18        // 18% for quantity
+  const unitPriceWidth = tableWidth * 0.15  // 15% for unit price
+  const priceWidth = tableWidth * 0.17      // 17% for price
+  
+  const dateX = tableStartX
+  const itemNameX = dateX + dateWidth
+  const qtyX = itemNameX + itemNameWidth
+  const unitPriceX = qtyX + qtyWidth
+  const priceX = unitPriceX + unitPriceWidth
+  
+  doc.text('Date', dateX, yPos, { charSpace: 0 })
+  doc.text('Item Name', itemNameX, yPos, { charSpace: 0 })
+  doc.text('Quantity', qtyX, yPos, { charSpace: 0 })
+  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0 })
+  doc.text('Price', priceX, yPos, { charSpace: 0 })
+  
+  // Draw line under header
+  yPos += 3
+  doc.setDrawColor(200, 200, 200)
+  doc.setLineWidth(0.5)
+  doc.line(tableStartX, yPos, tableEndX, yPos)
+  yPos += 5
+  
+  // Table content - iterate through all orders
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(50, 50, 50)
+  
+  let totalAmount = 0
+  
   orders.forEach((order) => {
-    generateInvoicePDF(order)
+    // Check if we need a new page
+    if (yPos > pageHeight - 60) {
+      doc.addPage()
+      yPos = margin + 20
+    }
+    
+    // Handle materials - combine all materials into one item
+    const materials = Array.isArray(order.material) ? order.material : [order.material]
+    const materialDisplay = materials.join(', ')
+    
+    // Single row with all materials - wrap long material names if needed
+    const orderDate = format(new Date(order.date), 'dd MMM yyyy')
+    const materialLines = doc.splitTextToSize(materialDisplay, itemNameWidth - 5)
+    doc.text(orderDate, dateX, yPos, { charSpace: 0 })
+    doc.text(materialLines, itemNameX, yPos, { charSpace: 0 })
+    doc.text(order.weight.toFixed(2), qtyX, yPos, { charSpace: 0 })
+    doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, { charSpace: 0 })
+    doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, { charSpace: 0 })
+    
+    // Adjust yPos if material name wrapped to multiple lines
+    yPos += Math.max(6, materialLines.length * 6)
+    yPos += 3
+    
+    totalAmount += order.total
   })
+  
+  yPos += 5
+  
+  // Summary Section
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(30, 30, 30)
+  
+  const summaryX = infoRight
+  const summaryStartY = yPos
+  
+  // Subtotal
+  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0 })
+  doc.setFont('helvetica', 'normal')
+  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+  yPos += 7
+  
+  // Grand Total
+  yPos += 3
+  doc.setDrawColor(200, 200, 200)
+  doc.line(summaryX - 60, yPos, summaryX, yPos)
+  yPos += 7
+  
+  doc.setFontSize(12)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(14, 184, 166) // Teal green
+  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0 })
+  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+  
+  // Payment Status
+  yPos += 10
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(100, 100, 100)
+  
+  const allPaid = orders.every(o => o.paid)
+  const somePaid = orders.some(o => {
+    if (o.paid) return true
+    const partialTotal = o.partialPayments && o.partialPayments.length > 0
+      ? o.partialPayments.reduce((sum, p) => sum + p.amount, 0)
+      : (o.paidAmount || 0)
+    return partialTotal > 0
+  })
+  
+  if (allPaid) {
+    doc.setTextColor(34, 197, 94) // Green
+    doc.text('Payment Status: All Paid', infoLeft, yPos, { charSpace: 0 })
+  } else if (somePaid) {
+    doc.setTextColor(234, 179, 8) // Yellow
+    doc.text('Payment Status: Partial', infoLeft, yPos, { charSpace: 0 })
+  } else {
+    doc.setTextColor(239, 68, 68) // Red
+    doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0 })
+  }
+  
+  // Save PDF
+  const fileName = `Invoice_${partyName}_${format(new Date(), 'ddMMyyyy')}.pdf`
+  doc.save(fileName)
 }
 

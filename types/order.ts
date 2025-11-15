@@ -1,3 +1,9 @@
+export interface PaymentRecord {
+  id: string
+  amount: number
+  date: string // ISO date string
+}
+
 export interface Order {
   id?: string
   date: string // ISO date string
@@ -16,7 +22,8 @@ export interface Order {
   profit: number // calculated: total - (originalTotal + additionalCost)
   paymentDue: boolean
   paid: boolean
-  paidAmount?: number // amount paid (can be partial)
+  paidAmount?: number // total amount paid (calculated from partialPayments for backward compatibility)
+  partialPayments?: PaymentRecord[] // array of individual payment records
   createdAt?: string
   updatedAt?: string
 }
@@ -39,5 +46,6 @@ export interface DashboardStats {
   totalOrders: number
   paidOrders: number
   unpaidOrders: number
+  partialOrders: number
 }
 
