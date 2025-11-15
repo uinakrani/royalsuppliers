@@ -8,7 +8,7 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
-import { Plus, Edit, Trash2, CheckCircle, Filter, X } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, Filter, X, FileText } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
@@ -23,6 +23,7 @@ export default function OrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<OrderFilters>({})
+  const [selectedPartyTags, setSelectedPartyTags] = useState<Set<string>>(new Set())
 
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
@@ -47,7 +48,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     applyFilters()
-  }, [orders, activeTab, filters])
+  }, [orders, activeTab, filters, selectedPartyTags])
 
   const loadOrders = async () => {
     setLoading(true)
@@ -69,8 +70,13 @@ export default function OrdersPage() {
       filtered = filtered.filter((o) => o.paymentDue && !o.paid)
     }
 
-    // Apply other filters
-    if (filters.partyName) {
+    // Apply party tag filters (takes priority over filter drawer party name)
+    if (selectedPartyTags.size > 0) {
+      filtered = filtered.filter((o) =>
+        selectedPartyTags.has(o.partyName)
+      )
+    } else if (filters.partyName) {
+      // Only apply filter drawer party name if no tags are selected
       const filterPartyNames = filters.partyName.split(',').map(p => p.trim().toLowerCase())
       filtered = filtered.filter((o) =>
         filterPartyNames.some(fp => o.partyName.toLowerCase() === fp)
@@ -318,6 +324,20 @@ export default function OrdersPage() {
   }
 
 
+  const togglePartyTag = (partyName: string) => {
+    const newSelected = new Set(selectedPartyTags)
+    if (newSelected.has(partyName)) {
+      newSelected.delete(partyName)
+    } else {
+      newSelected.add(partyName)
+    }
+    setSelectedPartyTags(newSelected)
+    // Clear filter drawer party name when using tags
+    if (newSelected.size > 0) {
+      setFilterPartyName('')
+    }
+  }
+
   const toggleOrderSelection = (id: string) => {
     const newSelected = new Set(selectedOrders)
     if (newSelected.has(id)) {
@@ -328,6 +348,91 @@ export default function OrdersPage() {
     setSelectedOrders(newSelected)
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedOrders.size === 0) return
+
+    try {
+      const confirmed = await sweetAlert.confirm({
+        title: 'Delete Selected Orders?',
+        text: `Are you sure you want to delete ${selectedOrders.size} order(s)? This action cannot be undone.`,
+        icon: 'warning',
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      })
+
+      if (!confirmed) return
+
+      const orderIds = Array.from(selectedOrders)
+      let successCount = 0
+      let failCount = 0
+
+      for (const orderId of orderIds) {
+        try {
+          await orderService.deleteOrder(orderId)
+          successCount++
+        } catch (error: any) {
+          console.error(`Failed to delete order ${orderId}:`, error)
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        showToast(`Successfully deleted ${successCount} order(s)${failCount > 0 ? `. ${failCount} failed.` : ''}`, 'success')
+        setSelectedOrders(new Set())
+        await loadOrders()
+      } else {
+        showToast(`Failed to delete orders.`, 'error')
+      }
+    } catch (error: any) {
+      if (error?.message && !error.message.includes('SweetAlert')) {
+        showToast(`Failed to delete orders: ${error?.message || 'Unknown error'}`, 'error')
+      }
+    }
+  }
+
+  const handleBulkCreateInvoice = async () => {
+    if (selectedOrders.size === 0) return
+
+    // Filter out orders that already have invoices
+    const orderIds = Array.from(selectedOrders)
+    const ordersToInvoice = filteredOrders.filter(o => orderIds.includes(o.id!) && !o.invoiced)
+
+    if (ordersToInvoice.length === 0) {
+      showToast('All selected orders already have invoices', 'info')
+      return
+    }
+
+    if (ordersToInvoice.length < orderIds.length) {
+      const alreadyInvoiced = orderIds.length - ordersToInvoice.length
+      try {
+        const confirmed = await sweetAlert.confirm({
+          title: 'Some Orders Already Invoiced',
+          text: `${alreadyInvoiced} order(s) already have invoices. Create invoice for ${ordersToInvoice.length} order(s) only?`,
+          icon: 'info',
+          confirmText: 'Create Invoice',
+          cancelText: 'Cancel'
+        })
+        if (!confirmed) return
+      } catch (error: any) {
+        if (error?.message && !error.message.includes('SweetAlert')) {
+          return
+        }
+        return
+      }
+    }
+
+    try {
+      const invoiceOrderIds = ordersToInvoice.map(o => o.id!)
+      showToast('Creating invoice...', 'info')
+      await invoiceService.createInvoice(invoiceOrderIds)
+      showToast(`Invoice created successfully for ${ordersToInvoice.length} order(s)!`, 'success')
+      setSelectedOrders(new Set())
+      await loadOrders()
+    } catch (error: any) {
+      showToast(`Failed to create invoice: ${error?.message || 'Unknown error'}`, 'error')
+    }
+  }
+
   const applyFilterForm = () => {
     const newFilters: OrderFilters = {}
     if (filterPartyName) newFilters.partyName = filterPartyName
@@ -335,6 +440,10 @@ export default function OrdersPage() {
     if (filterStartDate) newFilters.startDate = filterStartDate
     if (filterEndDate) newFilters.endDate = filterEndDate
     setFilters(newFilters)
+    // Clear tags when applying filter drawer filters
+    if (filterPartyName) {
+      setSelectedPartyTags(new Set())
+    }
     setShowFilters(false)
   }
 
@@ -344,6 +453,7 @@ export default function OrdersPage() {
     setFilterStartDate('')
     setFilterEndDate('')
     setFilters({})
+    setSelectedPartyTags(new Set())
     setShowFilters(false)
   }
 
@@ -386,16 +496,48 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Party Name Tags - Horizontal Scrollable */}
+      {partyNames.length > 0 && (
+        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky top-[80px] z-30 shadow-sm">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {partyNames.map((partyName) => {
+              const isSelected = selectedPartyTags.has(partyName)
+              return (
+                <button
+                  key={partyName}
+                  onClick={() => togglePartyTag(partyName)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                    isSelected
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {partyName}
+                </button>
+              )
+            })}
+            {selectedPartyTags.size > 0 && (
+              <button
+                onClick={() => setSelectedPartyTags(new Set())}
+                className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Filters Drawer */}
       <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
-        <div className="space-y-6">
+        <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
               Party Name
             </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
               {partyNames.map((partyNameOption) => (
-              <label key={partyNameOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
+              <label key={partyNameOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterPartyName.split(',').includes(partyNameOption)}
@@ -409,21 +551,21 @@ export default function OrdersPage() {
                     }
                     setFilterPartyName(newFilters.join(','))
                   }}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="custom-checkbox"
                 />
-                <span className="text-sm text-gray-700">{partyNameOption}</span>
+                <span className="text-xs text-gray-700">{partyNameOption}</span>
               </label>
             ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
               Material
             </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
               {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
-              <label key={materialOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
+              <label key={materialOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterMaterial.split(',').includes(materialOption)}
@@ -437,51 +579,51 @@ export default function OrdersPage() {
                     }
                     setFilterMaterial(newFilters.join(','))
                   }}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="custom-checkbox"
                 />
-                <span className="text-sm text-gray-700">{materialOption}</span>
+                <span className="text-xs text-gray-700">{materialOption}</span>
               </label>
             ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
               <input
                 type="date"
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-2 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
               <input
                 type="date"
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-2 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex gap-2 pt-2 border-t border-gray-200 sticky bottom-0 bg-white pb-2">
             <button
               onClick={() => {
                 applyFilterForm()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
-              Apply Filters
+              Apply
             </button>
             <button
               onClick={() => {
                 resetFilters()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
@@ -489,18 +631,43 @@ export default function OrdersPage() {
         </div>
       </FilterDrawer>
 
-      {/* Action Buttons */}
-      <div className="p-2.5 flex gap-2">
-        <button
-          onClick={() => {
-            setEditingOrder(null)
-            setShowForm(true)
-          }}
-          className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-primary-700 transition-colors shadow-sm"
-        >
-          <Plus size={18} />
-          Add Order
-        </button>
+      {/* Action Buttons - Sticky at Bottom */}
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-30 shadow-lg">
+        {selectedOrders.size > 0 ? (
+          <>
+            <button
+              onClick={handleBulkCreateInvoice}
+              className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
+            >
+              <FileText size={18} />
+              Create Invoice ({selectedOrders.size})
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors shadow-sm"
+            >
+              <Trash2 size={18} />
+              Delete ({selectedOrders.size})
+            </button>
+            <button
+              onClick={() => setSelectedOrders(new Set())}
+              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+            >
+              Clear
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => {
+              setEditingOrder(null)
+              setShowForm(true)
+            }}
+            className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-primary-700 transition-colors shadow-sm"
+          >
+            <Plus size={18} />
+            Add Order
+          </button>
+        )}
       </div>
 
       {/* Orders List */}
@@ -526,7 +693,7 @@ export default function OrdersPage() {
                         setSelectedOrders(new Set())
                       }
                     }}
-                    className="w-4 h-4"
+                    className="custom-checkbox"
                   />
                 </th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
@@ -561,7 +728,7 @@ export default function OrdersPage() {
                       type="checkbox"
                       checked={selectedOrders.has(order.id!)}
                       onChange={() => toggleOrderSelection(order.id!)}
-                      className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      className="custom-checkbox"
                     />
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">

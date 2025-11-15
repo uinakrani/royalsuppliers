@@ -49,19 +49,19 @@ export default function FilterDrawer({ isOpen, onClose, title = 'Filters', child
         className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-[80] overflow-y-auto animate-side-drawer-enter"
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-3 py-2 flex justify-between items-center z-10 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Close filters"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4">
+        <div className="p-3 pb-20">
           {children}
         </div>
       </div>

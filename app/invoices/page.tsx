@@ -283,13 +283,13 @@ export default function InvoicesPage() {
 
         {/* Filters Drawer */}
         <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
-          <div className="space-y-6">
+          <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Party Name</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Party Name</label>
               <select
                 value={filterPartyName}
                 onChange={(e) => setFilterPartyName(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
               >
                 <option value="">All</option>
                 {partyNames.map((name) => (
@@ -300,29 +300,29 @@ export default function InvoicesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
               <input
                 type="date"
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
               <input
                 type="date"
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Payment Status</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
               <select
                 value={filterPaid}
                 onChange={(e) => setFilterPaid(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
               >
                 <option value="">All</option>
                 <option value="paid">Paid</option>
@@ -330,33 +330,33 @@ export default function InvoicesPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Overdue Status</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Overdue Status</label>
               <select
                 value={filterOverdue}
                 onChange={(e) => setFilterOverdue(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
               >
                 <option value="">All</option>
                 <option value="overdue">Overdue</option>
                 <option value="not-overdue">Not Overdue</option>
               </select>
             </div>
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-2 pt-2 border-t border-gray-200 sticky bottom-0 bg-white pb-2">
               <button
                 onClick={() => {
                   applyFilterForm()
                   setShowFilters(false)
                 }}
-                className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
+                className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
               >
-                Apply Filters
+                Apply
               </button>
               <button
                 onClick={() => {
                   resetFilters()
                   setShowFilters(false)
                 }}
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
               >
                 Reset
               </button>
@@ -365,7 +365,7 @@ export default function InvoicesPage() {
         </FilterDrawer>
 
         {/* Invoices List */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredInvoices.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm p-8 text-center border border-gray-200">
               <FileText size={48} className="mx-auto text-gray-400 mb-4" />
@@ -379,53 +379,52 @@ export default function InvoicesPage() {
 
               return (
                 <div key={invoice.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                  {/* Invoice Header - Mobile Friendly */}
-                  <div className="p-3 border-b border-gray-200">
+                  {/* Invoice Header - Compact */}
+                  <div className="p-2 border-b border-gray-200">
                     {/* Top Row: Invoice Number and Status */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base font-bold text-gray-900 truncate">{invoice.invoiceNumber}</h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-sm font-bold text-gray-900 truncate">{invoice.invoiceNumber}</h3>
                           {getStatusBadge(invoice)}
                         </div>
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <button
                           onClick={() => handleDownloadInvoice(invoice)}
-                          className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center"
+                          className="p-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center"
                           title="Download Invoice"
                         >
-                          <Download size={16} />
+                          <Download size={14} />
                         </button>
                         {!invoice.paid && (
                           <button
                             onClick={() => handleAddPayment(invoice.id!)}
-                            className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
+                            className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
                             title="Add Payment"
                           >
-                            <Plus size={16} />
+                            <Plus size={14} />
                           </button>
                         )}
                         <button
                           onClick={() => toggleExpand(invoice.id!)}
-                          className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
+                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
                         >
                           {isExpanded ? 'Hide' : 'Details'}
                         </button>
                       </div>
                     </div>
 
-                    {/* Info Row: Party, Site, Dates */}
-                    <div className="space-y-1.5 mb-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-500 font-medium">Party:</span>
-                        <span className="text-gray-900">{invoice.partyName}</span>
+                    {/* Info Row: Party, Site, Dates - Compact */}
+                    <div className="space-y-0.5 mb-1.5">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-gray-500">Party:</span>
+                        <span className="text-gray-900 font-medium">{invoice.partyName}</span>
+                        <span className="text-gray-400 mx-1">•</span>
+                        <span className="text-gray-500">Site:</span>
+                        <span className="text-gray-900 font-medium">{invoice.siteName}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-500 font-medium">Site:</span>
-                        <span className="text-gray-900">{invoice.siteName}</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-600">
                         <span>Created: {format(new Date(invoice.createdAt), 'dd MMM yyyy')}</span>
                         <span className={`${invoice.overdue ? 'text-red-600 font-semibold' : ''}`}>
                           Due: {format(new Date(invoice.dueDate), 'dd MMM yyyy')}
@@ -433,35 +432,35 @@ export default function InvoicesPage() {
                       </div>
                     </div>
 
-                    {/* Amount Row */}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    {/* Amount Row - Compact */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
                       <div>
-                        <p className="text-xs text-gray-500">Total Amount</p>
-                        <p className="text-lg font-bold text-gray-900">{formatIndianCurrency(invoice.totalAmount)}</p>
+                        <p className="text-xs text-gray-500">Total</p>
+                        <p className="text-base font-bold text-gray-900">{formatIndianCurrency(invoice.totalAmount)}</p>
                       </div>
                       <div className="text-right">
                         {!invoice.paid ? (
                           <>
                             <p className="text-xs text-gray-500">Remaining</p>
-                            <p className="text-lg font-bold text-red-600">{formatIndianCurrency(remaining)}</p>
+                            <p className="text-base font-bold text-red-600">{formatIndianCurrency(remaining)}</p>
                           </>
                         ) : (
                           <>
                             <p className="text-xs text-gray-500">Paid</p>
-                            <p className="text-lg font-bold text-green-600">{formatIndianCurrency(invoice.paidAmount || 0)}</p>
+                            <p className="text-base font-bold text-green-600">{formatIndianCurrency(invoice.paidAmount || 0)}</p>
                           </>
                         )}
                       </div>
                     </div>
 
-                    {/* Summary Row */}
-                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-3 text-xs text-gray-500">
+                    {/* Summary Row - Compact */}
+                    <div className="mt-1.5 pt-1.5 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-500">
                       <span>{orders.length} Order{orders.length !== 1 ? 's' : ''}</span>
                       <span>•</span>
                       <span>{invoice.partialPayments?.length || 0} Payment{invoice.partialPayments?.length !== 1 ? 's' : ''}</span>
                       <button
                         onClick={() => handleDeleteInvoice(invoice.id!)}
-                        className="ml-auto px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
+                        className="ml-auto px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
                         title="Delete Invoice"
                       >
                         <Trash2 size={12} />
@@ -472,14 +471,14 @@ export default function InvoicesPage() {
 
                   {/* Invoice Details - Expanded */}
                   {isExpanded && (
-                    <div className="p-3 bg-gray-50 border-t border-gray-200">
-                      <div className="space-y-4">
+                    <div className="p-2 bg-gray-50 border-t border-gray-200">
+                      <div className="space-y-3">
                         {/* Orders - Compact View */}
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Orders Included ({orders.length}):</h4>
+                          <h4 className="text-xs font-semibold text-gray-700 mb-1.5">Orders ({orders.length}):</h4>
                           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                             {/* Desktop Table Header */}
-                            <div className="hidden sm:grid grid-cols-12 gap-2 p-2 bg-gray-100 border-b border-gray-200 text-xs font-semibold text-gray-700">
+                            <div className="hidden sm:grid grid-cols-12 gap-1.5 p-1.5 bg-gray-100 border-b border-gray-200 text-xs font-semibold text-gray-700">
                               <div className="col-span-2">Date</div>
                               <div className="col-span-5">Material</div>
                               <div className="col-span-1 text-right">Weight</div>
@@ -489,9 +488,9 @@ export default function InvoicesPage() {
                             {/* Table Rows */}
                             <div className="divide-y divide-gray-200">
                               {orders.map((order) => (
-                                <div key={order.id} className="p-2 hover:bg-gray-50">
+                                <div key={order.id} className="p-1.5 hover:bg-gray-50">
                                   {/* Desktop View */}
-                                  <div className="hidden sm:grid grid-cols-12 gap-2 text-xs">
+                                  <div className="hidden sm:grid grid-cols-12 gap-1.5 text-xs">
                                     <div className="col-span-2 text-gray-900">
                                       {format(new Date(order.date), 'dd MMM yyyy')}
                                     </div>
@@ -509,7 +508,7 @@ export default function InvoicesPage() {
                                     </div>
                                   </div>
                                   {/* Mobile View */}
-                                  <div className="sm:hidden space-y-1.5 text-xs">
+                                  <div className="sm:hidden space-y-1 text-xs">
                                     <div className="flex justify-between items-start">
                                       <div className="flex-1">
                                         <p className="font-semibold text-gray-900">
@@ -536,27 +535,27 @@ export default function InvoicesPage() {
 
                         {/* Payments */}
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-2">Payment History:</h4>
+                          <h4 className="text-xs font-semibold text-gray-700 mb-1.5">Payments ({invoice.partialPayments?.length || 0}):</h4>
                           {invoice.partialPayments && invoice.partialPayments.length > 0 ? (
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                               {invoice.partialPayments.map((payment) => (
-                                <div key={payment.id} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-center">
+                                <div key={payment.id} className="bg-white p-2 rounded-lg border border-gray-200 flex justify-between items-center">
                                   <div>
-                                    <p className="font-semibold text-gray-900 text-sm">{formatIndianCurrency(payment.amount)}</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">{format(new Date(payment.date), 'dd MMM yyyy HH:mm')}</p>
+                                    <p className="font-semibold text-gray-900 text-xs">{formatIndianCurrency(payment.amount)}</p>
+                                    <p className="text-xs text-gray-500">{format(new Date(payment.date), 'dd MMM yyyy HH:mm')}</p>
                                   </div>
                                   <button
                                     onClick={() => handleRemovePayment(invoice.id!, payment.id)}
-                                    className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs hover:bg-red-200 flex items-center gap-1.5 font-medium"
+                                    className="px-2 py-1 bg-red-100 text-red-700 rounded-lg text-xs hover:bg-red-200 flex items-center gap-1 font-medium"
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={12} />
                                     Remove
                                   </button>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-500 bg-white p-3 rounded-lg border border-gray-200">No payments recorded</p>
+                            <p className="text-xs text-gray-500 bg-white p-2 rounded-lg border border-gray-200">No payments recorded</p>
                           )}
                         </div>
                       </div>

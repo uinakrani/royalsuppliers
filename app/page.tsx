@@ -8,7 +8,6 @@ import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
 import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter } from 'lucide-react'
-import FilterDrawer from '@/components/FilterDrawer'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -130,153 +129,124 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-primary-600 text-white p-4 sticky top-0 z-40">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-primary-100 text-sm mt-1">
-          {format(new Date(), 'dd MMMM yyyy')}
-        </p>
-      </div>
-
-      {/* Filter Button */}
-      <div className="p-4">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="w-full bg-white rounded-lg p-3 flex items-center justify-between shadow-sm border border-gray-200"
-        >
-          <div className="flex items-center">
-            <Filter size={20} className="mr-2 text-gray-600" />
-            <span className="text-gray-700">Filters</span>
-          </div>
-          <span className="text-primary-600 text-sm">
-            {showFilters ? 'Hide' : 'Show'}
-          </span>
-        </button>
-      </div>
-
-      {/* Filters Drawer */}
-      <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Duration
-            </label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="w-full p-3 bg-white border border-gray-300 rounded-lg"
-            >
-              <option value="currentMonth">Current Month</option>
-              <option value="7days">Last 7 Days</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="last3Months">Last 3 Months</option>
-              <option value="last6Months">Last 6 Months</option>
-              <option value="lastYear">Last Year</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Party Name
-            </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
-              {partyNames.map((partyNameOption) => (
-              <label key={partyNameOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
-                <input
-                  type="checkbox"
-                  checked={filterPartyName.split(',').includes(partyNameOption)}
-                  onChange={(e) => {
-                    const currentFilters = filterPartyName.split(',').filter(p => p.trim())
-                    let newFilters: string[]
-                    if (e.target.checked) {
-                      newFilters = [...currentFilters, partyNameOption]
-                    } else {
-                      newFilters = currentFilters.filter(p => p !== partyNameOption)
-                    }
-                    setFilterPartyName(newFilters.join(','))
-                  }}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">{partyNameOption}</span>
-              </label>
-            ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Material
-            </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
-              {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
-              <label key={materialOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
-                <input
-                  type="checkbox"
-                  checked={filterMaterial.split(',').includes(materialOption)}
-                  onChange={(e) => {
-                    const currentFilters = filterMaterial.split(',').filter(m => m.trim())
-                    let newFilters: string[]
-                    if (e.target.checked) {
-                      newFilters = [...currentFilters, materialOption]
-                    } else {
-                      newFilters = currentFilters.filter(m => m !== materialOption)
-                    }
-                    setFilterMaterial(newFilters.join(','))
-                  }}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">{materialOption}</span>
-              </label>
-            ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-3 bg-white border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-3 bg-white border border-gray-300 rounded-lg"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <button
-              onClick={() => {
-                applyFilters()
-                setShowFilters(false)
-              }}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-sm"
-            >
-              Apply Filters
-            </button>
-            <button
-              onClick={() => {
-                resetFilters()
-                setShowFilters(false)
-              }}
-              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-            >
-              Reset
-            </button>
-          </div>
+      <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
+        <div className="flex justify-between items-center mb-2">
+          <h1 className="text-xl font-bold">Dashboard</h1>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors"
+          >
+            <Filter size={18} />
+          </button>
         </div>
-      </FilterDrawer>
+
+        {/* Filters - Inline in Header */}
+        {showFilters && (
+          <div className="bg-primary-500 rounded-lg p-2.5 space-y-2 mt-2 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-white/90 mb-1">Duration</label>
+                <select
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                >
+                  <option value="currentMonth">Current Month</option>
+                  <option value="7days">Last 7 Days</option>
+                  <option value="lastMonth">Last Month</option>
+                  <option value="last3Months">Last 3 Months</option>
+                  <option value="last6Months">Last 6 Months</option>
+                  <option value="lastYear">Last Year</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="block text-xs font-medium text-white/90 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-1.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/90 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-1.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-white/90 mb-1">Party Name</label>
+              <div className="grid grid-cols-3 gap-1 p-1.5 bg-white/10 rounded border border-white/20 max-h-32 overflow-y-auto">
+                {partyNames.map((partyNameOption) => (
+                  <label key={partyNameOption} className="flex items-center space-x-1 cursor-pointer hover:bg-white/10 p-1 rounded transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={filterPartyName.split(',').includes(partyNameOption)}
+                      onChange={(e) => {
+                        const currentFilters = filterPartyName.split(',').filter(p => p.trim())
+                        let newFilters: string[]
+                        if (e.target.checked) {
+                          newFilters = [...currentFilters, partyNameOption]
+                        } else {
+                          newFilters = currentFilters.filter(p => p !== partyNameOption)
+                        }
+                        setFilterPartyName(newFilters.join(','))
+                      }}
+                      className="custom-checkbox"
+                    />
+                    <span className="text-xs text-white">{partyNameOption}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-white/90 mb-1">Material</label>
+              <div className="grid grid-cols-3 gap-1 p-1.5 bg-white/10 rounded border border-white/20 max-h-32 overflow-y-auto">
+                {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
+                  <label key={materialOption} className="flex items-center space-x-1 cursor-pointer hover:bg-white/10 p-1 rounded transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={filterMaterial.split(',').includes(materialOption)}
+                      onChange={(e) => {
+                        const currentFilters = filterMaterial.split(',').filter(m => m.trim())
+                        let newFilters: string[]
+                        if (e.target.checked) {
+                          newFilters = [...currentFilters, materialOption]
+                        } else {
+                          newFilters = currentFilters.filter(m => m !== materialOption)
+                        }
+                        setFilterMaterial(newFilters.join(','))
+                      }}
+                      className="custom-checkbox"
+                    />
+                    <span className="text-xs text-white">{materialOption}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={applyFilters}
+                className="flex-1 bg-white text-primary-600 py-1.5 rounded-lg text-xs font-medium hover:bg-white/90 transition-colors shadow-sm"
+              >
+                Apply
+              </button>
+              <button
+                onClick={resetFilters}
+                className="px-3 bg-primary-400 text-white py-1.5 rounded-lg text-xs font-medium hover:bg-primary-400/80 transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Statistics Cards */}
       {loading ? (

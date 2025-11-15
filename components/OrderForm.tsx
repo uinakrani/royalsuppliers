@@ -450,6 +450,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                     <input
                       type="checkbox"
                       checked={isChecked}
+                      className="custom-checkbox"
                       onChange={(e) => {
                         let newMaterials: string[]
                         if (Array.isArray(formData.material)) {
@@ -470,7 +471,6 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                         
                         setFormData({ ...formData, material: newMaterials })
                       }}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                     />
                     <span className="text-sm text-gray-700">{materialOption}</span>
                   </label>
@@ -674,7 +674,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               id="paymentDue"
               checked={formData.paymentDue}
               onChange={(e) => setFormData({ ...formData, paymentDue: e.target.checked })}
-              className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              className="custom-checkbox"
             />
             <label htmlFor="paymentDue" className="text-sm text-gray-700">
               Payment Due
@@ -687,7 +687,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               id="paid"
               checked={formData.paid}
               onChange={(e) => setFormData({ ...formData, paid: e.target.checked, paymentDue: !e.target.checked })}
-              className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              className="custom-checkbox"
             />
             <label htmlFor="paid" className="text-sm text-gray-700">
               Paid
