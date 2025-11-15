@@ -9,6 +9,13 @@ export const generateInvoicePDF = (order: Order): void => {
   
   // Set default font settings for better rendering
   doc.setFont('helvetica', 'normal')
+  // Ensure no character spacing
+  doc.setProperties({
+    title: 'Invoice',
+    subject: 'Order Invoice',
+    author: 'Royal Suppliers',
+    creator: 'Royal Suppliers'
+  })
   
   // Margins
   const margin = 20
@@ -21,14 +28,14 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.setFontSize(24)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0 })
+  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0, wordSpace: 0 })
   yPos += 8
   
   // Greeting
   doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(50, 50, 50)
-  doc.text(`Hi ${order.partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0 })
+  doc.text(`Hi ${order.partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0, wordSpace: 0 })
   yPos += 15
   
   // Order Information Section
@@ -40,31 +47,31 @@ export const generateInvoicePDF = (order: Order): void => {
   const infoRight = contentX + contentWidth
   
   // Order No
-  doc.text('Order No:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Order No:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(`#${order.id?.substring(0, 8) || 'N/A'}`, infoRight, yPos, { align: 'right', charSpace: 0 })
+  doc.text(`#${order.id?.substring(0, 8) || 'N/A'}`, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 7
   
   
   // Party Name
   doc.setFont('helvetica', 'bold')
-  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(order.partyName, infoRight, yPos, { align: 'right', charSpace: 0 })
+  doc.text(order.partyName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 7
   
   // Site Name
   doc.setFont('helvetica', 'bold')
-  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(order.siteName, infoRight, yPos, { align: 'right', charSpace: 0 })
+  doc.text(order.siteName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 12
   
   // Itemized List Section
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  doc.text('Items:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Items:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   yPos += 8
   
   // Table header - calculate column positions to fit within page width
@@ -90,11 +97,11 @@ export const generateInvoicePDF = (order: Order): void => {
   const unitPriceX = qtyX + qtyWidth
   const priceX = unitPriceX + unitPriceWidth
   
-  doc.text('Date', dateX, yPos, { charSpace: 0 })
-  doc.text('Item Name', itemNameX, yPos, { charSpace: 0 })
-  doc.text('Quantity', qtyX, yPos, { charSpace: 0 })
-  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0 })
-  doc.text('Price', priceX, yPos, { charSpace: 0 })
+  doc.text('Date', dateX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Item Name', itemNameX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Quantity', qtyX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Price', priceX, yPos, { charSpace: 0, wordSpace: 0 })
   
   // Draw line under header
   yPos += 3
@@ -115,11 +122,20 @@ export const generateInvoicePDF = (order: Order): void => {
   // Single row with all materials - wrap long material names if needed
   const orderDate = format(new Date(order.date), 'dd MMM yyyy')
   const materialLines = doc.splitTextToSize(materialDisplay, itemNameWidth - 5)
-  doc.text(orderDate, dateX, yPos, { charSpace: 0 })
-  doc.text(materialLines, itemNameX, yPos, { charSpace: 0 })
-  doc.text(order.weight.toFixed(2), qtyX, yPos, { charSpace: 0 })
-  doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, { charSpace: 0 })
-  doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, { charSpace: 0 })
+  
+  // Render text with explicit options to prevent letter spacing
+  const textOptions = { charSpace: 0, wordSpace: 0 }
+  doc.text(orderDate, dateX, yPos, textOptions)
+  if (Array.isArray(materialLines)) {
+    materialLines.forEach((line: string, index: number) => {
+      doc.text(line, itemNameX, yPos + (index * 6), textOptions)
+    })
+  } else {
+    doc.text(materialLines, itemNameX, yPos, textOptions)
+  }
+  doc.text(order.weight.toFixed(2), qtyX, yPos, textOptions)
+  doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, textOptions)
+  doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, textOptions)
   
   // Adjust yPos if material name wrapped to multiple lines
   yPos += Math.max(6, materialLines.length * 6)
@@ -135,18 +151,18 @@ export const generateInvoicePDF = (order: Order): void => {
   const summaryStartY = yPos
   
   // Subtotal
-  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0 })
+  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(`₹${order.total.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+  doc.text(`₹${order.total.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 7
   
   // Discount (if profit is negative, show as discount)
   if (order.profit < 0) {
     doc.setFont('helvetica', 'bold')
-    doc.text('Discount Applied:', summaryX - 60, yPos, { charSpace: 0 })
+    doc.text('Discount Applied:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(220, 38, 38) // Red for discount
-    doc.text(`- ₹${Math.abs(order.profit).toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+    doc.text(`- ₹${Math.abs(order.profit).toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
     doc.setTextColor(50, 50, 50)
     yPos += 7
   }
@@ -160,9 +176,9 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0 })
+  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
   const grandTotal = order.total + (order.profit < 0 ? order.profit : 0)
-  doc.text(`₹${grandTotal.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+  doc.text(`₹${grandTotal.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   
   // Payment Status
   yPos += 10
@@ -171,7 +187,7 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.setTextColor(100, 100, 100)
   if (order.paid) {
     doc.setTextColor(34, 197, 94) // Green
-    doc.text('Payment Status: Paid', infoLeft, yPos, { charSpace: 0 })
+    doc.text('Payment Status: Paid', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   } else {
     // Calculate total from partialPayments array if available, otherwise use paidAmount
     const partialTotal = order.partialPayments && order.partialPayments.length > 0
@@ -180,10 +196,10 @@ export const generateInvoicePDF = (order: Order): void => {
     
     if (partialTotal > 0) {
       doc.setTextColor(234, 179, 8) // Yellow
-      doc.text(`Payment Status: Partial (₹${partialTotal.toFixed(2)} paid)`, infoLeft, yPos, { charSpace: 0 })
+      doc.text(`Payment Status: Partial (₹${partialTotal.toFixed(2)} paid)`, infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
     } else {
       doc.setTextColor(239, 68, 68) // Red
-      doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0 })
+      doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
     }
   }
   
@@ -200,6 +216,13 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   
   // Set default font settings
   doc.setFont('helvetica', 'normal')
+  // Ensure no character spacing
+  doc.setProperties({
+    title: 'Invoice',
+    subject: 'Order Invoice',
+    author: 'Royal Suppliers',
+    creator: 'Royal Suppliers'
+  })
   
   // Margins
   const margin = 20
@@ -212,7 +235,7 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   doc.setFontSize(24)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0 })
+  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0, wordSpace: 0 })
   yPos += 8
   
   // Greeting - use first order's party name
@@ -220,7 +243,7 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(50, 50, 50)
   const partyName = orders[0].partyName
-  doc.text(`Hi ${partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0 })
+  doc.text(`Hi ${partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0, wordSpace: 0 })
   yPos += 15
   
   // Order Information Section
@@ -232,30 +255,30 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   const infoRight = contentX + contentWidth
   
   // Order No
-  doc.text('Order No:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Order No:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(`#${orders.length} order(s)`, infoRight, yPos, { align: 'right', charSpace: 0 })
+  doc.text(`#${orders.length} order(s)`, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 7
   
   // Party Name
   doc.setFont('helvetica', 'bold')
-  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(partyName, infoRight, yPos, { align: 'right', charSpace: 0 })
+  doc.text(partyName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 7
   
   // Site Name (use first order's site name)
   doc.setFont('helvetica', 'bold')
-  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(orders[0].siteName, infoRight, yPos, { align: 'right', charSpace: 0 })
+  doc.text(orders[0].siteName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 12
   
   // Itemized List Section
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  doc.text('Items:', infoLeft, yPos, { charSpace: 0 })
+  doc.text('Items:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   yPos += 8
   
   // Table header
@@ -280,11 +303,11 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   const unitPriceX = qtyX + qtyWidth
   const priceX = unitPriceX + unitPriceWidth
   
-  doc.text('Date', dateX, yPos, { charSpace: 0 })
-  doc.text('Item Name', itemNameX, yPos, { charSpace: 0 })
-  doc.text('Quantity', qtyX, yPos, { charSpace: 0 })
-  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0 })
-  doc.text('Price', priceX, yPos, { charSpace: 0 })
+  doc.text('Date', dateX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Item Name', itemNameX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Quantity', qtyX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Price', priceX, yPos, { charSpace: 0, wordSpace: 0 })
   
   // Draw line under header
   yPos += 3
@@ -314,11 +337,20 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
     // Single row with all materials - wrap long material names if needed
     const orderDate = format(new Date(order.date), 'dd MMM yyyy')
     const materialLines = doc.splitTextToSize(materialDisplay, itemNameWidth - 5)
-    doc.text(orderDate, dateX, yPos, { charSpace: 0 })
-    doc.text(materialLines, itemNameX, yPos, { charSpace: 0 })
-    doc.text(order.weight.toFixed(2), qtyX, yPos, { charSpace: 0 })
-    doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, { charSpace: 0 })
-    doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, { charSpace: 0 })
+    
+    // Render text with explicit options to prevent letter spacing
+    const textOptions = { charSpace: 0, wordSpace: 0 }
+    doc.text(orderDate, dateX, yPos, textOptions)
+    if (Array.isArray(materialLines)) {
+      materialLines.forEach((line: string, index: number) => {
+        doc.text(line, itemNameX, yPos + (index * 6), textOptions)
+      })
+    } else {
+      doc.text(materialLines, itemNameX, yPos, textOptions)
+    }
+    doc.text(order.weight.toFixed(2), qtyX, yPos, textOptions)
+    doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, textOptions)
+    doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, textOptions)
     
     // Adjust yPos if material name wrapped to multiple lines
     yPos += Math.max(6, materialLines.length * 6)
@@ -338,9 +370,9 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   const summaryStartY = yPos
   
   // Subtotal
-  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0 })
+  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   yPos += 7
   
   // Grand Total
@@ -352,8 +384,8 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0 })
-  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0 })
+  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
   
   // Payment Status
   yPos += 10
@@ -372,13 +404,13 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   
   if (allPaid) {
     doc.setTextColor(34, 197, 94) // Green
-    doc.text('Payment Status: All Paid', infoLeft, yPos, { charSpace: 0 })
+    doc.text('Payment Status: All Paid', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   } else if (somePaid) {
     doc.setTextColor(234, 179, 8) // Yellow
-    doc.text('Payment Status: Partial', infoLeft, yPos, { charSpace: 0 })
+    doc.text('Payment Status: Partial', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   } else {
     doc.setTextColor(239, 68, 68) // Red
-    doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0 })
+    doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
   }
   
   // Save PDF

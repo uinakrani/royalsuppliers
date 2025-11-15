@@ -16,6 +16,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   const [isClosing, setIsClosing] = useState(false)
   const modalContentRef = useRef<HTMLDivElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   const [formData, setFormData] = useState({
     date: order?.date || new Date().toISOString().split('T')[0],
@@ -293,8 +294,9 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         </div>
 
         <form 
+          ref={formRef}
           onSubmit={handleSubmit} 
-          className="p-4 space-y-4 pb-24 overflow-x-hidden"
+          className="p-4 space-y-4 pb-32 overflow-x-hidden"
           style={{ 
             width: '100%', 
             maxWidth: '100%', 
@@ -691,7 +693,11 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             </label>
           </div>
 
-          <div className="flex gap-2 pt-4 pb-4">
+        </form>
+        
+        {/* Fixed buttons at bottom */}
+        <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-20 shadow-lg">
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={handleClose}
@@ -700,14 +706,19 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={() => {
+                if (formRef.current) {
+                  formRef.current.requestSubmit()
+                }
+              }}
               disabled={saving}
               className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 shadow-sm"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )
