@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { orderService } from '@/lib/orderService'
-import { generateInvoicePDF, generateMultipleInvoicesPDF } from '@/lib/pdfService'
+import { invoiceService } from '@/lib/invoiceService'
+import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
-import { Plus, Edit, Trash2, CheckCircle, FileText, Filter, X } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, Filter, X } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 
@@ -157,8 +158,15 @@ export default function OrdersPage() {
       }
     } catch (error: any) {
       console.error('Error showing SweetAlert:', error)
-      // Fallback to native confirm
-      if (confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+      // Fallback to SweetAlert confirm
+      const confirmed = await sweetAlert.confirm({
+        title: 'Delete Order?',
+        text: 'Are you sure you want to delete this order? This action cannot be undone.',
+        icon: 'warning',
+        confirmText: 'Delete',
+        cancelText: 'Cancel'
+      })
+      if (confirmed) {
         try {
           await orderService.deleteOrder(id)
           showToast('Order deleted successfully!', 'success')
@@ -179,194 +187,74 @@ export default function OrdersPage() {
         return
       }
 
-      const totalAmount = order.total
-      // Calculate already paid from partialPayments array if available, otherwise use paidAmount
-      const alreadyPaid = order.partialPayments && order.partialPayments.length > 0
-        ? order.partialPayments.reduce((sum, p) => sum + p.amount, 0)
-        : (order.paidAmount || 0)
-      const remainingAmount = totalAmount - alreadyPaid
-      const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-IN', {
-          style: 'currency',
-          currency: 'INR',
-          maximumFractionDigits: 2,
-        }).format(amount)
+      // Always route payment to invoice
+      // If order doesn't have an invoice, create one first
+      let invoiceId = order.invoiceId
+      
+      if (!invoiceId) {
+        // Create a new invoice for this order
+        try {
+          showToast('Creating invoice for this order...', 'info')
+          invoiceId = await invoiceService.createInvoice([id])
+          showToast('Invoice created successfully!', 'success')
+        } catch (error: any) {
+          showToast(`Failed to create invoice: ${error?.message || 'Unknown error'}`, 'error')
+          return
+        }
       }
 
-      // Create custom HTML for the payment dialog
-      const Swal = await (async () => {
-        if (typeof window === 'undefined') return null
-        if (window.Swal) return window.Swal
-        return new Promise((resolve) => {
-          let attempts = 0
-          const checkSwal = () => {
-            if (window.Swal) {
-              resolve(window.Swal)
-            } else if (attempts < 50) {
-              attempts++
-              setTimeout(checkSwal, 100)
-            } else {
-              resolve(null)
-            }
-          }
-          checkSwal()
-        })
-      })()
-
-      if (!Swal) {
-        // Fallback to simple prompt
-        const promptText = alreadyPaid > 0 
-          ? `Enter total paid amount (Already paid: ${formatCurrency(alreadyPaid)}, Remaining: ${formatCurrency(remainingAmount)}):`
-          : `Enter paid amount (Total: ${formatCurrency(totalAmount)}):`
-        const amountStr = prompt(promptText, alreadyPaid > 0 ? remainingAmount.toString() : totalAmount.toString())
-        if (amountStr) {
-          const amount = parseFloat(amountStr)
-          if (!isNaN(amount) && amount > 0) {
-            try {
-              const newTotalPaid = alreadyPaid > 0 ? alreadyPaid + amount : amount
-              await orderService.markAsPaid(id, newTotalPaid)
-              showToast(newTotalPaid >= totalAmount ? 'Order marked as fully paid!' : `Payment of ${formatCurrency(newTotalPaid)} recorded!`, 'success')
-              await loadOrders()
-            } catch (error: any) {
-              showToast(`Failed to update order: ${error?.message || 'Unknown error'}`, 'error')
-            }
-          }
+      // Get the invoice and add payment
+      try {
+        const invoice = await invoiceService.getInvoiceById(invoiceId)
+        if (!invoice) {
+          showToast('Invoice not found', 'error')
+          return
         }
+
+        const remaining = invoice.totalAmount - (invoice.paidAmount || 0)
+        
+        try {
+          const amountStr = await sweetAlert.prompt({
+            title: 'Add Payment',
+            text: `Remaining balance: ${formatIndianCurrency(remaining)}`,
+            inputLabel: 'Payment Amount',
+            inputPlaceholder: 'Enter amount',
+            inputValue: remaining.toString(),
+            inputType: 'number',
+            confirmText: 'Add Payment',
+            cancelText: 'Cancel'
+          })
+          
+          if (!amountStr) return
+
+          const amount = parseFloat(amountStr)
+          if (isNaN(amount) || amount <= 0) {
+            showToast('Invalid amount', 'error')
+            return
+          }
+
+          if (amount > remaining) {
+            showToast(`Amount cannot exceed remaining balance of ${formatIndianCurrency(remaining)}`, 'error')
+            return
+          }
+
+          await invoiceService.addPayment(invoiceId, amount)
+          showToast('Payment added to invoice successfully!', 'success')
+          await loadOrders()
+          return
+        } catch (error: any) {
+          if (error?.message && !error.message.includes('SweetAlert')) {
+            showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+          }
+          return
+        }
+      } catch (error: any) {
+        showToast(`Failed to add payment to invoice: ${error?.message || 'Unknown error'}`, 'error')
         return
       }
-
-      // Build existing payments list HTML
-      const existingPayments = order.partialPayments || []
-      const paymentsListHtml = existingPayments.length > 0 ? `
-        <div style="margin-bottom: 15px; padding: 10px; background-color: #f9fafb; border-radius: 6px;">
-          <p style="margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #374151;">Existing Payments:</p>
-          ${existingPayments.map((p, idx) => `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: ${idx < existingPayments.length - 1 ? '1px solid #e5e7eb' : 'none'};">
-              <span style="font-size: 13px; color: #4b5563;">
-                ${format(new Date(p.date), 'dd MMM yyyy')} - ${formatCurrency(p.amount)}
-              </span>
-            </div>
-          `).join('')}
-          <p style="margin-top: 8px; font-size: 13px; color: #059669; font-weight: 600;">
-            Total Paid: ${formatCurrency(alreadyPaid)}
-          </p>
-        </div>
-      ` : ''
-
-      // Use SweetAlert2 with custom HTML
-      const result = await Swal.fire({
-        title: alreadyPaid > 0 ? 'Add Payment' : 'Record Payment',
-        html: `
-          <div style="text-align: left; padding: 10px 0;">
-            <p style="margin-bottom: 10px; font-size: 14px; color: #666;">
-              Total Amount: <strong style="color: #000;">${formatCurrency(totalAmount)}</strong>
-            </p>
-            ${paymentsListHtml}
-            ${alreadyPaid > 0 ? `
-              <p style="margin-bottom: 10px; font-size: 14px; color: #666;">
-                Already Paid: <strong style="color: #059669;">${formatCurrency(alreadyPaid)}</strong>
-              </p>
-              <p style="margin-bottom: 15px; font-size: 14px; color: #666;">
-                Remaining: <strong style="color: #dc2626;">${formatCurrency(remainingAmount)}</strong>
-              </p>
-            ` : ''}
-            <label style="display: block; margin-bottom: 5px; font-size: 14px; font-weight: 500;">
-              ${alreadyPaid > 0 ? 'Amount to Add:' : 'Paid Amount:'}
-            </label>
-            <input 
-              id="swal-paid-amount" 
-              type="number" 
-              step="0.01" 
-              min="0" 
-              max="${alreadyPaid > 0 ? remainingAmount : totalAmount}" 
-              value="${alreadyPaid > 0 ? remainingAmount : totalAmount}" 
-              placeholder="Enter amount"
-              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 10px;"
-            />
-            <button 
-              type="button" 
-              id="swal-fully-paid-btn"
-              style="width: 100%; padding: 10px; background-color: #10b981; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;"
-            >
-              ${alreadyPaid > 0 ? `Pay Remaining (${formatCurrency(remainingAmount)})` : `Fully Paid (${formatCurrency(totalAmount)})`}
-            </button>
-          </div>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Record Payment',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#0ea5e9',
-        cancelButtonColor: '#6b7280',
-        reverseButtons: true,
-        didOpen: () => {
-          const input = document.getElementById('swal-paid-amount') as HTMLInputElement
-          const fullyPaidBtn = document.getElementById('swal-fully-paid-btn')
-          
-          if (input) {
-            input.focus()
-            input.select()
-          }
-          
-          if (fullyPaidBtn) {
-            fullyPaidBtn.addEventListener('click', () => {
-              if (input) {
-                const valueToSet = alreadyPaid > 0 ? remainingAmount : totalAmount
-                input.value = valueToSet.toString()
-                input.dispatchEvent(new Event('input', { bubbles: true }))
-              }
-            })
-          }
-        },
-        preConfirm: () => {
-          const input = document.getElementById('swal-paid-amount') as HTMLInputElement
-          const value = input?.value
-          if (!value || value === '') {
-            Swal.showValidationMessage('Please enter an amount')
-            return false
-          }
-          const inputAmount = parseFloat(value)
-          if (isNaN(inputAmount) || inputAmount <= 0) {
-            Swal.showValidationMessage('Please enter a valid amount greater than 0')
-            return false
-          }
-          
-          if (alreadyPaid > 0) {
-            const newTotalPaid = alreadyPaid + inputAmount
-            if (newTotalPaid > totalAmount) {
-              Swal.showValidationMessage(`Total cannot exceed ${formatCurrency(totalAmount)}. Maximum you can add is ${formatCurrency(remainingAmount)}`)
-              return false
-            }
-            return newTotalPaid
-          } else {
-            if (inputAmount > totalAmount) {
-              Swal.showValidationMessage(`Amount cannot exceed total (${formatCurrency(totalAmount)})`)
-              return false
-            }
-            return inputAmount
-          }
-        },
-      })
-
-      if (result.isConfirmed && result.value !== false) {
-        const paidAmount = result.value as number
-        try {
-          await orderService.markAsPaid(id, paidAmount)
-          const isFullyPaid = paidAmount >= totalAmount
-          showToast(
-            isFullyPaid 
-              ? 'Order marked as fully paid!' 
-              : `Payment of ${formatCurrency(paidAmount)} recorded!`,
-            'success'
-          )
-          await loadOrders()
-        } catch (error: any) {
-          console.error('Error marking order as paid:', error)
-          showToast(`Failed to update order: ${error?.message || 'Unknown error'}`, 'error')
-        }
-      }
     } catch (error: any) {
-      console.error('Error showing payment dialog:', error)
-      showToast('Failed to open payment dialog', 'error')
+      console.error('Error in handleMarkAsPaid:', error)
+      showToast(`Failed to process payment: ${error?.message || 'Unknown error'}`, 'error')
     }
   }
 
@@ -397,17 +285,9 @@ export default function OrdersPage() {
         return
       }
 
-      const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-IN', {
-          style: 'currency',
-          currency: 'INR',
-          maximumFractionDigits: 2,
-        }).format(amount)
-      }
-
       const confirmed = await sweetAlert.confirm({
         title: 'Remove Payment?',
-        text: `Are you sure you want to remove payment of ${formatCurrency(payment.amount)}?`,
+        text: `Are you sure you want to remove payment of ${formatIndianCurrency(payment.amount)}?`,
         icon: 'warning',
         confirmText: 'Remove',
         cancelText: 'Cancel'
@@ -436,19 +316,6 @@ export default function OrdersPage() {
     }
   }
 
-  const handleGeneratePDF = (order: Order) => {
-    generateInvoicePDF(order)
-  }
-
-  const handleGenerateMultiplePDFs = () => {
-    if (selectedOrders.size === 0) {
-      alert('Please select at least one order')
-      return
-    }
-    const ordersToExport = filteredOrders.filter((o) => selectedOrders.has(o.id!))
-    generateMultipleInvoicesPDF(ordersToExport)
-    setSelectedOrders(new Set())
-  }
 
   const toggleOrderSelection = (id: string) => {
     const newSelected = new Set(selectedOrders)
@@ -479,13 +346,6 @@ export default function OrdersPage() {
     setShowFilters(false)
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 2,
-    }).format(amount)
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -640,15 +500,6 @@ export default function OrdersPage() {
           <Plus size={18} />
           Add Order
         </button>
-        {selectedOrders.size > 0 && (
-          <button
-            onClick={handleGenerateMultiplePDFs}
-            className="bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
-          >
-            <FileText size={18} />
-            PDF ({selectedOrders.size})
-          </button>
-        )}
       </div>
 
       {/* Orders List */}
@@ -678,6 +529,7 @@ export default function OrdersPage() {
                   />
                 </th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
+                <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
                 <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
@@ -714,6 +566,15 @@ export default function OrdersPage() {
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
                     {format(new Date(order.date), 'dd MMM yyyy')}
                   </td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-center">
+                    {order.invoiced ? (
+                      <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-medium">
+                        Invoiced
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs font-medium text-gray-900">
                     {order.partyName}
                   </td>
@@ -727,10 +588,10 @@ export default function OrdersPage() {
                     {order.weight.toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
-                    {formatCurrency(order.rate)}
+                    {formatIndianCurrency(order.rate)}
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
-                    {formatCurrency(order.total)}
+                    {formatIndianCurrency(order.total)}
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
                     {order.truckOwner}
@@ -746,18 +607,18 @@ export default function OrdersPage() {
                       ? 'text-red-600 font-semibold'
                       : 'text-gray-900'
                   }`}>
-                    {formatCurrency(order.originalRate)}
+                    {formatIndianCurrency(order.originalRate)}
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
-                    {formatCurrency(order.originalTotal)}
+                    {formatIndianCurrency(order.originalTotal)}
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
-                    {formatCurrency(order.additionalCost)}
+                    {formatIndianCurrency(order.additionalCost)}
                   </td>
                   <td className={`px-2 py-1.5 whitespace-nowrap text-xs text-right font-medium ${
                     order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {formatCurrency(order.profit)}
+                    {formatIndianCurrency(order.profit)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
                     {order.paid ? (
@@ -770,13 +631,13 @@ export default function OrdersPage() {
                           Partial
                         </span>
                         <span className="text-xs text-gray-600">
-                          {formatCurrency(order.paidAmount || 0)} / {formatCurrency(order.total)}
+                          {formatIndianCurrency(order.paidAmount || 0)} / {formatIndianCurrency(order.total)}
                         </span>
                         <div className="flex flex-col gap-1 mt-1">
                           {order.partialPayments.map((payment) => (
                             <div key={payment.id} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded text-xs">
                               <span className="text-gray-700">
-                                {formatCurrency(payment.amount)}
+                                {formatIndianCurrency(payment.amount)}
                               </span>
                               <button
                                 onClick={(e) => {
@@ -798,7 +659,7 @@ export default function OrdersPage() {
                           Partial
                         </span>
                         <span className="text-xs text-gray-600">
-                          {formatCurrency(order.paidAmount)} / {formatCurrency(order.total)}
+                          {formatIndianCurrency(order.paidAmount)} / {formatIndianCurrency(order.total)}
                         </span>
                       </div>
                     ) : order.paymentDue ? (
@@ -813,13 +674,6 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => handleGeneratePDF(order)}
-                        className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                        title="Generate PDF"
-                      >
-                        <FileText size={16} />
-                      </button>
                       {!order.paid && (
                         <button
                           onClick={() => handleMarkAsPaid(order.id!)}

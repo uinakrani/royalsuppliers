@@ -2,7 +2,181 @@ import jsPDF from 'jspdf'
 import { Order } from '@/types/order'
 import { format } from 'date-fns'
 
-export const generateInvoicePDF = (order: Order): void => {
+// Generate order number: ROYAL + short timestamp
+const generateOrderNumber = (order: Order): string => {
+  const orderDate = order.createdAt ? new Date(order.createdAt) : new Date(order.date)
+  const timestamp = format(orderDate, 'yyMMddHHmm') // YYMMDDHHMM format
+  return `ROYAL${timestamp}`
+}
+
+// Format number in Indian currency format (lakhs/crores)
+const formatIndianCurrency = (amount: number): string => {
+  // Convert to string with 2 decimal places
+  const parts = amount.toFixed(2).split('.')
+  const integerPart = parts[0]
+  const decimalPart = parts[1]
+  
+  // Format integer part with Indian numbering system
+  // First 3 digits from right, then groups of 2
+  if (integerPart.length <= 3) {
+    return integerPart + '.' + decimalPart
+  }
+  
+  // Reverse the string to work from right to left
+  const reversed = integerPart.split('').reverse()
+  let formatted = []
+  
+  // Take first 3 digits (from right)
+  formatted.push(reversed.slice(0, 3).reverse().join(''))
+  
+  // Then take groups of 2
+  for (let i = 3; i < reversed.length; i += 2) {
+    const group = reversed.slice(i, i + 2).reverse().join('')
+    if (group) {
+      formatted.push(group)
+    }
+  }
+  
+  // Reverse back and join with commas
+  return formatted.reverse().join(',') + '.' + decimalPart
+}
+
+// Helper function to load an image
+const loadImage = async (imagePath: string): Promise<{ dataUrl: string; img: HTMLImageElement } | null> => {
+  try {
+    const response = await fetch(`${imagePath}?t=${Date.now()}`, {
+      cache: 'no-cache'
+    })
+    
+    if (!response.ok) {
+      return null
+    }
+    
+    const blob = await response.blob()
+    
+    // Convert blob to data URL
+    const reader = new FileReader()
+    const dataUrl = await new Promise<string>((resolveReader, rejectReader) => {
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolveReader(reader.result)
+        } else {
+          rejectReader(new Error('Failed to convert blob to data URL'))
+        }
+      }
+      reader.onerror = rejectReader
+      reader.readAsDataURL(blob)
+    })
+    
+    // Create image element to get dimensions
+    const img = new Image()
+    await new Promise<void>((resolveImg, rejectImg) => {
+      img.onload = () => {
+        if (img.width === 0 || img.height === 0) {
+          rejectImg(new Error('Invalid image dimensions'))
+          return
+        }
+        resolveImg()
+      }
+      img.onerror = rejectImg
+      img.src = dataUrl
+    })
+    
+    return { dataUrl, img }
+  } catch (error) {
+    console.warn(`Failed to load image from ${imagePath}:`, error)
+    return null
+  }
+}
+
+// Helper function to add logo to PDF
+const addLogoToPDF = async (doc: jsPDF, pageWidth: number, pageHeight: number): Promise<void> => {
+  // Load top logo (top-logo.jpg)
+  const topLogoPaths = ['/top-logo.jpg']
+  let topLogoLoaded = false
+  
+  for (const logoPath of topLogoPaths) {
+    const result = await loadImage(logoPath)
+    if (result) {
+      const { dataUrl, img } = result
+      console.log(`Top logo loaded successfully: ${img.width}x${img.height} from ${logoPath}`)
+      
+      // Calculate logo dimensions (max width 80mm, maintain aspect ratio)
+      const maxWidth = 80
+      const aspectRatio = img.height / img.width
+      const logoWidth = maxWidth
+      const logoHeight = maxWidth * aspectRatio
+      
+      // Add logo at top left
+      const logoX = 20
+      const logoY = 15
+      
+      // Add logo to PDF
+      doc.addImage(dataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight)
+      console.log('Top logo added to PDF')
+      topLogoLoaded = true
+      break
+    }
+  }
+  
+  if (!topLogoLoaded) {
+    console.warn('Top logo (top-logo.jpg) not found.')
+  }
+  
+  // Load watermark logo (old logo files)
+  const watermarkLogoPaths = ['/logo.png', '/logo.jpg', '/logo.jpeg']
+  let watermarkLoaded = false
+  
+  for (const logoPath of watermarkLogoPaths) {
+    const result = await loadImage(logoPath)
+    if (result) {
+      const { dataUrl, img } = result
+      console.log(`Watermark logo loaded successfully: ${img.width}x${img.height} from ${logoPath}`)
+      
+      // Create watermark with opacity using canvas
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')
+      
+      if (ctx) {
+        // Draw original image to canvas
+        ctx.drawImage(img, 0, 0)
+        
+        // Get image data and apply opacity
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const data = imageData.data
+        
+        // Apply 0.1 opacity by reducing alpha channel
+        for (let i = 3; i < data.length; i += 4) {
+          data[i] = Math.round(data[i] * 0.1) // Alpha channel
+        }
+        
+        ctx.putImageData(imageData, 0, 0)
+        const watermarkDataUrl = canvas.toDataURL('image/png')
+        
+        // Add watermark in center
+        const aspectRatio = img.height / img.width
+        const watermarkSize = 60
+        const watermarkX = (pageWidth - watermarkSize) / 2
+        const watermarkY = (pageHeight - watermarkSize) / 2
+        const watermarkWidth = watermarkSize
+        const watermarkHeight = watermarkSize * aspectRatio
+        
+        doc.addImage(watermarkDataUrl, 'PNG', watermarkX, watermarkY, watermarkWidth, watermarkHeight)
+        console.log('Watermark added to PDF')
+        watermarkLoaded = true
+        break
+      }
+    }
+  }
+  
+  if (!watermarkLoaded) {
+    console.warn('Watermark logo (logo.png, logo.jpg, or logo.jpeg) not found.')
+  }
+}
+
+export const generateInvoicePDF = async (order: Order): Promise<void> => {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -17,62 +191,61 @@ export const generateInvoicePDF = (order: Order): void => {
     creator: 'Royal Suppliers'
   })
   
+  // Add logo and watermark
+  await addLogoToPDF(doc, pageWidth, pageHeight)
+  
   // Margins
   const margin = 20
   const contentWidth = pageWidth - (margin * 2)
   const contentX = margin
   
-  let yPos = margin + 20
+  // Start after logo - use smaller estimate to reduce space
+  const logoY = 15
+  const logoHeight = 30 // Reduced estimate for logo height (actual will vary by aspect ratio)
+  let yPos = logoY + logoHeight // Start immediately after logo with no extra spacing
   
-  // Logo/Brand name
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0, wordSpace: 0 })
-  yPos += 8
+  // ROYAL and timestamp above date
+  const orderDate = order.createdAt ? new Date(order.createdAt) : new Date(order.date)
+  const timestamp = format(orderDate, 'yyMMddHHmm') // YYMMDDHHMM format
+  const royalTimestamp = `ROYAL${timestamp}`
   
-  // Greeting
-  doc.setFontSize(11)
+  doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(50, 50, 50)
-  doc.text(`Hi ${order.partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0, wordSpace: 0 })
-  yPos += 15
+  doc.setTextColor(100, 100, 100)
+  doc.text(royalTimestamp, pageWidth - margin, yPos, { align: 'right', charSpace: 0 })
+  yPos += 5
   
-  // Order Information Section
+  // Date on left
+  doc.text(`Date: ${format(orderDate, 'dd MMMM, yyyy')}`, contentX, yPos, { charSpace: 0 })
+  yPos += 10
+  
+  // Billed to and From sections side by side
+  const leftColX = contentX
+  const rightColX = contentX + (contentWidth / 2) + 20
+  const colWidth = (contentWidth / 2) - 20
+  
+  // Billed to (left column)
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  
-  const infoLeft = contentX
-  const infoRight = contentX + contentWidth
-  
-  // Order No
-  doc.text('Order No:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Billed to:', leftColX, yPos, { charSpace: 0 })
+  yPos += 6
   doc.setFont('helvetica', 'normal')
-  doc.text(`#${order.id?.substring(0, 8) || 'N/A'}`, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 7
+  doc.setTextColor(50, 50, 50)
+  doc.text(order.partyName, leftColX, yPos, { charSpace: 0 })
+  yPos += 5
+  doc.text(order.siteName, leftColX, yPos, { charSpace: 0 })
   
-  
-  // Party Name
-  doc.setFont('helvetica', 'bold')
-  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.setFont('helvetica', 'normal')
-  doc.text(order.partyName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 7
-  
-  // Site Name
-  doc.setFont('helvetica', 'bold')
-  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.setFont('helvetica', 'normal')
-  doc.text(order.siteName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 12
-  
-  // Itemized List Section
-  doc.setFontSize(11)
+  // From (right column)
+  const fromY = yPos - 11
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  doc.text('Items:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  yPos += 8
+  doc.text('From:', rightColX, fromY, { charSpace: 0 })
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(50, 50, 50)
+  doc.text('Royal Suppliers', rightColX, fromY + 6, { charSpace: 0 })
+  
+  yPos += 15
   
   // Table header - calculate column positions to fit within page width
   doc.setFontSize(9)
@@ -80,35 +253,45 @@ export const generateInvoicePDF = (order: Order): void => {
   doc.setTextColor(100, 100, 100)
   
   // Calculate column positions based on available width
+  const infoLeft = contentX
+  const infoRight = contentX + contentWidth
   const tableStartX = infoLeft
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional) - adjusted to include date
-  const dateWidth = tableWidth * 0.15      // 15% for date
-  const itemNameWidth = tableWidth * 0.35   // 35% for item name
-  const qtyWidth = tableWidth * 0.18        // 18% for quantity
-  const unitPriceWidth = tableWidth * 0.15  // 15% for unit price
-  const priceWidth = tableWidth * 0.17      // 17% for price
+  // Column widths (proportional)
+  const materialWidth = tableWidth * 0.40   // 40% for material
+  const weightWidth = tableWidth * 0.20     // 20% for weight
+  const rateWidth = tableWidth * 0.20       // 20% for rate
+  const totalWidth = tableWidth * 0.20      // 20% for total
   
-  const dateX = tableStartX
-  const itemNameX = dateX + dateWidth
-  const qtyX = itemNameX + itemNameWidth
-  const unitPriceX = qtyX + qtyWidth
-  const priceX = unitPriceX + unitPriceWidth
+  const materialX = tableStartX
+  const weightX = materialX + materialWidth
+  const rateX = weightX + weightWidth
+  const totalX = rateX + rateWidth
   
-  doc.text('Date', dateX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Item Name', itemNameX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Quantity', qtyX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Price', priceX, yPos, { charSpace: 0, wordSpace: 0 })
-  
-  // Draw line under header
-  yPos += 3
-  doc.setDrawColor(200, 200, 200)
+  // Draw top border for table header
+  doc.setDrawColor(0, 0, 0)
   doc.setLineWidth(0.5)
-  doc.line(tableStartX, yPos, tableEndX, yPos)
-  yPos += 5
+  const headerTopY = yPos - 4
+  doc.line(tableStartX, headerTopY, tableStartX + tableWidth, headerTopY)
+  
+  // Draw bottom border for table header
+  const headerBottomY = yPos + 4
+  doc.line(tableStartX, headerBottomY, tableStartX + tableWidth, headerBottomY)
+  
+  // Calculate center Y position between borders for vertical centering
+  // Account for text baseline - font size 9 has approximately 3.2mm height
+  // Border height is 8mm (from -4 to +4), so center is at yPos
+  // Text baseline should be slightly below center to account for text metrics
+  const headerCenterY = (headerTopY + headerBottomY) / 2 + 1.5
+  
+  doc.text('Material', materialX, headerCenterY, { charSpace: 0 })
+  doc.text('Weight', weightX + weightWidth, headerCenterY, { charSpace: 0, align: 'right' })
+  doc.text('Rate', rateX + rateWidth, headerCenterY, { charSpace: 0, align: 'right' })
+  doc.text('Total', totalX + totalWidth, headerCenterY, { charSpace: 0, align: 'right' })
+  
+  yPos = headerBottomY + 5
   
   // Table content
   doc.setFont('helvetica', 'normal')
@@ -120,94 +303,74 @@ export const generateInvoicePDF = (order: Order): void => {
   const materialDisplay = materials.join(', ')
   
   // Single row with all materials - wrap long material names if needed
-  const orderDate = format(new Date(order.date), 'dd MMM yyyy')
-  const materialLines = doc.splitTextToSize(materialDisplay, itemNameWidth - 5)
+  const materialLines = doc.splitTextToSize(materialDisplay, materialWidth - 5)
   
   // Render text with explicit options to prevent letter spacing
-  const textOptions = { charSpace: 0, wordSpace: 0 }
-  doc.text(orderDate, dateX, yPos, textOptions)
+  const textOptions = { charSpace: 0 }
+  const rowStartY = yPos
   if (Array.isArray(materialLines)) {
     materialLines.forEach((line: string, index: number) => {
-      doc.text(line, itemNameX, yPos + (index * 6), textOptions)
+      doc.text(line, materialX, yPos + (index * 6), textOptions)
     })
   } else {
-    doc.text(materialLines, itemNameX, yPos, textOptions)
+    doc.text(materialLines, materialX, yPos, textOptions)
   }
-  doc.text(order.weight.toFixed(2), qtyX, yPos, textOptions)
-  doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, textOptions)
-  doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, textOptions)
+  doc.text(order.weight.toFixed(2), weightX + weightWidth, yPos, { charSpace: 0, align: 'right' })
+  doc.text(`Rs.${formatIndianCurrency(order.rate)}`, rateX + rateWidth, yPos, { charSpace: 0, align: 'right' })
+  doc.text(`Rs.${formatIndianCurrency(order.total)}`, totalX + totalWidth, yPos, { charSpace: 0, align: 'right' })
   
   // Adjust yPos if material name wrapped to multiple lines
-  yPos += Math.max(6, materialLines.length * 6)
+  const rowHeight = Math.max(6, materialLines.length * 6)
+  yPos += rowHeight
   
   yPos += 5
   
-  // Summary Section
+  // Calculate where to place totals at bottom of page
+  const bottomMargin = 50
+  const totalsY = pageHeight - bottomMargin
+  
+  // Summary Section - moved to bottom right
+  const summaryX = infoRight
+  let summaryY = totalsY
+  
+  // Subtotal
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  
-  const summaryX = infoRight
-  const summaryStartY = yPos
-  
-  // Subtotal
-  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Subtotal:', summaryX - 60, summaryY, { charSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(`₹${order.total.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 7
+  doc.text(`Rs.${formatIndianCurrency(order.total)}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
+  summaryY += 7
   
   // Discount (if profit is negative, show as discount)
   if (order.profit < 0) {
     doc.setFont('helvetica', 'bold')
-    doc.text('Discount Applied:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
+    doc.text('Discount Applied:', summaryX - 60, summaryY, { charSpace: 0 })
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(220, 38, 38) // Red for discount
-    doc.text(`- ₹${Math.abs(order.profit).toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
+    doc.text(`- Rs.${formatIndianCurrency(Math.abs(order.profit))}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
     doc.setTextColor(50, 50, 50)
-    yPos += 7
+    summaryY += 7
   }
   
   // Grand Total
-  yPos += 3
+  summaryY += 3
   doc.setDrawColor(200, 200, 200)
-  doc.line(summaryX - 60, yPos, summaryX, yPos)
-  yPos += 7
+  doc.line(summaryX - 60, summaryY, summaryX, summaryY)
+  summaryY += 7
   
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.setTextColor(0, 0, 0)
+  doc.text('Total:', summaryX - 60, summaryY, { charSpace: 0 })
   const grandTotal = order.total + (order.profit < 0 ? order.profit : 0)
-  doc.text(`₹${grandTotal.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  
-  // Payment Status
-  yPos += 10
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(100, 100, 100)
-  if (order.paid) {
-    doc.setTextColor(34, 197, 94) // Green
-    doc.text('Payment Status: Paid', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  } else {
-    // Calculate total from partialPayments array if available, otherwise use paidAmount
-    const partialTotal = order.partialPayments && order.partialPayments.length > 0
-      ? order.partialPayments.reduce((sum, p) => sum + p.amount, 0)
-      : (order.paidAmount || 0)
-    
-    if (partialTotal > 0) {
-      doc.setTextColor(234, 179, 8) // Yellow
-      doc.text(`Payment Status: Partial (₹${partialTotal.toFixed(2)} paid)`, infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-    } else {
-      doc.setTextColor(239, 68, 68) // Red
-      doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-    }
-  }
+  doc.text(`Rs.${formatIndianCurrency(grandTotal)}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
   
   // Save PDF
   doc.save(`Invoice_${order.partyName}_${format(new Date(order.date), 'ddMMyyyy')}.pdf`)
 }
 
-export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
+export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void> => {
   if (orders.length === 0) return
   
   const doc = new jsPDF()
@@ -224,97 +387,106 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
     creator: 'Royal Suppliers'
   })
   
+  // Add logo and watermark to first page
+  await addLogoToPDF(doc, pageWidth, pageHeight)
+  
   // Margins
   const margin = 20
   const contentWidth = pageWidth - (margin * 2)
   const contentX = margin
   
-  let yPos = margin + 20
+  // Start after logo - use smaller estimate to reduce space
+  const logoY = 15
+  const logoHeight = 30 // Reduced estimate for logo height (actual will vary by aspect ratio)
+  let yPos = logoY + logoHeight // Start immediately after logo with no extra spacing
   
-  // Logo/Brand name
-  doc.setFontSize(24)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('ROYAL SUPPLIERS', contentX, yPos, { charSpace: 0, wordSpace: 0 })
-  yPos += 8
+  // ROYAL and timestamp above date
+  const firstOrderDate = orders[0].createdAt ? new Date(orders[0].createdAt) : new Date(orders[0].date)
+  const timestamp = format(firstOrderDate, 'yyMMddHHmm') // YYMMDDHHMM format
+  const royalTimestamp = `ROYAL${timestamp}`
   
-  // Greeting - use first order's party name
-  doc.setFontSize(11)
+  doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(50, 50, 50)
-  const partyName = orders[0].partyName
-  doc.text(`Hi ${partyName}, Thank you for choosing our services. Here are your order details.`, contentX, yPos, { maxWidth: contentWidth, charSpace: 0, wordSpace: 0 })
-  yPos += 15
+  doc.setTextColor(100, 100, 100)
+  doc.text(royalTimestamp, pageWidth - margin, yPos, { align: 'right', charSpace: 0 })
+  yPos += 5
   
-  // Order Information Section
+  // Date on left
+  doc.text(`Date: ${format(firstOrderDate, 'dd MMMM, yyyy')}`, contentX, yPos, { charSpace: 0 })
+  yPos += 10
+  
+  // Billed to and From sections side by side
+  const leftColX = contentX
+  const rightColX = contentX + (contentWidth / 2) + 20
+  const partyName = orders[0].partyName
+  
+  // Billed to (left column)
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  
-  const infoLeft = contentX
-  const infoRight = contentX + contentWidth
-  
-  // Order No
-  doc.text('Order No:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Billed to:', leftColX, yPos, { charSpace: 0 })
+  yPos += 6
   doc.setFont('helvetica', 'normal')
-  doc.text(`#${orders.length} order(s)`, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 7
+  doc.setTextColor(50, 50, 50)
+  doc.text(partyName, leftColX, yPos, { charSpace: 0 })
+  yPos += 5
+  doc.text(orders[0].siteName, leftColX, yPos, { charSpace: 0 })
   
-  // Party Name
-  doc.setFont('helvetica', 'bold')
-  doc.text('Party Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.setFont('helvetica', 'normal')
-  doc.text(partyName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 7
-  
-  // Site Name (use first order's site name)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Site Name:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.setFont('helvetica', 'normal')
-  doc.text(orders[0].siteName, infoRight, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 12
-  
-  // Itemized List Section
-  doc.setFontSize(11)
+  // From (right column)
+  const fromY = yPos - 11
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  doc.text('Items:', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  yPos += 8
+  doc.text('From:', rightColX, fromY, { charSpace: 0 })
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(50, 50, 50)
+  doc.text('Royal Suppliers', rightColX, fromY + 6, { charSpace: 0 })
+  
+  yPos += 15
   
   // Table header
   doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(100, 100, 100)
   
+  const infoLeft = contentX
+  const infoRight = contentX + contentWidth
   const tableStartX = infoLeft
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional) - adjusted to include date
-  const dateWidth = tableWidth * 0.15      // 15% for date
-  const itemNameWidth = tableWidth * 0.35   // 35% for item name
-  const qtyWidth = tableWidth * 0.18        // 18% for quantity
-  const unitPriceWidth = tableWidth * 0.15  // 15% for unit price
-  const priceWidth = tableWidth * 0.17      // 17% for price
+  // Column widths (proportional)
+  const materialWidth = tableWidth * 0.40   // 40% for material
+  const weightWidth = tableWidth * 0.20     // 20% for weight
+  const rateWidth = tableWidth * 0.20       // 20% for rate
+  const totalWidth = tableWidth * 0.20      // 20% for total
   
-  const dateX = tableStartX
-  const itemNameX = dateX + dateWidth
-  const qtyX = itemNameX + itemNameWidth
-  const unitPriceX = qtyX + qtyWidth
-  const priceX = unitPriceX + unitPriceWidth
+  const materialX = tableStartX
+  const weightX = materialX + materialWidth
+  const rateX = weightX + weightWidth
+  const totalX = rateX + rateWidth
   
-  doc.text('Date', dateX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Item Name', itemNameX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Quantity', qtyX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Unit Price', unitPriceX, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text('Price', priceX, yPos, { charSpace: 0, wordSpace: 0 })
-  
-  // Draw line under header
-  yPos += 3
-  doc.setDrawColor(200, 200, 200)
+  // Draw top border for table header
+  doc.setDrawColor(0, 0, 0)
   doc.setLineWidth(0.5)
-  doc.line(tableStartX, yPos, tableEndX, yPos)
-  yPos += 5
+  const headerTopY = yPos - 4
+  doc.line(tableStartX, headerTopY, tableStartX + tableWidth, headerTopY)
+  
+  // Draw bottom border for table header
+  const headerBottomY = yPos + 4
+  doc.line(tableStartX, headerBottomY, tableStartX + tableWidth, headerBottomY)
+  
+  // Calculate center Y position between borders for vertical centering
+  // Account for text baseline - font size 9 has approximately 3.2mm height
+  // Border height is 8mm (from -4 to +4), so center is at yPos
+  // Text baseline should be slightly below center to account for text metrics
+  const headerCenterY = (headerTopY + headerBottomY) / 2 + 1.5
+  
+  doc.text('Material', materialX, headerCenterY, { charSpace: 0 })
+  doc.text('Weight', weightX + weightWidth, headerCenterY, { charSpace: 0, align: 'right' })
+  doc.text('Rate', rateX + rateWidth, headerCenterY, { charSpace: 0, align: 'right' })
+  doc.text('Total', totalX + totalWidth, headerCenterY, { charSpace: 0, align: 'right' })
+  
+  yPos = headerBottomY + 5
   
   // Table content - iterate through all orders
   doc.setFont('helvetica', 'normal')
@@ -323,11 +495,13 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
   
   let totalAmount = 0
   
-  orders.forEach((order) => {
+  for (const order of orders) {
     // Check if we need a new page
-    if (yPos > pageHeight - 60) {
+    if (yPos > pageHeight - 100) {
       doc.addPage()
-      yPos = margin + 20
+      // Add watermark to new page
+      await addLogoToPDF(doc, pageWidth, pageHeight)
+      yPos = margin + 25
     }
     
     // Handle materials - combine all materials into one item
@@ -335,83 +509,60 @@ export const generateMultipleInvoicesPDF = (orders: Order[]): void => {
     const materialDisplay = materials.join(', ')
     
     // Single row with all materials - wrap long material names if needed
-    const orderDate = format(new Date(order.date), 'dd MMM yyyy')
-    const materialLines = doc.splitTextToSize(materialDisplay, itemNameWidth - 5)
+    const materialLines = doc.splitTextToSize(materialDisplay, materialWidth - 5)
     
     // Render text with explicit options to prevent letter spacing
-    const textOptions = { charSpace: 0, wordSpace: 0 }
-    doc.text(orderDate, dateX, yPos, textOptions)
+    const textOptions = { charSpace: 0 }
+    const rowStartY = yPos
     if (Array.isArray(materialLines)) {
       materialLines.forEach((line: string, index: number) => {
-        doc.text(line, itemNameX, yPos + (index * 6), textOptions)
+        doc.text(line, materialX, yPos + (index * 6), textOptions)
       })
     } else {
-      doc.text(materialLines, itemNameX, yPos, textOptions)
+      doc.text(materialLines, materialX, yPos, textOptions)
     }
-    doc.text(order.weight.toFixed(2), qtyX, yPos, textOptions)
-    doc.text(`₹${order.rate.toFixed(2)}`, unitPriceX, yPos, textOptions)
-    doc.text(`₹${order.total.toFixed(2)}`, priceX, yPos, textOptions)
+    doc.text(order.weight.toFixed(2), weightX + weightWidth, yPos, { charSpace: 0, align: 'right' })
+    doc.text(`Rs.${formatIndianCurrency(order.rate)}`, rateX + rateWidth, yPos, { charSpace: 0, align: 'right' })
+    doc.text(`Rs.${formatIndianCurrency(order.total)}`, totalX + totalWidth, yPos, { charSpace: 0, align: 'right' })
     
     // Adjust yPos if material name wrapped to multiple lines
-    yPos += Math.max(6, materialLines.length * 6)
+    const rowHeight = Math.max(6, materialLines.length * 6)
+    yPos += rowHeight
     yPos += 3
     
     totalAmount += order.total
-  })
+  }
   
   yPos += 5
   
-  // Summary Section
+  // Calculate where to place totals at bottom of page
+  const bottomMargin = 50
+  const totalsY = pageHeight - bottomMargin
+  
+  // Summary Section - moved to bottom right
+  const summaryX = infoRight
+  let summaryY = totalsY
+  
+  // Subtotal
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
-  
-  const summaryX = infoRight
-  const summaryStartY = yPos
-  
-  // Subtotal
-  doc.text('Subtotal:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
+  doc.text('Subtotal:', summaryX - 60, summaryY, { charSpace: 0 })
   doc.setFont('helvetica', 'normal')
-  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  yPos += 7
+  doc.text(`Rs.${formatIndianCurrency(totalAmount)}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
+  summaryY += 7
   
   // Grand Total
-  yPos += 3
+  summaryY += 3
   doc.setDrawColor(200, 200, 200)
-  doc.line(summaryX - 60, yPos, summaryX, yPos)
-  yPos += 7
+  doc.line(summaryX - 60, summaryY, summaryX, summaryY)
+  summaryY += 7
   
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(14, 184, 166) // Teal green
-  doc.text('Grand Total:', summaryX - 60, yPos, { charSpace: 0, wordSpace: 0 })
-  doc.text(`₹${totalAmount.toFixed(2)}`, summaryX, yPos, { align: 'right', charSpace: 0, wordSpace: 0 })
-  
-  // Payment Status
-  yPos += 10
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(100, 100, 100)
-  
-  const allPaid = orders.every(o => o.paid)
-  const somePaid = orders.some(o => {
-    if (o.paid) return true
-    const partialTotal = o.partialPayments && o.partialPayments.length > 0
-      ? o.partialPayments.reduce((sum, p) => sum + p.amount, 0)
-      : (o.paidAmount || 0)
-    return partialTotal > 0
-  })
-  
-  if (allPaid) {
-    doc.setTextColor(34, 197, 94) // Green
-    doc.text('Payment Status: All Paid', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  } else if (somePaid) {
-    doc.setTextColor(234, 179, 8) // Yellow
-    doc.text('Payment Status: Partial', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  } else {
-    doc.setTextColor(239, 68, 68) // Red
-    doc.text('Payment Status: Pending', infoLeft, yPos, { charSpace: 0, wordSpace: 0 })
-  }
+  doc.setTextColor(0, 0, 0)
+  doc.text('Total:', summaryX - 60, summaryY, { charSpace: 0 })
+  doc.text(`Rs.${formatIndianCurrency(totalAmount)}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
   
   // Save PDF
   const fileName = `Invoice_${partyName}_${format(new Date(), 'ddMMyyyy')}.pdf`

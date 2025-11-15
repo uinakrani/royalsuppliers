@@ -24,6 +24,9 @@ export interface Order {
   paid: boolean
   paidAmount?: number // total amount paid (calculated from partialPayments for backward compatibility)
   partialPayments?: PaymentRecord[] // array of individual payment records
+  invoiced?: boolean // whether order has been invoiced
+  invoiceId?: string // ID of the invoice this order belongs to
+  archived?: boolean // whether order is archived (when invoice is fully paid)
   createdAt?: string
   updatedAt?: string
 }

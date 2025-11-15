@@ -5,6 +5,7 @@ import { Order } from '@/types/order'
 import { X } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { orderService } from '@/lib/orderService'
+import { formatIndianCurrency } from '@/lib/currencyUtils'
 
 interface OrderFormProps {
   order?: Order | null
@@ -515,7 +516,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           <div className="bg-gray-50 p-3 rounded-lg">
             <div className="flex justify-between mb-1">
               <span className="text-sm text-gray-600">Total:</span>
-              <span className="font-semibold">₹{total.toFixed(2)}</span>
+              <span className="font-semibold">{formatIndianCurrency(total)}</span>
             </div>
           </div>
 
@@ -640,7 +641,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           <div className="bg-gray-50 p-3 rounded-lg">
             <div className="flex justify-between mb-1">
               <span className="text-sm text-gray-600">Original Total:</span>
-              <span className="font-semibold">₹{originalTotal.toFixed(2)}</span>
+              <span className="font-semibold">{formatIndianCurrency(originalTotal)}</span>
             </div>
           </div>
 
@@ -662,7 +663,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             <div className="flex justify-between mb-1">
               <span className="text-sm text-gray-600">Profit:</span>
               <span className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ₹{profit.toFixed(2)}
+                {formatIndianCurrency(profit)}
               </span>
             </div>
           </div>

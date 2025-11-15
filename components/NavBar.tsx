@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Package } from 'lucide-react'
+import { Home, Package, FileText } from 'lucide-react'
 
 export default function NavBar() {
   const pathname = usePathname()
@@ -27,6 +27,15 @@ export default function NavBar() {
         >
           <Package size={24} />
           <span className="text-xs mt-1">Orders</span>
+        </Link>
+        <Link
+          href="/invoices"
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            pathname === '/invoices' ? 'text-primary-600' : 'text-gray-500'
+          }`}
+        >
+          <FileText size={24} />
+          <span className="text-xs mt-1">Invoices</span>
         </Link>
       </div>
     </nav>

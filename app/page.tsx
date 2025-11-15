@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { orderService } from '@/lib/orderService'
 import { calculateStats, getDateRangeForDuration } from '@/lib/statsService'
+import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
@@ -125,13 +126,6 @@ export default function Dashboard() {
     setShowFilters(false)
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 2,
-    }).format(amount)
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -300,7 +294,7 @@ export default function Dashboard() {
                 <span className="text-xs text-gray-500">Cost</span>
               </div>
               <p className="text-xl font-bold text-gray-900">
-                {formatCurrency(stats.totalCost)}
+                {formatIndianCurrency(stats.totalCost)}
               </p>
               <p className="text-xs text-gray-500 mt-1">Total cost</p>
             </div>
@@ -311,7 +305,7 @@ export default function Dashboard() {
                 <span className="text-xs text-gray-500">Profit</span>
               </div>
               <p className="text-xl font-bold text-gray-900">
-                {formatCurrency(stats.totalProfit)}
+                {formatIndianCurrency(stats.totalProfit)}
               </p>
               <p className="text-xs text-gray-500 mt-1">Total profit</p>
             </div>
@@ -322,7 +316,7 @@ export default function Dashboard() {
                 <span className="text-xs text-gray-500">Balance</span>
               </div>
               <p className="text-xl font-bold text-gray-900">
-                {formatCurrency(stats.currentBalance)}
+                {formatIndianCurrency(stats.currentBalance)}
               </p>
               <p className="text-xs text-gray-500 mt-1">Paid orders</p>
             </div>
