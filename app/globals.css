@@ -166,6 +166,24 @@ button, a {
   }
 }
 
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes backdrop-fade-in {
   from {
     opacity: 0;
@@ -190,6 +208,14 @@ button, a {
 
 .animate-drawer-exit {
   animation: slide-down 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-side-drawer-enter {
+  animation: slide-in-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-side-drawer-exit {
+  animation: slide-out-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .animate-backdrop-enter {
@@ -265,19 +291,23 @@ select:disabled {
   cursor: not-allowed;
 }
 
-/* Dark mode support for form fields */
-@media (prefers-color-scheme: dark) {
-  input[type="date"],
-  input[type="datetime-local"],
-  input[type="time"],
-  select {
-    background-color: #1f2937;
-    color: #f9fafb;
-    border-color: #374151;
-  }
-  
-  select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%9ca3af' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-  }
+/* Force white backgrounds for all form fields */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="tel"],
+input[type="password"],
+textarea,
+select {
+  background-color: white !important;
+  color: #111827 !important;
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E") !important;
+  background-color: white !important;
 }
 

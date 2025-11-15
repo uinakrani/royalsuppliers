@@ -11,6 +11,7 @@ import { format } from 'date-fns'
 import { Plus, Edit, Trash2, CheckCircle, Filter, X } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
+import FilterDrawer from '@/components/FilterDrawer'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -385,26 +386,16 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Filters Panel */}
-      {showFilters && (
-        <div className="bg-white border-b border-gray-200 p-2.5 space-y-2 shadow-sm">
-          <div className="flex justify-between items-center mb-1.5">
-            <h3 className="text-sm font-semibold text-gray-900">Filters</h3>
-            <button 
-              onClick={() => setShowFilters(false)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
+      {/* Filters Drawer */}
+      <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+        <div className="space-y-6">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Party Name
             </label>
-            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
               {partyNames.map((partyNameOption) => (
-              <label key={partyNameOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+              <label key={partyNameOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterPartyName.split(',').includes(partyNameOption)}
@@ -418,21 +409,21 @@ export default function OrdersPage() {
                     }
                     setFilterPartyName(newFilters.join(','))
                   }}
-                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className="text-xs text-gray-700">{partyNameOption}</span>
+                <span className="text-sm text-gray-700">{partyNameOption}</span>
               </label>
             ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Material
             </label>
-            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
               {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
-              <label key={materialOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+              <label key={materialOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterMaterial.split(',').includes(materialOption)}
@@ -446,47 +437,57 @@ export default function OrdersPage() {
                     }
                     setFilterMaterial(newFilters.join(','))
                   }}
-                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className="text-xs text-gray-700">{materialOption}</span>
+                <span className="text-sm text-gray-700">{materialOption}</span>
               </label>
             ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              placeholder="Start Date"
-              value={filterStartDate}
-              onChange={(e) => setFilterStartDate(e.target.value)}
-              className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-            <input
-              type="date"
-              placeholder="End Date"
-              value={filterEndDate}
-              onChange={(e) => setFilterEndDate(e.target.value)}
-              className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
             <button
-              onClick={applyFilterForm}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              onClick={() => {
+                applyFilterForm()
+                setShowFilters(false)
+              }}
+              className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
-              Apply
+              Apply Filters
             </button>
             <button
-              onClick={resetFilters}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+              onClick={() => {
+                resetFilters()
+                setShowFilters(false)
+              }}
+              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
           </div>
         </div>
-      )}
+      </FilterDrawer>
 
       {/* Action Buttons */}
       <div className="p-2.5 flex gap-2">

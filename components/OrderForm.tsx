@@ -315,7 +315,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               onFocus={(e) => handleFieldFocus(e)}
               required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               style={{ 
                 maxWidth: '100%', 
                 width: '100%',
@@ -343,7 +343,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   }}
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomPartyName}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a party name</option>
@@ -364,7 +364,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter party name"
                   required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -397,7 +397,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   }}
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomSiteName}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a site name</option>
@@ -418,7 +418,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter site name"
                   required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -494,7 +494,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 onChange={(e) => setFormData({ ...formData, weight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                 onFocus={(e) => handleFieldFocus(e)}
                 required
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -508,7 +508,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 onChange={(e) => setFormData({ ...formData, rate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
                 onFocus={(e) => handleFieldFocus(e)}
                 required
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -537,7 +537,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   }}
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomTruckOwner}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a truck owner</option>
@@ -558,7 +558,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter truck owner name"
                   required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -585,7 +585,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               onFocus={(e) => handleFieldFocus(e)}
               placeholder="Enter truck number"
               required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
@@ -655,7 +655,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               value={formData.additionalCost}
               onChange={(e) => setFormData({ ...formData, additionalCost: parseFloat(e.target.value) || 0 })}
               onFocus={(e) => handleFieldFocus(e)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 

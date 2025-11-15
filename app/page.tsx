@@ -8,6 +8,7 @@ import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
 import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter } from 'lucide-react'
+import FilterDrawer from '@/components/FilterDrawer'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -152,17 +153,17 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Filters Panel */}
-      {showFilters && (
-        <div className="px-4 pb-4 space-y-3">
+      {/* Filters Drawer */}
+      <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+        <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Duration
             </label>
             <select
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+              className="w-full p-3 bg-white border border-gray-300 rounded-lg"
             >
               <option value="currentMonth">Current Month</option>
               <option value="7days">Last 7 Days</option>
@@ -174,12 +175,12 @@ export default function Dashboard() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Party Name
             </label>
-            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
               {partyNames.map((partyNameOption) => (
-              <label key={partyNameOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+              <label key={partyNameOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterPartyName.split(',').includes(partyNameOption)}
@@ -193,21 +194,21 @@ export default function Dashboard() {
                     }
                     setFilterPartyName(newFilters.join(','))
                   }}
-                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className="text-xs text-gray-700">{partyNameOption}</span>
+                <span className="text-sm text-gray-700">{partyNameOption}</span>
               </label>
             ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Material
             </label>
-            <div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-60 overflow-y-auto">
               {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
-              <label key={materialOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+              <label key={materialOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
                 <input
                   type="checkbox"
                   checked={filterMaterial.split(',').includes(materialOption)}
@@ -221,9 +222,9 @@ export default function Dashboard() {
                     }
                     setFilterMaterial(newFilters.join(','))
                   }}
-                  className="w-3.5 h-3.5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className="text-xs text-gray-700">{materialOption}</span>
+                <span className="text-sm text-gray-700">{materialOption}</span>
               </label>
             ))}
             </div>
@@ -231,45 +232,51 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Start Date
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full p-3 bg-white border border-gray-300 rounded-lg"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 End Date
               </label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                className="w-full p-3 bg-white border border-gray-300 rounded-lg"
               />
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
             <button
-              onClick={applyFilters}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg font-medium"
+              onClick={() => {
+                applyFilters()
+                setShowFilters(false)
+              }}
+              className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
-              Apply
+              Apply Filters
             </button>
             <button
-              onClick={resetFilters}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-medium"
+              onClick={() => {
+                resetFilters()
+                setShowFilters(false)
+              }}
+              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
           </div>
         </div>
-      )}
+      </FilterDrawer>
 
       {/* Statistics Cards */}
       {loading ? (

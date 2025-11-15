@@ -12,6 +12,7 @@ import { format } from 'date-fns'
 import { FileText, Plus, Trash2, Filter, X, AlertCircle, CheckCircle, Download } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
+import FilterDrawer from '@/components/FilterDrawer'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -280,91 +281,88 @@ export default function InvoicesPage() {
       
       <div className="max-w-7xl mx-auto px-4 py-4">
 
-        {/* Filters */}
-        {showFilters && (
-          <div className="bg-white rounded-lg shadow-sm p-4 mb-6 border border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Party Name</label>
-                <select
-                  value={filterPartyName}
-                  onChange={(e) => setFilterPartyName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="">All</option>
-                  {partyNames.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={filterStartDate}
-                  onChange={(e) => setFilterStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={filterEndDate}
-                  onChange={(e) => setFilterEndDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
-                <select
-                  value={filterPaid}
-                  onChange={(e) => setFilterPaid(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="">All</option>
-                  <option value="paid">Paid</option>
-                  <option value="unpaid">Unpaid</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Overdue Status</label>
-                <select
-                  value={filterOverdue}
-                  onChange={(e) => setFilterOverdue(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                >
-                  <option value="">All</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="not-overdue">Not Overdue</option>
-                </select>
-              </div>
+        {/* Filters Drawer */}
+        <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Party Name</label>
+              <select
+                value={filterPartyName}
+                onChange={(e) => setFilterPartyName(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">All</option>
+                {partyNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex gap-2 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Payment Status</label>
+              <select
+                value={filterPaid}
+                onChange={(e) => setFilterPaid(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">All</option>
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Overdue Status</label>
+              <select
+                value={filterOverdue}
+                onChange={(e) => setFilterOverdue(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">All</option>
+                <option value="overdue">Overdue</option>
+                <option value="not-overdue">Not Overdue</option>
+              </select>
+            </div>
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
               <button
-                onClick={applyFilterForm}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                onClick={() => {
+                  applyFilterForm()
+                  setShowFilters(false)
+                }}
+                className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
               >
                 Apply Filters
               </button>
               <button
-                onClick={resetFilters}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
+                onClick={() => {
+                  resetFilters()
+                  setShowFilters(false)
+                }}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
               >
                 Reset
               </button>
-              <button
-                onClick={() => setShowFilters(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 flex items-center gap-1"
-              >
-                <X size={16} />
-                Close
-              </button>
             </div>
           </div>
-        )}
+        </FilterDrawer>
 
         {/* Invoices List */}
         <div className="space-y-3">
