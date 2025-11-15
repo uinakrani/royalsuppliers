@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Order } from '@/types/order'
 import { X } from 'lucide-react'
 import { showToast } from '@/components/Toast'
@@ -13,6 +13,10 @@ interface OrderFormProps {
 }
 
 export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
+  const [isClosing, setIsClosing] = useState(false)
+  const modalContentRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
+
   const [formData, setFormData] = useState({
     date: order?.date || new Date().toISOString().split('T')[0],
     partyName: order?.partyName || '',
@@ -36,15 +40,63 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   const [showCustomSiteName, setShowCustomSiteName] = useState(false)
   const [truckOwners, setTruckOwners] = useState<string[]>([])
   const [showCustomTruckOwner, setShowCustomTruckOwner] = useState(false)
-  const [truckNumbers, setTruckNumbers] = useState<string[]>([])
-  const [showCustomTruckNo, setShowCustomTruckNo] = useState(false)
 
   useEffect(() => {
     loadPartyNames()
     loadSiteNames()
     loadTruckOwners()
-    loadTruckNumbers()
   }, [])
+
+  // Scroll focused field to top of visible area
+  const handleFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const field = e.currentTarget
+    if (modalContentRef.current && field) {
+      // Small delay to ensure the keyboard doesn't interfere
+      setTimeout(() => {
+        const container = modalContentRef.current
+        if (!container) return
+
+        // Find the field's parent div container (the div that wraps label + input)
+        // Walk up the DOM to find the direct child of the form
+        let fieldContainer: HTMLElement | null = field.parentElement
+        const form = container.querySelector('form')
+        
+        if (form) {
+          while (fieldContainer && fieldContainer !== form && fieldContainer !== container) {
+            if (fieldContainer.parentElement === form) {
+              break
+            }
+            fieldContainer = fieldContainer.parentElement
+          }
+        }
+        
+        // Use the field container if found, otherwise use the field itself
+        const elementToScroll = fieldContainer || field
+        
+        // Get current positions
+        const containerRect = container.getBoundingClientRect()
+        const elementRect = elementToScroll.getBoundingClientRect()
+        
+        // Calculate how much we need to scroll
+        // We want the element to be at the top of the visible area (below the sticky header)
+        const stickyHeaderHeight = 80
+        const padding = 20
+        const targetPosition = stickyHeaderHeight + padding
+        
+        // Current position of element relative to container's viewport
+        const currentElementTop = elementRect.top - containerRect.top
+        
+        // Calculate scroll adjustment needed
+        const scrollAdjustment = currentElementTop - targetPosition
+        
+        // Apply the scroll
+        container.scrollTo({
+          top: container.scrollTop + scrollAdjustment,
+          behavior: 'smooth'
+        })
+      }, 150)
+    }
+  }
 
   useEffect(() => {
     // Update form data when order prop changes
@@ -76,12 +128,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       if (order.truckOwner && truckOwners.length > 0 && !truckOwners.includes(order.truckOwner)) {
         setShowCustomTruckOwner(true)
       }
-      // Check if truck number exists in the list
-      if (order.truckNo && truckNumbers.length > 0 && !truckNumbers.includes(order.truckNo)) {
-        setShowCustomTruckNo(true)
-      }
     }
-  }, [order, partyNames, siteNames, truckOwners, truckNumbers])
+  }, [order, partyNames, siteNames, truckOwners])
 
   const loadPartyNames = async () => {
     try {
@@ -122,18 +170,6 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     }
   }
 
-  const loadTruckNumbers = async () => {
-    try {
-      const numbers = await orderService.getUniqueTruckNumbers()
-      setTruckNumbers(numbers)
-      // If current truck number is not in the list, show custom input
-      if (formData.truckNo && !numbers.includes(formData.truckNo)) {
-        setShowCustomTruckNo(true)
-      }
-    } catch (error) {
-      console.error('Error loading truck numbers:', error)
-    }
-  }
 
   const calculateFields = () => {
     const total = formData.weight * formData.rate
@@ -169,8 +205,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       console.log('Attempting to save order:', orderData)
       await onSave(orderData)
       console.log('Order saved successfully')
-      // Reset saving state - parent will close the form
-      setSaving(false)
+      // Close with animation
+      handleClose()
     } catch (error: any) {
       console.error('Error saving order:', error)
       let errorMessage = error?.message || 'Error saving order. Please try again.'
@@ -189,19 +225,56 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     }
   }
 
+  const handleClose = () => {
+    setIsClosing(true)
+    // Wait for exit animation to complete before calling onClose
+    setTimeout(() => {
+      onClose()
+    }, 250) // Match animation duration
+  }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-end">
-      <div className="bg-white w-full max-h-[90vh] rounded-t-2xl overflow-y-auto shadow-lg">
+    <div 
+      ref={backdropRef}
+      className={`fixed inset-0 bg-black z-[60] flex items-end ${
+        isClosing ? 'animate-backdrop-exit' : 'animate-backdrop-enter'
+      }`}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+      onClick={handleClose}
+    >
+      <div 
+        ref={modalContentRef} 
+        className={`bg-white w-full max-h-[90vh] rounded-t-2xl overflow-y-auto overflow-x-hidden shadow-lg ${
+          isClosing ? 'animate-drawer-exit' : 'animate-drawer-enter'
+        }`}
+        style={{ 
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          width: '100%',
+          maxWidth: '100vw',
+          boxSizing: 'border-box'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10">
           <h2 className="text-xl font-bold">
             {order ? 'Edit Order' : 'Add New Order'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <X size={24} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 pb-24">
+        <form 
+          onSubmit={handleSubmit} 
+          className="p-4 space-y-4 pb-24 overflow-x-hidden"
+          style={{ 
+            width: '100%', 
+            maxWidth: '100%', 
+            boxSizing: 'border-box',
+            minWidth: 0
+          }}
+        >
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date *
@@ -210,8 +283,15 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               type="date"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              onFocus={(e) => handleFieldFocus(e)}
               required
               className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              style={{ 
+                maxWidth: '100%', 
+                width: '100%',
+                boxSizing: 'border-box',
+                minWidth: 0
+              }}
             />
           </div>
 
@@ -230,6 +310,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                       setFormData({ ...formData, partyName: e.target.value })
                     }
                   }}
+                  onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomPartyName}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
@@ -248,6 +329,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   type="text"
                   value={formData.partyName}
                   onChange={(e) => setFormData({ ...formData, partyName: e.target.value })}
+                  onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter party name"
                   required
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -281,6 +363,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                       setFormData({ ...formData, siteName: e.target.value })
                     }
                   }}
+                  onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomSiteName}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
@@ -299,6 +382,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   type="text"
                   value={formData.siteName}
                   onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
+                  onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter site name"
                   required
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -321,7 +405,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Material *
             </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50">
               {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => {
                 const currentMaterials = Array.isArray(formData.material) 
                   ? formData.material 
@@ -375,6 +459,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.weight || ''}
                 onChange={(e) => setFormData({ ...formData, weight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                onFocus={(e) => handleFieldFocus(e)}
                 required
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
@@ -388,6 +473,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.rate || ''}
                 onChange={(e) => setFormData({ ...formData, rate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                onFocus={(e) => handleFieldFocus(e)}
                 required
                 className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
@@ -416,6 +502,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                       setFormData({ ...formData, truckOwner: e.target.value })
                     }
                   }}
+                  onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomTruckOwner}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
@@ -434,6 +521,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   type="text"
                   value={formData.truckOwner}
                   onChange={(e) => setFormData({ ...formData, truckOwner: e.target.value })}
+                  onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter truck owner name"
                   required
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -456,51 +544,15 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Truck No *
             </label>
-            {!showCustomTruckNo ? (
-              <div className="space-y-2">
-                <select
-                  value={formData.truckNo}
-                  onChange={(e) => {
-                    if (e.target.value === '__custom__') {
-                      setShowCustomTruckNo(true)
-                    } else {
-                      setFormData({ ...formData, truckNo: e.target.value })
-                    }
-                  }}
-                  required={!showCustomTruckNo}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="">Select a truck number</option>
-                  {truckNumbers.map((number) => (
-                    <option key={number} value={number}>
-                      {number}
-                    </option>
-                  ))}
-                  <option value="__custom__">+ Add New Truck Number</option>
-                </select>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={formData.truckNo}
-                  onChange={(e) => setFormData({ ...formData, truckNo: e.target.value })}
-                  placeholder="Enter truck number"
-                  required
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCustomTruckNo(false)
-                    setFormData({ ...formData, truckNo: '' })
-                  }}
-                  className="text-sm text-primary-600 hover:text-primary-700"
-                >
-                  ← Select from existing numbers
-                </button>
-              </div>
-            )}
+            <input
+              type="text"
+              value={formData.truckNo}
+              onChange={(e) => setFormData({ ...formData, truckNo: e.target.value })}
+              onFocus={(e) => handleFieldFocus(e)}
+              placeholder="Enter truck number"
+              required
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -513,6 +565,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.originalWeight || ''}
                 onChange={(e) => setFormData({ ...formData, originalWeight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                onFocus={(e) => handleFieldFocus(e)}
                 required
                 className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
                   formData.originalWeight > formData.weight && formData.weight > 0
@@ -535,6 +588,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.originalRate || ''}
                 onChange={(e) => setFormData({ ...formData, originalRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
+                onFocus={(e) => handleFieldFocus(e)}
                 required
                 className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
                   formData.originalRate > formData.rate && formData.rate > 0
@@ -566,6 +620,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               step="0.01"
               value={formData.additionalCost}
               onChange={(e) => setFormData({ ...formData, additionalCost: parseFloat(e.target.value) || 0 })}
+              onFocus={(e) => handleFieldFocus(e)}
               className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -608,7 +663,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           <div className="flex gap-2 pt-4 pb-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
             >
               Cancel

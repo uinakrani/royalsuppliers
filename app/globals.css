@@ -147,3 +147,56 @@ button, a {
   animation: fade-out 0.2s ease-in;
 }
 
+/* Drawer animations for native app feel */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-drawer-enter {
+  animation: slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-drawer-exit {
+  animation: slide-down 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-backdrop-enter {
+  animation: backdrop-fade-in 0.3s ease-out;
+}
+
+.animate-backdrop-exit {
+  animation: backdrop-fade-out 0.25s ease-in;
+}
+
