@@ -246,7 +246,7 @@ export default function Dashboard() {
                 applyFilters()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-[10px] font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
               Apply
             </button>
@@ -255,7 +255,7 @@ export default function Dashboard() {
                 resetFilters()
                 setShowFilters(false)
               }}
-              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
@@ -269,73 +269,73 @@ export default function Dashboard() {
           <LoadingSpinner size={32} text="Loading dashboard..." />
         </div>
       ) : (
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <Package className="text-primary-600" size={20} />
-                <span className="text-xs text-gray-500">Weight</span>
+        <div className="p-2.5 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-1">
+                <Package className="text-primary-600" size={16} />
+                <span className="text-[10px] text-gray-500">Weight</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xs font-bold text-gray-900">
                 {stats.totalWeight.toFixed(2)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Total sold</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Total sold</p>
             </div>
 
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <DollarSign className="text-green-600" size={20} />
-                <span className="text-xs text-gray-500">Cost</span>
+            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-1">
+                <DollarSign className="text-green-600" size={16} />
+                <span className="text-[10px] text-gray-500">Cost</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xs font-bold text-gray-900">
                 {formatIndianCurrency(stats.totalCost)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Total cost</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Total cost</p>
             </div>
 
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <TrendingUp className="text-blue-600" size={20} />
-                <span className="text-xs text-gray-500">Profit</span>
+            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-1">
+                <TrendingUp className="text-blue-600" size={16} />
+                <span className="text-[10px] text-gray-500">Profit</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xs font-bold text-gray-900">
                 {formatIndianCurrency(stats.totalProfit)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Total profit</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Total profit</p>
             </div>
 
-            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <CreditCard className="text-purple-600" size={20} />
-                <span className="text-xs text-gray-500">Balance</span>
+            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-1">
+                <CreditCard className="text-purple-600" size={16} />
+                <span className="text-[10px] text-gray-500">Balance</span>
               </div>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xs font-bold text-gray-900">
                 {formatIndianCurrency(stats.currentBalance)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">Paid orders</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Paid orders</p>
             </div>
           </div>
 
           {/* Additional Stats */}
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-3">Order Summary</h3>
-            <div className="space-y-2">
+          <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Order Summary</h3>
+            <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Total Orders</span>
-                <span className="font-semibold">{stats.totalOrders}</span>
+                <span className="text-xs text-gray-600">Total Orders</span>
+                <span className="text-xs font-semibold">{stats.totalOrders}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Paid Orders</span>
-                <span className="font-semibold text-green-600">{stats.paidOrders}</span>
+                <span className="text-xs text-gray-600">Paid Orders</span>
+                <span className="text-xs font-semibold text-green-600">{stats.paidOrders}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Unpaid Orders</span>
-                <span className="font-semibold text-red-600">{stats.unpaidOrders}</span>
+                <span className="text-xs text-gray-600">Unpaid Orders</span>
+                <span className="text-xs font-semibold text-red-600">{stats.unpaidOrders}</span>
               </div>
               {stats.partialOrders > 0 && (
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Partial Payments</span>
-                  <span className="font-semibold text-yellow-600">{stats.partialOrders}</span>
+                  <span className="text-xs text-gray-600">Partial Payments</span>
+                  <span className="text-xs font-semibold text-yellow-600">{stats.partialOrders}</span>
                 </div>
               )}
             </div>

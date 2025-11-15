@@ -702,7 +702,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
@@ -714,7 +714,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 }
               }}
               disabled={saving}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-[10px] font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 shadow-sm"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>

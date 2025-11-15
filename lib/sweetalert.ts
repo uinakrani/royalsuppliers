@@ -50,7 +50,7 @@ const getSwal = async (): Promise<any> => {
   })
 }
 
-// Mobile-friendly SweetAlert configuration
+// Mobile-friendly SweetAlert configuration - Compact
 const swalConfig = {
   confirmButtonColor: '#0ea5e9', // primary-600
   cancelButtonColor: '#6b7280', // gray-500
@@ -58,6 +58,8 @@ const swalConfig = {
   reverseButtons: true, // Cancel on left, Confirm on right (mobile-friendly)
   allowOutsideClick: false,
   allowEscapeKey: true,
+  width: '90%',
+  padding: '1rem',
   showClass: {
     popup: 'animate-fade-in',
     backdrop: 'animate-fade-in'

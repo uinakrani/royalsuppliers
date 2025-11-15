@@ -17,7 +17,7 @@ export default function NavBar() {
           }`}
         >
           <Home size={24} />
-          <span className="text-xs mt-1">Dashboard</span>
+          <span className="text-[10px] mt-1">Dashboard</span>
         </Link>
         <Link
           href="/orders"
@@ -26,7 +26,7 @@ export default function NavBar() {
           }`}
         >
           <Package size={24} />
-          <span className="text-xs mt-1">Orders</span>
+          <span className="text-[10px] mt-1">Orders</span>
         </Link>
         <Link
           href="/invoices"
@@ -35,7 +35,7 @@ export default function NavBar() {
           }`}
         >
           <FileText size={24} />
-          <span className="text-xs mt-1">Invoices</span>
+          <span className="text-[10px] mt-1">Invoices</span>
         </Link>
       </div>
     </nav>

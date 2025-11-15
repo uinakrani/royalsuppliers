@@ -318,14 +318,26 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           <h1 className="text-xl font-bold">Orders</h1>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-          >
-            <Filter size={18} />
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => {
+                setEditingOrder(null)
+                setShowForm(true)
+              }}
+              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+              title="Add Order"
+            >
+              <Plus size={18} />
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+            >
+              <Filter size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -447,7 +459,7 @@ export default function OrdersPage() {
                 applyFilterForm()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-[10px] font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
               Apply
             </button>
@@ -456,7 +468,7 @@ export default function OrdersPage() {
                 resetFilters()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
@@ -464,44 +476,31 @@ export default function OrdersPage() {
         </div>
       </FilterDrawer>
 
-      {/* Action Buttons - Sticky at Bottom */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-30 shadow-lg">
-        {selectedOrders.size > 0 ? (
-          <>
-            <button
-              onClick={handleBulkCreateInvoice}
-              className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
-            >
-              <FileText size={18} />
-              Create Invoice ({selectedOrders.size})
-            </button>
-            <button
-              onClick={handleBulkDelete}
-              className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors shadow-sm"
-            >
-              <Trash2 size={18} />
-              Delete ({selectedOrders.size})
-            </button>
-            <button
-              onClick={() => setSelectedOrders(new Set())}
-              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
-            >
-              Clear
-            </button>
-          </>
-        ) : (
+      {/* Action Buttons - Sticky at Bottom (only when orders are selected) */}
+      {selectedOrders.size > 0 && (
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-30 shadow-lg">
           <button
-            onClick={() => {
-              setEditingOrder(null)
-              setShowForm(true)
-            }}
-            className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-primary-700 transition-colors shadow-sm"
+            onClick={handleBulkCreateInvoice}
+            className="flex-1 bg-green-600 text-white py-2 rounded-lg text-[10px] font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
           >
-            <Plus size={18} />
-            Add Order
+            <FileText size={18} />
+            Create Invoice ({selectedOrders.size})
           </button>
-        )}
-      </div>
+          <button
+            onClick={handleBulkDelete}
+            className="flex-1 bg-red-600 text-white py-2 rounded-lg text-[10px] font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors shadow-sm"
+          >
+            <Trash2 size={18} />
+            Delete ({selectedOrders.size})
+          </button>
+          <button
+            onClick={() => setSelectedOrders(new Set())}
+            className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Orders List */}
       {loading ? (

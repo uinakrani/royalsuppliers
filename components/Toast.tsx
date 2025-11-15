@@ -47,17 +47,17 @@ function ToastItem({ toast, onClose }: ToastProps) {
 
   return (
     <div
-      className={`${bgColor} border-l-4 p-4 rounded-lg shadow-lg mb-3 flex items-start animate-slide-in`}
+      className={`${bgColor} border-l-4 p-2 rounded-lg shadow-lg mb-2 flex items-center animate-slide-in`}
     >
-      <Icon className={`${iconColor} mr-3 flex-shrink-0 mt-0.5`} size={20} />
+      <Icon className={`${iconColor} mr-2 flex-shrink-0`} size={16} />
       <div className="flex-1">
-        <p className={`font-medium ${textColor}`}>{toast.message}</p>
+        <p className={`text-xs font-medium ${textColor}`}>{toast.message}</p>
       </div>
       <button
         onClick={() => onClose(toast.id)}
-        className={`ml-3 ${textColor} hover:opacity-70`}
+        className={`ml-2 ${textColor} hover:opacity-70`}
       >
-        <X size={18} />
+        <X size={14} />
       </button>
     </div>
   )
@@ -90,7 +90,7 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] w-full max-w-md px-4">
+    <div className="fixed top-2 left-1/2 transform -translate-x-1/2 z-[9999] w-full max-w-sm px-3">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onClose={handleClose} />
       ))}
