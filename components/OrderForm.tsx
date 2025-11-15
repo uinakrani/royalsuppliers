@@ -130,9 +130,9 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-end">
       <div className="bg-white w-full max-h-[90vh] rounded-t-2xl overflow-y-auto shadow-lg">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10">
           <h2 className="text-xl font-bold">
             {order ? 'Edit Order' : 'Add New Order'}
           </h2>
@@ -141,7 +141,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 pb-24">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date *
@@ -422,7 +422,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             </label>
           </div>
 
-          <div className="flex gap-2 pt-4 pb-8">
+          <div className="flex gap-2 pt-4 pb-4">
             <button
               type="button"
               onClick={onClose}
