@@ -317,33 +317,35 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center gap-2">
-          <h1 className="text-xl font-bold">Orders</h1>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => {
-                setEditingOrder(null)
-                setShowForm(true)
-              }}
-              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-              title="Add Order"
-            >
-              <Plus size={18} />
-            </button>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-            >
-              <Filter size={18} />
-            </button>
+      <div className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm">
+        <div className="p-2.5">
+          <div className="flex justify-between items-center gap-2">
+            <h1 className="text-xl font-bold">Orders</h1>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  setEditingOrder(null)
+                  setShowForm(true)
+                }}
+                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+                title="Add Order"
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+              >
+                <Filter size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Party Name Tags - Horizontal Scrollable */}
       {partyNames.length > 0 && (
-        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky top-[60px] z-30 shadow-sm">
+        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky top-[50px] z-30 shadow-sm -mt-px">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {partyNames.map((partyName) => {
               const isSelected = selectedPartyTags.has(partyName)
@@ -504,18 +506,18 @@ export default function OrdersPage() {
 
       {/* Orders List */}
       {loading ? (
-        <div className="p-8">
-          <LoadingSpinner size={32} text="Loading orders..." />
+        <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
+          <LoadingSpinner size={32} />
         </div>
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
       ) : (
-        <div className="px-2.5 pb-2.5 overflow-x-auto">
+        <div className="px-2 pb-1 overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrders.has(o.id!))}
@@ -530,22 +532,22 @@ export default function OrdersPage() {
                     className="custom-checkbox"
                   />
                 </th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
-                <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
-                <th className="px-2 py-2 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
-                <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
-                <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
+                <th className="px-1.5 py-1 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
+                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
+                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
+                <th className="px-1.5 py-1 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -556,7 +558,7 @@ export default function OrdersPage() {
                     selectedOrders.has(order.id!) ? 'bg-primary-50' : ''
                   }`}
                 >
-                  <td className="px-2 py-1.5 whitespace-nowrap">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={selectedOrders.has(order.id!)}
@@ -564,81 +566,81 @@ export default function OrdersPage() {
                       className="custom-checkbox"
                     />
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900">
                     {format(new Date(order.date), 'dd MMM yyyy')}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-center">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-center">
                     {order.invoiced ? (
-                      <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-medium">
+                      <span className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
                         Invoiced
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400">-</span>
+                      <span className="text-[10px] text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs font-medium text-gray-900">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] font-medium text-gray-900">
                     {order.partyName}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
                     {order.siteName}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
                     {Array.isArray(order.material) ? order.material.join(', ') : order.material}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
                     {order.weight.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
                     {formatIndianCurrency(order.rate)}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] font-semibold text-gray-900 text-right">
                     {formatIndianCurrency(order.total)}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
                     {order.truckOwner}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
                     {order.truckNo}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
                     {order.originalWeight.toFixed(2)}
                   </td>
-                  <td className={`px-2 py-1.5 whitespace-nowrap text-xs text-right ${
+                  <td className={`px-1.5 py-0.5 whitespace-nowrap text-[10px] text-right ${
                     order.originalRate > order.rate && order.rate > 0
                       ? 'text-red-600 font-semibold'
                       : 'text-gray-900'
                   }`}>
                     {formatIndianCurrency(order.originalRate)}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] font-semibold text-gray-900 text-right">
                     {formatIndianCurrency(order.originalTotal)}
                   </td>
-                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
                     {formatIndianCurrency(order.additionalCost)}
                   </td>
-                  <td className={`px-2 py-1.5 whitespace-nowrap text-xs text-right font-medium ${
+                  <td className={`px-1.5 py-0.5 whitespace-nowrap text-[10px] text-right font-medium ${
                     order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {formatIndianCurrency(order.profit)}
                   </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-1">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-0.5">
                       <button
                         onClick={() => {
                           setEditingOrder(order)
                           setShowForm(true)
                         }}
-                        className="p-1.5 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                        className="p-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
                         title="Edit"
                       >
-                        <Edit size={16} />
+                        <Edit size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteOrder(order.id!)}
-                        className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                        className="p-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
                         title="Delete"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>

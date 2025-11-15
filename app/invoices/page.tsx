@@ -269,8 +269,8 @@ export default function InvoicesPage() {
             </button>
           </div>
         </div>
-        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-          <LoadingSpinner size={32} text="Loading invoices..." />
+        <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
+          <LoadingSpinner size={32} />
         </div>
         <NavBar />
       </div>

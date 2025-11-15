@@ -265,8 +265,8 @@ export default function Dashboard() {
 
       {/* Statistics Cards */}
       {loading ? (
-        <div className="p-8">
-          <LoadingSpinner size={32} text="Loading dashboard..." />
+        <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
+          <LoadingSpinner size={32} />
         </div>
       ) : (
         <div className="p-2.5 space-y-2.5">
@@ -276,7 +276,7 @@ export default function Dashboard() {
                 <Package className="text-primary-600" size={16} />
                 <span className="text-[10px] text-gray-500">Weight</span>
               </div>
-              <p className="text-xs font-bold text-gray-900">
+              <p className="text-sm font-bold text-gray-900">
                 {stats.totalWeight.toFixed(2)}
               </p>
               <p className="text-[10px] text-gray-500 mt-0.5">Total sold</p>
@@ -287,7 +287,7 @@ export default function Dashboard() {
                 <DollarSign className="text-green-600" size={16} />
                 <span className="text-[10px] text-gray-500">Cost</span>
               </div>
-              <p className="text-xs font-bold text-gray-900">
+              <p className="text-sm font-bold text-gray-900">
                 {formatIndianCurrency(stats.totalCost)}
               </p>
               <p className="text-[10px] text-gray-500 mt-0.5">Total cost</p>
@@ -298,7 +298,7 @@ export default function Dashboard() {
                 <TrendingUp className="text-blue-600" size={16} />
                 <span className="text-[10px] text-gray-500">Profit</span>
               </div>
-              <p className="text-xs font-bold text-gray-900">
+              <p className="text-sm font-bold text-gray-900">
                 {formatIndianCurrency(stats.totalProfit)}
               </p>
               <p className="text-[10px] text-gray-500 mt-0.5">Total profit</p>
@@ -309,7 +309,7 @@ export default function Dashboard() {
                 <CreditCard className="text-purple-600" size={16} />
                 <span className="text-[10px] text-gray-500">Balance</span>
               </div>
-              <p className="text-xs font-bold text-gray-900">
+              <p className="text-sm font-bold text-gray-900">
                 {formatIndianCurrency(stats.currentBalance)}
               </p>
               <p className="text-[10px] text-gray-500 mt-0.5">Paid orders</p>
