@@ -320,8 +320,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 maxWidth: '100%', 
                 width: '100%',
                 boxSizing: 'border-box',
-                minWidth: 0,
-                fontSize: '16px' // Prevents zoom on iOS
+                minWidth: 0
               }}
             />
           </div>
@@ -344,7 +343,6 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomPartyName}
                   className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a party name</option>
                   {partyNames.map((name) => (
@@ -398,7 +396,6 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomSiteName}
                   className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a site name</option>
                   {siteNames.map((name) => (
@@ -538,7 +535,6 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomTruckOwner}
                   className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a truck owner</option>
                   {truckOwners.map((owner) => (

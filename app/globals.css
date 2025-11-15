@@ -239,6 +239,23 @@ button, a {
   animation: backdrop-fade-out 0.25s ease-in;
 }
 
+/* Highlight animation for newly added orders */
+@keyframes highlight-blink {
+  0% {
+    background-color: #fef3c7; /* yellow-100 */
+  }
+  50% {
+    background-color: #fde68a; /* yellow-200 */
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.highlight-row {
+  animation: highlight-blink 1s ease-out;
+}
+
 /* iOS form field styling improvements */
 input[type="date"],
 input[type="datetime-local"],
@@ -247,7 +264,7 @@ input[type="time"] {
   appearance: none;
   background-color: white;
   color: #111827;
-  font-size: 16px !important; /* Prevents zoom on iOS */
+  font-size: 12px !important; /* 12px font size */
   line-height: 1.5;
   box-sizing: border-box;
 }
@@ -285,7 +302,7 @@ select {
   background-position: right 12px center;
   background-size: 12px;
   color: #111827;
-  font-size: 16px !important; /* Prevents zoom on iOS */
+  font-size: 12px !important; /* 12px font size */
   line-height: 1.5;
   padding-right: 36px !important; /* Make room for custom arrow */
   box-sizing: border-box;
@@ -317,6 +334,7 @@ textarea,
 select {
   background-color: white !important;
   color: #111827 !important;
+  font-size: 12px !important; /* 12px font size for all inputs */
 }
 
 select {
@@ -405,7 +423,7 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
 }
 
-/* Prevent zoom on input focus (iOS) - use 16px font size */
+/* Prevent zoom on input focus (iOS) - use 16px font size on mobile */
 @media screen and (max-width: 768px) {
   input[type="text"],
   input[type="number"],
@@ -413,9 +431,10 @@ input:focus, select:focus, textarea:focus {
   input[type="tel"],
   input[type="date"],
   input[type="time"],
+  input[type="datetime-local"],
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: 16px !important; /* Prevents zoom on iOS */
   }
 }
 

@@ -13,6 +13,7 @@ import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -31,11 +32,36 @@ export default function OrdersPage() {
   const [filterStartDate, setFilterStartDate] = useState('')
   const [filterEndDate, setFilterEndDate] = useState('')
   const [partyNames, setPartyNames] = useState<string[]>([])
+  const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   useEffect(() => {
     loadOrders()
     loadPartyNames()
   }, [])
+
+  // Check for highlight query parameter
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight')
+    if (highlightId) {
+      setHighlightedOrderId(highlightId)
+      // Scroll to the highlighted row after a short delay to ensure it's rendered
+      setTimeout(() => {
+        const element = document.querySelector(`[data-order-id="${highlightId}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+      // Remove highlight after 1 second
+      const timer = setTimeout(() => {
+        setHighlightedOrderId(null)
+        // Clean up URL
+        router.replace('/orders', { scroll: false })
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams, router, filteredOrders])
 
   const loadPartyNames = async () => {
     try {
@@ -111,9 +137,26 @@ export default function OrdersPage() {
         showToast('Order updated successfully!', 'success')
       } else {
         console.log('➕ Creating new order')
-        await orderService.createOrder(orderData)
+        const orderId = await orderService.createOrder(orderData)
         console.log('✅ Order created')
         showToast('Order created successfully!', 'success')
+        
+        console.log('🔄 Reloading orders...')
+        await loadOrders()
+        console.log('✅ Orders reloaded')
+        
+        setEditingOrder(null)
+        setShowForm(false)
+        console.log('✅ Form closed')
+        
+        // Highlight the newly created order
+        setHighlightedOrderId(orderId)
+        router.replace(`/orders?highlight=${orderId}`, { scroll: false })
+        setTimeout(() => {
+          setHighlightedOrderId(null)
+          router.replace('/orders', { scroll: false })
+        }, 1000)
+        return // Exit early to avoid duplicate reload
       }
       
       console.log('🔄 Reloading orders...')
@@ -441,7 +484,7 @@ export default function OrdersPage() {
                 type="date"
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full p-2 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -450,7 +493,7 @@ export default function OrdersPage() {
                 type="date"
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full p-2 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -554,8 +597,11 @@ export default function OrdersPage() {
               {filteredOrders.map((order) => (
                 <tr
                   key={order.id}
+                  data-order-id={order.id}
                   className={`hover:bg-gray-50 transition-colors ${
                     selectedOrders.has(order.id!) ? 'bg-primary-50' : ''
+                  } ${
+                    highlightedOrderId === order.id ? 'highlight-row' : ''
                   }`}
                 >
                   <td className="px-1.5 py-0.5 whitespace-nowrap">

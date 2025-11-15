@@ -50,5 +50,8 @@ export interface DashboardStats {
   paidOrders: number
   unpaidOrders: number
   partialOrders: number
+  estimatedProfit: number // Sum of profit from filtered orders
+  paymentReceived: number // Sum of invoice payments within date range
+  costAmount: number // Sum of originalTotal + additionalCost from filtered orders
 }
 

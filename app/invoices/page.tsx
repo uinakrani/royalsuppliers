@@ -14,6 +14,8 @@ import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import OrderForm from '@/components/OrderForm'
+import { useRouter } from 'next/navigation'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -24,6 +26,8 @@ export default function InvoicesPage() {
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null)
   const [invoiceOrders, setInvoiceOrders] = useState<Record<string, Order[]>>({})
+  const [showForm, setShowForm] = useState(false)
+  const router = useRouter()
 
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
@@ -261,12 +265,20 @@ export default function InvoicesPage() {
         <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold">Invoices</h1>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-            >
-              <Filter size={18} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowForm(true)}
+                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+              >
+                <Filter size={18} />
+              </button>
+            </div>
           </div>
         </div>
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
@@ -301,7 +313,7 @@ export default function InvoicesPage() {
               <select
                 value={filterPartyName}
                 onChange={(e) => setFilterPartyName(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               >
                 <option value="">All</option>
                 {partyNames.map((name) => (
@@ -317,7 +329,7 @@ export default function InvoicesPage() {
                 type="date"
                 value={filterStartDate}
                 onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               />
             </div>
             <div>
@@ -326,7 +338,7 @@ export default function InvoicesPage() {
                 type="date"
                 value={filterEndDate}
                 onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               />
             </div>
             <div>
@@ -334,7 +346,7 @@ export default function InvoicesPage() {
               <select
                 value={filterPaid}
                 onChange={(e) => setFilterPaid(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               >
                 <option value="">All</option>
                 <option value="paid">Paid</option>
@@ -346,7 +358,7 @@ export default function InvoicesPage() {
               <select
                 value={filterOverdue}
                 onChange={(e) => setFilterOverdue(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               >
                 <option value="">All</option>
                 <option value="overdue">Overdue</option>
@@ -579,6 +591,27 @@ export default function InvoicesPage() {
           )}
         </div>
       </div>
+
+      {/* Order Form */}
+      {showForm && (
+        <OrderForm
+          order={null}
+          onClose={() => setShowForm(false)}
+          onSave={async (orderData) => {
+            try {
+              const orderId = await orderService.createOrder(orderData)
+              showToast('Order created successfully!', 'success')
+              setShowForm(false)
+              // Navigate to orders page and highlight the new order
+              router.push(`/orders?highlight=${orderId}`)
+            } catch (error: any) {
+              showToast(error?.message || 'Failed to create order', 'error')
+              throw error
+            }
+          }}
+        />
+      )}
+
       <NavBar />
     </div>
   )

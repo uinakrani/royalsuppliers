@@ -12,12 +12,18 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     paidOrders: 0,
     unpaidOrders: 0,
     partialOrders: 0,
+    estimatedProfit: 0,
+    paymentReceived: 0, // Will be calculated separately with invoice data
+    costAmount: 0,
   }
 
   orders.forEach((order) => {
     stats.totalWeight += order.weight
-    stats.totalCost += order.originalTotal + order.additionalCost
+    const orderCost = order.originalTotal + order.additionalCost
+    stats.totalCost += orderCost
+    stats.costAmount += orderCost // Same as totalCost for filtered orders
     stats.totalProfit += order.profit
+    stats.estimatedProfit += order.profit // Estimated profit from filtered orders
 
     if (order.paid) {
       stats.currentBalance += order.total

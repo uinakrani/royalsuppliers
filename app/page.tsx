@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { orderService } from '@/lib/orderService'
+import { invoiceService } from '@/lib/invoiceService'
 import { calculateStats, getDateRangeForDuration } from '@/lib/statsService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, DashboardStats, OrderFilters } from '@/types/order'
+import { Invoice } from '@/types/invoice'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
-import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter } from 'lucide-react'
+import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus } from 'lucide-react'
 import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import OrderForm from '@/components/OrderForm'
+import { showToast } from '@/components/Toast'
+import { useRouter } from 'next/navigation'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -22,6 +27,9 @@ export default function Dashboard() {
     paidOrders: 0,
     unpaidOrders: 0,
     partialOrders: 0,
+    estimatedProfit: 0,
+    paymentReceived: 0,
+    costAmount: 0,
   })
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<OrderFilters>({})
@@ -32,6 +40,8 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [partyNames, setPartyNames] = useState<string[]>([])
+  const [showForm, setShowForm] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     loadPartyNames()
@@ -56,18 +66,49 @@ export default function Dashboard() {
       // Get all orders first
       const allOrders = await orderService.getAllOrders()
       
-      // Apply client-side filters for multiple party names and materials
+      // Determine date range: custom date filters take precedence over duration
+      let dateRangeStart: Date | null = null
+      let dateRangeEnd: Date | null = null
+      
+      if (filters.startDate || filters.endDate) {
+        // Use custom date filters if provided
+        if (filters.startDate) {
+          dateRangeStart = new Date(filters.startDate)
+          dateRangeStart.setHours(0, 0, 0, 0) // Start of day
+        }
+        if (filters.endDate) {
+          dateRangeEnd = new Date(filters.endDate)
+          dateRangeEnd.setHours(23, 59, 59, 999) // End of day
+        }
+      } else if (duration) {
+        // Use duration filter if no custom dates provided
+        const { start, end } = getDateRangeForDuration(duration)
+        dateRangeStart = start
+        dateRangeStart.setHours(0, 0, 0, 0) // Start of day
+        dateRangeEnd = end
+        dateRangeEnd.setHours(23, 59, 59, 999) // End of day
+      }
+      
+      // Apply all filters to orders
       let filteredOrders = allOrders
       
-      // Apply duration filter
-      if (duration) {
-        const { start, end } = getDateRangeForDuration(duration)
+      // Apply date range filter (order date)
+      if (dateRangeStart || dateRangeEnd) {
         filteredOrders = filteredOrders.filter((order) => {
           const orderDate = new Date(order.date)
-          return orderDate >= start && orderDate <= end
+          orderDate.setHours(12, 0, 0, 0) // Use noon to avoid timezone issues
+          
+          if (dateRangeStart && orderDate < dateRangeStart) {
+            return false
+          }
+          if (dateRangeEnd && orderDate > dateRangeEnd) {
+            return false
+          }
+          return true
         })
       }
       
+      // Apply party name filter
       if (filters.partyName) {
         const filterPartyNames = filters.partyName.split(',').map(p => p.trim().toLowerCase())
         filteredOrders = filteredOrders.filter((o) =>
@@ -75,6 +116,7 @@ export default function Dashboard() {
         )
       }
       
+      // Apply material filter
       if (filters.material) {
         const filterMaterials = filters.material.split(',').map(m => m.trim().toLowerCase())
         filteredOrders = filteredOrders.filter((o) => {
@@ -85,22 +127,81 @@ export default function Dashboard() {
         })
       }
       
-      // Apply date range filter
-      if (filters.startDate || filters.endDate) {
-        filteredOrders = filteredOrders.filter((order) => {
-          const orderDate = new Date(order.date)
-          if (filters.startDate && orderDate < new Date(filters.startDate)) {
-            return false
+      // Calculate stats from filtered orders
+      const calculatedStats = calculateStats(filteredOrders)
+      
+      // Calculate payment received
+      // Payment received should:
+      // 1. Filter invoices by party name and material (if filters are applied)
+      // 2. Count ALL payments made within the date range (payment date, not order date)
+      let paymentReceived = 0
+      try {
+        const allInvoices = await invoiceService.getAllInvoices()
+        const allOrders = await orderService.getAllOrders()
+        
+        // Create a map of order ID to order for quick lookup
+        const orderMap = new Map(allOrders.map(order => [order.id, order]))
+        
+        // Filter invoices by party name and material (if filters are applied)
+        allInvoices.forEach((invoice) => {
+          // Check if invoice matches party name filter
+          if (filters.partyName) {
+            const filterPartyNames = filters.partyName.split(',').map(p => p.trim().toLowerCase())
+            if (!filterPartyNames.some(fp => invoice.partyName.toLowerCase() === fp)) {
+              return // Skip this invoice if party name doesn't match
+            }
           }
-          if (filters.endDate && orderDate > new Date(filters.endDate)) {
-            return false
+          
+          // Check if invoice matches material filter by checking its orders
+          if (filters.material) {
+            const filterMaterials = filters.material.split(',').map(m => m.trim().toLowerCase())
+            const invoiceHasMatchingMaterial = invoice.orderIds.some(orderId => {
+              const order = orderMap.get(orderId)
+              if (!order) return false
+              const orderMaterials = Array.isArray(order.material) 
+                ? order.material.map(m => m.toLowerCase())
+                : [order.material.toLowerCase()]
+              return filterMaterials.some(fm => orderMaterials.some(om => om.includes(fm)))
+            })
+            
+            if (!invoiceHasMatchingMaterial) {
+              return // Skip this invoice if material doesn't match
+            }
           }
-          return true
+          
+          // Count all payments made within the date range
+          // Payment date is what matters, not order date
+          if (invoice.partialPayments && invoice.partialPayments.length > 0) {
+            invoice.partialPayments.forEach((payment) => {
+              const paymentDate = new Date(payment.date)
+              
+              // Check if payment date is within the filter range
+              let isInRange = true
+              if (dateRangeStart) {
+                if (paymentDate < dateRangeStart) {
+                  isInRange = false
+                }
+              }
+              if (dateRangeEnd) {
+                if (paymentDate > dateRangeEnd) {
+                  isInRange = false
+                }
+              }
+              
+              if (isInRange) {
+                paymentReceived += payment.amount
+              }
+            })
+          }
         })
+      } catch (error) {
+        console.error('Error loading invoices for payment calculation:', error)
       }
       
+      calculatedStats.paymentReceived = paymentReceived
+      
       setOrders(filteredOrders)
-      setStats(calculateStats(filteredOrders))
+      setStats(calculatedStats)
     } catch (error) {
       console.error('Error loading orders:', error)
     } finally {
@@ -132,37 +233,43 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-2">
           <h1 className="text-xl font-bold">Dashboard</h1>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowForm(true)}
+              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+            >
+              <Plus size={18} />
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+            >
+              <Filter size={18} />
+            </button>
+          </div>
+        </div>
+        {/* Duration Filter - Visible on Screen */}
+        <div>
+          <select
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-900"
           >
-            <Filter size={18} />
-          </button>
+            <option value="currentMonth">Current Month</option>
+            <option value="7days">Last 7 Days</option>
+            <option value="lastMonth">Last Month</option>
+            <option value="last3Months">Last 3 Months</option>
+            <option value="last6Months">Last 6 Months</option>
+            <option value="lastYear">Last Year</option>
+          </select>
         </div>
       </div>
 
       {/* Filters Drawer */}
       <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
         <div className="space-y-3">
-          {/* Duration */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Duration</label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
-            >
-              <option value="currentMonth">Current Month</option>
-              <option value="7days">Last 7 Days</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="last3Months">Last 3 Months</option>
-              <option value="last6Months">Last 6 Months</option>
-              <option value="lastYear">Last Year</option>
-            </select>
-          </div>
-
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -171,7 +278,7 @@ export default function Dashboard() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               />
             </div>
             <div>
@@ -180,7 +287,7 @@ export default function Dashboard() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
               />
             </div>
           </div>
@@ -288,7 +395,7 @@ export default function Dashboard() {
                 <span className="text-[10px] text-gray-500">Cost</span>
               </div>
               <p className="text-sm font-bold text-gray-900">
-                {formatIndianCurrency(stats.totalCost)}
+                {formatIndianCurrency(stats.costAmount)}
               </p>
               <p className="text-[10px] text-gray-500 mt-0.5">Total cost</p>
             </div>
@@ -299,9 +406,20 @@ export default function Dashboard() {
                 <span className="text-[10px] text-gray-500">Profit</span>
               </div>
               <p className="text-sm font-bold text-gray-900">
-                {formatIndianCurrency(stats.totalProfit)}
+                {formatIndianCurrency(stats.estimatedProfit)}
               </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Total profit</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Estimated profit</p>
+            </div>
+
+            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-1">
+                <Receipt className="text-orange-600" size={16} />
+                <span className="text-[10px] text-gray-500">Received</span>
+              </div>
+              <p className="text-sm font-bold text-gray-900">
+                {formatIndianCurrency(stats.paymentReceived)}
+              </p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Payment received</p>
             </div>
 
             <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
@@ -341,6 +459,26 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Order Form */}
+      {showForm && (
+        <OrderForm
+          order={null}
+          onClose={() => setShowForm(false)}
+          onSave={async (orderData) => {
+            try {
+              const orderId = await orderService.createOrder(orderData)
+              showToast('Order created successfully!', 'success')
+              setShowForm(false)
+              // Navigate to orders page and highlight the new order
+              router.push(`/orders?highlight=${orderId}`)
+            } catch (error: any) {
+              showToast(error?.message || 'Failed to create order', 'error')
+              throw error
+            }
+          }}
+        />
       )}
 
       <NavBar />
