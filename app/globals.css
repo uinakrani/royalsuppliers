@@ -200,3 +200,84 @@ button, a {
   animation: backdrop-fade-out 0.25s ease-in;
 }
 
+/* iOS form field styling improvements */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: white;
+  color: #111827;
+  font-size: 16px !important; /* Prevents zoom on iOS */
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 4px;
+  margin-left: 4px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+input[type="date"]:focus,
+input[type="datetime-local"]:focus,
+input[type="time"]:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+/* iOS select dropdown styling */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  color: #111827;
+  font-size: 16px !important; /* Prevents zoom on iOS */
+  line-height: 1.5;
+  padding-right: 36px !important; /* Make room for custom arrow */
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+select:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+select:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Dark mode support for form fields */
+@media (prefers-color-scheme: dark) {
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  select {
+    background-color: #1f2937;
+    color: #f9fafb;
+    border-color: #374151;
+  }
+  
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%9ca3af' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  }
+}
+

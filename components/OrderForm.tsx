@@ -47,11 +47,11 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     loadTruckOwners()
   }, [])
 
-  // Scroll focused field to top of visible area
+  // Scroll focused field to visible area, accounting for keyboard
   const handleFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     const field = e.currentTarget
     if (modalContentRef.current && field) {
-      // Small delay to ensure the keyboard doesn't interfere
+      // Longer delay to allow keyboard to fully open on mobile
       setTimeout(() => {
         const container = modalContentRef.current
         if (!container) return
@@ -73,28 +73,55 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         // Use the field container if found, otherwise use the field itself
         const elementToScroll = fieldContainer || field
         
-        // Get current positions
+        // Get viewport dimensions - use Visual Viewport API if available (better for keyboard)
+        const visualViewport = (window as any).visualViewport
+        const viewportHeight = visualViewport ? visualViewport.height : window.innerHeight
+        const viewportTop = visualViewport ? visualViewport.offsetTop : 0
+        
         const containerRect = container.getBoundingClientRect()
         const elementRect = elementToScroll.getBoundingClientRect()
         
-        // Calculate how much we need to scroll
-        // We want the element to be at the top of the visible area (below the sticky header)
+        // Calculate available visible area accounting for keyboard
+        // The visible area is from the top of the container to the bottom of the viewport
+        const containerTop = containerRect.top
+        const visibleBottom = containerTop + viewportHeight - viewportTop
+        
+        // Sticky header height
         const stickyHeaderHeight = 80
-        const padding = 20
-        const targetPosition = stickyHeaderHeight + padding
+        // Padding from top (below header) and bottom (above keyboard)
+        const topPadding = 30
+        const bottomPadding = 30
         
-        // Current position of element relative to container's viewport
-        const currentElementTop = elementRect.top - containerRect.top
+        // Calculate the safe visible area
+        const safeTop = containerTop + stickyHeaderHeight + topPadding
+        const safeBottom = visibleBottom - bottomPadding
         
-        // Calculate scroll adjustment needed
-        const scrollAdjustment = currentElementTop - targetPosition
+        // Check if field is within the safe visible area
+        const fieldTop = elementRect.top
+        const fieldBottom = elementRect.bottom
         
-        // Apply the scroll
-        container.scrollTo({
-          top: container.scrollTop + scrollAdjustment,
-          behavior: 'smooth'
-        })
-      }, 150)
+        // If field is not fully visible in safe area, scroll it
+        if (fieldTop < safeTop || fieldBottom > safeBottom) {
+          // Calculate scroll needed to position field in safe area
+          const elementOffsetTop = elementToScroll.offsetTop
+          
+          // Calculate target scroll position
+          // Position element so its top is at safeTop (which is containerTop + stickyHeaderHeight + topPadding)
+          // Since safeTop = containerTop + stickyHeaderHeight + topPadding
+          // and containerTop is constant, we simplify:
+          const targetScrollTop = elementOffsetTop - stickyHeaderHeight - topPadding
+          
+          // Ensure we don't scroll past the bottom
+          const maxScroll = container.scrollHeight - container.clientHeight
+          const finalScrollTop = Math.min(Math.max(0, targetScrollTop), maxScroll)
+          
+          // Apply the scroll
+          container.scrollTo({
+            top: finalScrollTop,
+            behavior: 'smooth'
+          })
+        }
+      }, 400) // Increased delay to allow keyboard animation to complete on iOS
     }
   }
 
@@ -290,7 +317,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 maxWidth: '100%', 
                 width: '100%',
                 boxSizing: 'border-box',
-                minWidth: 0
+                minWidth: 0,
+                fontSize: '16px' // Prevents zoom on iOS
               }}
             />
           </div>
@@ -313,6 +341,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomPartyName}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a party name</option>
                   {partyNames.map((name) => (
@@ -366,6 +395,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomSiteName}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a site name</option>
                   {siteNames.map((name) => (
@@ -505,6 +535,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomTruckOwner}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  style={{ fontSize: '16px' }} // Prevents zoom on iOS
                 >
                   <option value="">Select a truck owner</option>
                   {truckOwners.map((owner) => (
