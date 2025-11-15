@@ -13,6 +13,7 @@ import { FileText, Plus, Trash2, Filter, X, AlertCircle, CheckCircle, Download }
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -257,8 +258,19 @@ export default function InvoicesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-gray-500">Loading invoices...</div>
+        <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
+          <div className="flex justify-between items-center">
+            <h1 className="text-xl font-bold">Invoices</h1>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+            >
+              <Filter size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <LoadingSpinner size={32} text="Loading invoices..." />
         </div>
         <NavBar />
       </div>
@@ -272,7 +284,7 @@ export default function InvoicesPage() {
           <h1 className="text-xl font-bold">Invoices</h1>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors"
+            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
           >
             <Filter size={18} />
           </button>

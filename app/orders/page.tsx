@@ -8,15 +8,15 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
-import { Plus, Edit, Trash2, CheckCircle, Filter, X, FileText } from 'lucide-react'
+import { Plus, Edit, Trash2, Filter, FileText } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
-  const [activeTab, setActiveTab] = useState<'latest' | 'paymentDue'>('latest')
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
@@ -48,7 +48,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     applyFilters()
-  }, [orders, activeTab, filters, selectedPartyTags])
+  }, [orders, filters, selectedPartyTags])
 
   const loadOrders = async () => {
     setLoading(true)
@@ -64,11 +64,6 @@ export default function OrdersPage() {
 
   const applyFilters = () => {
     let filtered = [...orders]
-
-    // Apply tab filter
-    if (activeTab === 'paymentDue') {
-      filtered = filtered.filter((o) => o.paymentDue && !o.paid)
-    }
 
     // Apply party tag filters (takes priority over filter drawer party name)
     if (selectedPartyTags.size > 0) {
@@ -185,144 +180,6 @@ export default function OrdersPage() {
       }
     }
   }
-
-  const handleMarkAsPaid = async (id: string) => {
-    try {
-      const order = filteredOrders.find((o) => o.id === id)
-      if (!order) {
-        showToast('Order not found', 'error')
-        return
-      }
-
-      // Always route payment to invoice
-      // If order doesn't have an invoice, create one first
-      let invoiceId = order.invoiceId
-      
-      if (!invoiceId) {
-        // Create a new invoice for this order
-        try {
-          showToast('Creating invoice for this order...', 'info')
-          invoiceId = await invoiceService.createInvoice([id])
-          showToast('Invoice created successfully!', 'success')
-        } catch (error: any) {
-          showToast(`Failed to create invoice: ${error?.message || 'Unknown error'}`, 'error')
-          return
-        }
-      }
-
-      // Get the invoice and add payment
-      try {
-        const invoice = await invoiceService.getInvoiceById(invoiceId)
-        if (!invoice) {
-          showToast('Invoice not found', 'error')
-          return
-        }
-
-        const remaining = invoice.totalAmount - (invoice.paidAmount || 0)
-        
-        try {
-          const amountStr = await sweetAlert.prompt({
-            title: 'Add Payment',
-            text: `Remaining balance: ${formatIndianCurrency(remaining)}`,
-            inputLabel: 'Payment Amount',
-            inputPlaceholder: 'Enter amount',
-            inputValue: remaining.toString(),
-            inputType: 'number',
-            confirmText: 'Add Payment',
-            cancelText: 'Cancel'
-          })
-          
-          if (!amountStr) return
-
-          const amount = parseFloat(amountStr)
-          if (isNaN(amount) || amount <= 0) {
-            showToast('Invalid amount', 'error')
-            return
-          }
-
-          if (amount > remaining) {
-            showToast(`Amount cannot exceed remaining balance of ${formatIndianCurrency(remaining)}`, 'error')
-            return
-          }
-
-          await invoiceService.addPayment(invoiceId, amount)
-          showToast('Payment added to invoice successfully!', 'success')
-          await loadOrders()
-          return
-        } catch (error: any) {
-          if (error?.message && !error.message.includes('SweetAlert')) {
-            showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-          }
-          return
-        }
-      } catch (error: any) {
-        showToast(`Failed to add payment to invoice: ${error?.message || 'Unknown error'}`, 'error')
-        return
-      }
-    } catch (error: any) {
-      console.error('Error in handleMarkAsPaid:', error)
-      showToast(`Failed to process payment: ${error?.message || 'Unknown error'}`, 'error')
-    }
-  }
-
-  const handleRemovePartialPayment = async (orderId: string, paymentId: string) => {
-    try {
-      console.log('Removing payment:', { orderId, paymentId })
-      const order = filteredOrders.find((o) => o.id === orderId)
-      if (!order) {
-        console.error('Order not found:', orderId)
-        showToast('Order not found', 'error')
-        return
-      }
-
-      console.log('Order found:', { 
-        orderId: order.id, 
-        partialPayments: order.partialPayments,
-        paymentIds: order.partialPayments?.map(p => p.id)
-      })
-
-      const payment = order.partialPayments?.find(p => p.id === paymentId)
-      if (!payment) {
-        console.error('Payment not found:', { 
-          paymentId, 
-          availableIds: order.partialPayments?.map(p => p.id),
-          partialPayments: order.partialPayments
-        })
-        showToast('Payment record not found', 'error')
-        return
-      }
-
-      const confirmed = await sweetAlert.confirm({
-        title: 'Remove Payment?',
-        text: `Are you sure you want to remove payment of ${formatIndianCurrency(payment.amount)}?`,
-        icon: 'warning',
-        confirmText: 'Remove',
-        cancelText: 'Cancel'
-      })
-
-      if (confirmed) {
-        try {
-          console.log('Calling removePartialPayment:', { orderId, paymentId })
-          await orderService.removePartialPayment(orderId, paymentId)
-          console.log('Payment removed successfully')
-          showToast('Payment removed!', 'success')
-          await loadOrders()
-        } catch (error: any) {
-          console.error('Error removing partial payment:', error)
-          console.error('Error details:', {
-            message: error?.message,
-            code: error?.code,
-            stack: error?.stack
-          })
-          showToast(`Failed to remove payment: ${error?.message || 'Unknown error'}`, 'error')
-        }
-      }
-    } catch (error: any) {
-      console.error('Error in handleRemovePartialPayment:', error)
-      showToast('Failed to remove partial payment', 'error')
-    }
-  }
-
 
   const togglePartyTag = (partyName: string) => {
     const newSelected = new Set(selectedPartyTags)
@@ -461,44 +318,20 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Orders</h1>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors"
+            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
           >
             <Filter size={18} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => setActiveTab('latest')}
-            className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'latest'
-                ? 'bg-white text-primary-600 shadow-sm'
-                : 'bg-primary-500 text-white hover:bg-primary-500/90'
-            }`}
-          >
-            Latest
-          </button>
-          <button
-            onClick={() => setActiveTab('paymentDue')}
-            className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'paymentDue'
-                ? 'bg-white text-primary-600 shadow-sm'
-                : 'bg-primary-500 text-white hover:bg-primary-500/90'
-            }`}
-          >
-            Payment Due
           </button>
         </div>
       </div>
 
       {/* Party Name Tags - Horizontal Scrollable */}
       {partyNames.length > 0 && (
-        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky top-[80px] z-30 shadow-sm">
+        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky top-[60px] z-30 shadow-sm">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {partyNames.map((partyName) => {
               const isSelected = selectedPartyTags.has(partyName)
@@ -672,7 +505,9 @@ export default function OrdersPage() {
 
       {/* Orders List */}
       {loading ? (
-        <div className="p-2.5 text-center text-sm text-gray-500">Loading...</div>
+        <div className="p-8">
+          <LoadingSpinner size={32} text="Loading orders..." />
+        </div>
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
       ) : (
@@ -711,7 +546,6 @@ export default function OrdersPage() {
                 <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
                 <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
                 <th className="px-2 py-2 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
-                <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Status</th>
                 <th className="px-2 py-2 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -789,68 +623,7 @@ export default function OrdersPage() {
                     {formatIndianCurrency(order.profit)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
-                    {order.paid ? (
-                      <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
-                        Paid
-                      </span>
-                    ) : order.partialPayments && order.partialPayments.length > 0 ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
-                          Partial
-                        </span>
-                        <span className="text-xs text-gray-600">
-                          {formatIndianCurrency(order.paidAmount || 0)} / {formatIndianCurrency(order.total)}
-                        </span>
-                        <div className="flex flex-col gap-1 mt-1">
-                          {order.partialPayments.map((payment) => (
-                            <div key={payment.id} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded text-xs">
-                              <span className="text-gray-700">
-                                {formatIndianCurrency(payment.amount)}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRemovePartialPayment(order.id!, payment.id)
-                                }}
-                                className="p-0.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                                title="Remove this payment"
-                              >
-                                <X size={12} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : order.paidAmount && order.paidAmount > 0 ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full font-medium">
-                          Partial
-                        </span>
-                        <span className="text-xs text-gray-600">
-                          {formatIndianCurrency(order.paidAmount)} / {formatIndianCurrency(order.total)}
-                        </span>
-                      </div>
-                    ) : order.paymentDue ? (
-                      <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium">
-                        Due
-                      </span>
-                    ) : (
-                      <span className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full font-medium">
-                        -
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-1">
-                      {!order.paid && (
-                        <button
-                          onClick={() => handleMarkAsPaid(order.id!)}
-                          className="p-1.5 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors"
-                          title={(order.paidAmount && order.paidAmount > 0) || (order.partialPayments && order.partialPayments.length > 0) ? "Add Payment" : "Mark as Paid"}
-                        >
-                          <CheckCircle size={16} />
-                        </button>
-                      )}
                       <button
                         onClick={() => {
                           setEditingOrder(order)

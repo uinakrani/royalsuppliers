@@ -5,6 +5,7 @@ import { generateDummyOrders } from '@/lib/generateDummyOrders'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import NavBar from '@/components/NavBar'
+import { Loader2 } from 'lucide-react'
 
 export default function AdminPage() {
   const [generating, setGenerating] = useState(false)
@@ -71,13 +72,23 @@ export default function AdminPage() {
           <button
             onClick={handleGenerateOrders}
             disabled={generating}
-            className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary-600 text-white py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {generating ? 'Generating...' : 'Generate Dummy Orders'}
+            {generating ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              'Generate Dummy Orders'
+            )}
           </button>
           
           {progress && (
-            <p className="mt-4 text-center text-sm text-gray-600">{progress}</p>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Loader2 size={16} className="animate-spin text-primary-600" />
+              <p className="text-center text-sm text-gray-600">{progress}</p>
+            </div>
           )}
         </div>
       </div>

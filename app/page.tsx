@@ -8,6 +8,8 @@ import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
 import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter } from 'lucide-react'
+import FilterDrawer from '@/components/FilterDrawer'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -130,127 +132,142 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors"
+            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
           >
             <Filter size={18} />
           </button>
         </div>
+      </div>
 
-        {/* Filters - Inline in Header */}
-        {showFilters && (
-          <div className="bg-primary-500 rounded-lg p-2.5 space-y-2 mt-2 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-medium text-white/90 mb-1">Duration</label>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
-                >
-                  <option value="currentMonth">Current Month</option>
-                  <option value="7days">Last 7 Days</option>
-                  <option value="lastMonth">Last Month</option>
-                  <option value="last3Months">Last 3 Months</option>
-                  <option value="last6Months">Last 6 Months</option>
-                  <option value="lastYear">Last Year</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <label className="block text-xs font-medium text-white/90 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-1.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-white/90 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-1.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
+      {/* Filters Drawer */}
+      <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+        <div className="space-y-3">
+          {/* Duration */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Duration</label>
+            <select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+            >
+              <option value="currentMonth">Current Month</option>
+              <option value="7days">Last 7 Days</option>
+              <option value="lastMonth">Last Month</option>
+              <option value="last3Months">Last 3 Months</option>
+              <option value="last6Months">Last 6 Months</option>
+              <option value="lastYear">Last Year</option>
+            </select>
+          </div>
+
+          {/* Date Range */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-white/90 mb-1">Party Name</label>
-              <div className="grid grid-cols-3 gap-1 p-1.5 bg-white/10 rounded border border-white/20 max-h-32 overflow-y-auto">
-                {partyNames.map((partyNameOption) => (
-                  <label key={partyNameOption} className="flex items-center space-x-1 cursor-pointer hover:bg-white/10 p-1 rounded transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={filterPartyName.split(',').includes(partyNameOption)}
-                      onChange={(e) => {
-                        const currentFilters = filterPartyName.split(',').filter(p => p.trim())
-                        let newFilters: string[]
-                        if (e.target.checked) {
-                          newFilters = [...currentFilters, partyNameOption]
-                        } else {
-                          newFilters = currentFilters.filter(p => p !== partyNameOption)
-                        }
-                        setFilterPartyName(newFilters.join(','))
-                      }}
-                      className="custom-checkbox"
-                    />
-                    <span className="text-xs text-white">{partyNameOption}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-white/90 mb-1">Material</label>
-              <div className="grid grid-cols-3 gap-1 p-1.5 bg-white/10 rounded border border-white/20 max-h-32 overflow-y-auto">
-                {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
-                  <label key={materialOption} className="flex items-center space-x-1 cursor-pointer hover:bg-white/10 p-1 rounded transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={filterMaterial.split(',').includes(materialOption)}
-                      onChange={(e) => {
-                        const currentFilters = filterMaterial.split(',').filter(m => m.trim())
-                        let newFilters: string[]
-                        if (e.target.checked) {
-                          newFilters = [...currentFilters, materialOption]
-                        } else {
-                          newFilters = currentFilters.filter(m => m !== materialOption)
-                        }
-                        setFilterMaterial(newFilters.join(','))
-                      }}
-                      className="custom-checkbox"
-                    />
-                    <span className="text-xs text-white">{materialOption}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={applyFilters}
-                className="flex-1 bg-white text-primary-600 py-1.5 rounded-lg text-xs font-medium hover:bg-white/90 transition-colors shadow-sm"
-              >
-                Apply
-              </button>
-              <button
-                onClick={resetFilters}
-                className="px-3 bg-primary-400 text-white py-1.5 rounded-lg text-xs font-medium hover:bg-primary-400/80 transition-colors"
-              >
-                Reset
-              </button>
+              <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs"
+              />
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Party Name */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Party Name</label>
+            <div className="grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
+              {partyNames.map((partyNameOption) => (
+                <label key={partyNameOption} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={filterPartyName.split(',').filter(p => p.trim()).includes(partyNameOption)}
+                    onChange={(e) => {
+                      const currentFilters = filterPartyName.split(',').filter(p => p.trim())
+                      let newFilters: string[]
+                      if (e.target.checked) {
+                        newFilters = [...currentFilters, partyNameOption]
+                      } else {
+                        newFilters = currentFilters.filter(p => p !== partyNameOption)
+                      }
+                      setFilterPartyName(newFilters.join(','))
+                    }}
+                    className="custom-checkbox"
+                  />
+                  <span className="text-xs text-gray-700 truncate">{partyNameOption}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Material */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Material</label>
+            <div className="grid grid-cols-2 gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 max-h-48 overflow-y-auto">
+              {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => (
+                <label key={materialOption} className="flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={filterMaterial.split(',').filter(m => m.trim()).includes(materialOption)}
+                    onChange={(e) => {
+                      const currentFilters = filterMaterial.split(',').filter(m => m.trim())
+                      let newFilters: string[]
+                      if (e.target.checked) {
+                        newFilters = [...currentFilters, materialOption]
+                      } else {
+                        newFilters = currentFilters.filter(m => m !== materialOption)
+                      }
+                      setFilterMaterial(newFilters.join(','))
+                    }}
+                    className="custom-checkbox"
+                  />
+                  <span className="text-xs text-gray-700 truncate">{materialOption}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-2 border-t border-gray-200 sticky bottom-0 bg-white pb-2">
+            <button
+              onClick={() => {
+                applyFilters()
+                setShowFilters(false)
+              }}
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+            >
+              Apply
+            </button>
+            <button
+              onClick={() => {
+                resetFilters()
+                setShowFilters(false)
+              }}
+              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </FilterDrawer>
 
       {/* Statistics Cards */}
       {loading ? (
-        <div className="p-4 text-center text-gray-500">Loading...</div>
+        <div className="p-8">
+          <LoadingSpinner size={32} text="Loading dashboard..." />
+        </div>
       ) : (
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
