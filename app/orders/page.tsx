@@ -359,7 +359,7 @@ export default function OrdersPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
       <div className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm">
         <div className="p-2.5">
           <div className="flex justify-between items-center gap-2">
@@ -523,7 +523,7 @@ export default function OrdersPage() {
 
       {/* Action Buttons - Sticky at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-30 shadow-lg">
+        <div className="fixed left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-40 shadow-lg" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
           <button
             onClick={handleBulkCreateInvoice}
             className="flex-1 bg-green-600 text-white py-2 rounded-lg text-[10px] font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"

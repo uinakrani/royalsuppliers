@@ -8,7 +8,12 @@ export default function NavBar() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 pb-safe shadow-lg">
+    <nav 
+      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 shadow-lg" 
+      style={{ 
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0), 0px)'
+      }}
+    >
       <div className="flex justify-around items-center h-16">
         <Link
           href="/"
