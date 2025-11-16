@@ -8,7 +8,7 @@ export const formatIndianCurrency = (amount: number): string => {
   // Format integer part with Indian numbering system
   // First 3 digits from right, then groups of 2
   if (integerPart.length <= 3) {
-    return `Rs.${integerPart}.${decimalPart}`
+    return `₹${integerPart}.${decimalPart}`
   }
   
   // Reverse the string to work from right to left
@@ -27,6 +27,6 @@ export const formatIndianCurrency = (amount: number): string => {
   }
   
   // Reverse back and join with commas
-  return `Rs.${formatted.reverse().join(',')}.${decimalPart}`
+  return `₹${formatted.reverse().join(',')}.${decimalPart}`
 }
 
