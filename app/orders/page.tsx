@@ -723,7 +723,47 @@ export default function OrdersPage() {
                     className="w-full flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer -m-3 p-3 rounded-lg"
                   >
                     <div className="flex-1 text-left">
-                      <h3 className="font-semibold text-sm text-gray-900">{group.partyName}</h3>
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-semibold text-xs text-gray-900">{group.partyName}</h3>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            const balance = group.totalSelling - group.totalPaid
+                            try {
+                              const amountStr = await sweetAlert.prompt({
+                                title: 'Add Payment',
+                                text: `Remaining balance: ${formatIndianCurrency(balance)}`,
+                                inputLabel: 'Payment Amount',
+                                inputPlaceholder: 'Enter amount',
+                                inputValue: balance > 0 ? balance.toString() : '',
+                                inputType: 'number',
+                                confirmText: 'Add Payment',
+                                cancelText: 'Cancel'
+                              })
+                              
+                              if (!amountStr) return
+
+                              const amount = parseFloat(amountStr)
+                              if (isNaN(amount) || amount <= 0) {
+                                showToast('Invalid amount', 'error')
+                                return
+                              }
+
+                              await partyPaymentService.addPayment(group.partyName, amount)
+                              showToast('Payment added successfully!', 'success')
+                              await loadPartyPayments()
+                            } catch (error: any) {
+                              if (error?.message && !error.message.includes('SweetAlert')) {
+                                showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+                              }
+                            }
+                          }}
+                          className="px-2 py-1 bg-primary-600 text-white rounded text-[10px] font-medium hover:bg-primary-700 transition-colors flex items-center gap-1 flex-shrink-0"
+                        >
+                          <Plus size={12} />
+                          Add Payment
+                        </button>
+                      </div>
                       {group.orders.length > 0 && group.orders[0].siteName && (
                         <p className="text-[10px] text-gray-500 mt-0.5 mb-2">{group.orders[0].siteName}</p>
                       )}
@@ -741,91 +781,9 @@ export default function OrdersPage() {
                         {group.lastPaymentDate && group.lastPaymentAmount !== null && (
                           <div className="flex justify-between items-center pt-1 border-t border-gray-200">
                             <span className="text-gray-600">Last paid at</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900">
-                                {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
-                              </span>
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation()
-                                  const balance = group.totalSelling - group.totalPaid
-                                  try {
-                                    const amountStr = await sweetAlert.prompt({
-                                      title: 'Add Payment',
-                                      text: `Remaining balance: ${formatIndianCurrency(balance)}`,
-                                      inputLabel: 'Payment Amount',
-                                      inputPlaceholder: 'Enter amount',
-                                      inputValue: balance > 0 ? balance.toString() : '',
-                                      inputType: 'number',
-                                      confirmText: 'Add Payment',
-                                      cancelText: 'Cancel'
-                                    })
-                                    
-                                    if (!amountStr) return
-
-                                    const amount = parseFloat(amountStr)
-                                    if (isNaN(amount) || amount <= 0) {
-                                      showToast('Invalid amount', 'error')
-                                      return
-                                    }
-
-                                    await partyPaymentService.addPayment(group.partyName, amount)
-                                    showToast('Payment added successfully!', 'success')
-                                    await loadPartyPayments()
-                                  } catch (error: any) {
-                                    if (error?.message && !error.message.includes('SweetAlert')) {
-                                      showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-                                    }
-                                  }
-                                }}
-                                className="px-2 py-1 bg-primary-600 text-white rounded text-[10px] font-medium hover:bg-primary-700 transition-colors flex items-center gap-1"
-                              >
-                                <Plus size={12} />
-                                Add Payment
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                        {(!group.lastPaymentDate || group.lastPaymentAmount === null) && (
-                          <div className="pt-1 border-t border-gray-200">
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation()
-                                const balance = group.totalSelling - group.totalPaid
-                                try {
-                                  const amountStr = await sweetAlert.prompt({
-                                    title: 'Add Payment',
-                                    text: `Remaining balance: ${formatIndianCurrency(balance)}`,
-                                    inputLabel: 'Payment Amount',
-                                    inputPlaceholder: 'Enter amount',
-                                    inputValue: balance > 0 ? balance.toString() : '',
-                                    inputType: 'number',
-                                    confirmText: 'Add Payment',
-                                    cancelText: 'Cancel'
-                                  })
-                                  
-                                  if (!amountStr) return
-
-                                  const amount = parseFloat(amountStr)
-                                  if (isNaN(amount) || amount <= 0) {
-                                    showToast('Invalid amount', 'error')
-                                    return
-                                  }
-
-                                  await partyPaymentService.addPayment(group.partyName, amount)
-                                  showToast('Payment added successfully!', 'success')
-                                  await loadPartyPayments()
-                                } catch (error: any) {
-                                  if (error?.message && !error.message.includes('SweetAlert')) {
-                                    showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-                                  }
-                                }
-                              }}
-                              className="w-full px-3 py-1.5 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
-                            >
-                              <Plus size={14} />
-                              Add Payment
-                            </button>
+                            <span className="font-medium text-gray-900">
+                              {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
+                            </span>
                           </div>
                         )}
                       </div>
