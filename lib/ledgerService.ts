@@ -33,13 +33,15 @@ export const ledgerService = {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     const now = new Date().toISOString()
-    const payload: Omit<LedgerEntry, 'id'> = {
+    const payload: any = {
       type,
       amount,
-      note,
       date: now,
       createdAt: now,
       source,
+    }
+    if (note && note.trim()) {
+      payload.note = note.trim()
     }
     const ref = await addDoc(collection(db, LEDGER_COLLECTION), {
       ...payload,

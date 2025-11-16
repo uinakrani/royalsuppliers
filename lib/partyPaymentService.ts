@@ -35,13 +35,15 @@ export const partyPaymentService = {
     
     try {
       const now = new Date().toISOString()
-      const paymentData: Omit<PartyPayment, 'id'> = {
+      const paymentData: any = {
         partyName,
         amount,
         date: now,
-        note,
         createdAt: now,
         updatedAt: now,
+      }
+      if (note && note.trim()) {
+        paymentData.note = note.trim()
       }
       
       const docRef = await addDoc(collection(db, PARTY_PAYMENTS_COLLECTION), paymentData)
@@ -49,7 +51,7 @@ export const partyPaymentService = {
 
       // Create a ledger credit entry for this payment (best-effort)
       try {
-        const ledgerNote = note ? `Party ${partyName}: ${note}` : `Party ${partyName} payment`
+        const ledgerNote = note && note.trim() ? `Party ${partyName}: ${note.trim()}` : `Party ${partyName} payment`
         await ledgerService.addEntry('credit', amount, ledgerNote, 'partyPayment')
       } catch (e) {
         console.warn('Ledger entry for party payment failed (non-fatal):', e)

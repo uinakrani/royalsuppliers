@@ -74,8 +74,8 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
         text: `Remaining balance: ${formatIndianCurrency(balance)}`,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
-        inputValue: balance > 0 ? balance.toString() : '',
-        inputType: 'number',
+        inputType: 'text',
+        formatCurrencyInr: true,
         confirmText: 'Add Payment',
         cancelText: 'Cancel'
       })
@@ -93,6 +93,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
         inputLabel: 'Note',
         inputPlaceholder: 'Add a note (optional)',
         inputType: 'text',
+        required: false,
         confirmText: 'Save',
         cancelText: 'Skip'
       })

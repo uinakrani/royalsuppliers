@@ -186,7 +186,10 @@ export const invoiceService = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount,
       date: new Date().toISOString(),
-      note,
+      // note will be conditionally appended
+    }
+    if (note && note.trim()) {
+      ;(newPayment as any).note = note.trim()
     }
     
     const updatedPayments = [...(invoice.partialPayments || []), newPayment]

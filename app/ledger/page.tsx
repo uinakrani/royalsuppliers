@@ -59,7 +59,8 @@ export default function LedgerPage() {
         title: type === 'credit' ? 'Add Credit' : 'Add Debit',
         inputLabel: label,
         inputPlaceholder: 'Enter amount',
-        inputType: 'number',
+        inputType: 'text',
+        formatCurrencyInr: true,
         confirmText: 'Save',
         cancelText: 'Cancel',
       })
@@ -78,6 +79,7 @@ export default function LedgerPage() {
         inputLabel: 'Note',
         inputPlaceholder: 'e.g. Cash deposit / Vendor payout',
         inputType: 'text',
+        required: false,
         confirmText: 'Save',
         cancelText: 'Skip',
       })
@@ -108,26 +110,28 @@ export default function LedgerPage() {
     <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
       <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <Wallet size={20} />
-            <h1 className="text-xl font-bold">Ledger</h1>
+            <h1 className="text-xl font-bold truncate">Ledger</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => addEntry('credit')}
               disabled={adding}
-              className="px-2 py-1 bg-green-600 text-white rounded text-[10px] font-medium hover:bg-green-700 transition-colors flex items-center gap-1"
+              className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center justify-center"
+              title="Add Credit"
+              aria-label="Add Credit"
             >
               <PlusCircle size={16} />
-              Credit
             </button>
             <button
               onClick={() => addEntry('debit')}
               disabled={adding}
-              className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-medium hover:bg-red-700 transition-colors"
+              className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center justify-center"
+              title="Add Debit"
+              aria-label="Add Debit"
             >
               <MinusCircle size={16} />
-              Debit
             </button>
           </div>
         </div>

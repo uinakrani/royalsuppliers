@@ -338,9 +338,12 @@ export const sweetAlert = {
     confirmText?: string
     cancelText?: string
     showCancelButton?: boolean
+    required?: boolean
+    formatCurrencyInr?: boolean
   }): Promise<string | null> => {
     try {
       const Swal = await getSwal()
+      const isCurrency = !!options.formatCurrencyInr
       const result = await Swal.fire({
         ...swalConfig,
         title: options.title || 'Enter value',
@@ -353,19 +356,15 @@ export const sweetAlert = {
         confirmButtonText: options.confirmText || 'OK',
         cancelButtonText: options.cancelText || 'Cancel',
         inputValidator: (value: string) => {
-          if (!value) {
+          if (options.required !== false && !value) {
             return 'Please enter a value'
           }
           return null
         },
         didOpen: () => {
-          // Ensure backdrop is visible - try multiple selectors and methods
           const ensureBackdrop = () => {
-            // Try different selectors
             let backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
             const container = document.querySelector('.swal2-container') as HTMLElement
-            
-            // If no backdrop element exists, create one
             if (!backdrop && container) {
               backdrop = document.createElement('div')
               backdrop.className = 'swal2-backdrop swal2-backdrop-show swal2-backdrop-manual'
@@ -383,7 +382,6 @@ export const sweetAlert = {
               `
               document.body.appendChild(backdrop)
             }
-            
             if (backdrop) {
               backdrop.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
               backdrop.style.setProperty('opacity', '1', 'important')
@@ -396,47 +394,50 @@ export const sweetAlert = {
               backdrop.style.setProperty('display', 'block', 'important')
               backdrop.style.setProperty('visibility', 'visible', 'important')
             }
-            
-            // Also ensure container has backdrop-show class (but don't set background on container)
             if (container) {
               container.classList.add('swal2-backdrop-show')
             }
           }
-          
-          // Try immediately and with delays
           ensureBackdrop()
           setTimeout(ensureBackdrop, 10)
           setTimeout(ensureBackdrop, 50)
           setTimeout(ensureBackdrop, 100)
-          
-          // Auto-focus and select all text in the input with proper mobile keyboard support
+
           setTimeout(() => {
-            const input = Swal.getInput() as HTMLInputElement | null
+            const input = Swal.getInput() as HTMLInputElement | HTMLTextAreaElement | null
             if (input) {
-              // For number inputs, set proper attributes for mobile numeric keypad
-              if (options.inputType === 'number') {
-                // Use inputmode for better mobile keyboard support
-                input.setAttribute('inputmode', 'decimal')
-                // For iOS, pattern helps show numeric keypad
-                input.setAttribute('pattern', '[0-9]*')
-                // Keep type as number but inputmode will override keyboard on mobile
+              const el = input as HTMLInputElement
+              if (isCurrency) {
+                // Use text input with numeric keypad
+                el.setAttribute('inputmode', 'numeric')
+                // format current value
+                const fmt = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 })
+                const applyFormat = () => {
+                  const raw = el.value.replace(/[^0-9]/g, '')
+                  el.value = raw ? `₹${fmt.format(parseInt(raw, 10))}` : ''
+                }
+                applyFormat()
+                el.addEventListener('input', applyFormat)
+              } else if (options.inputType === 'number') {
+                el.setAttribute('inputmode', 'decimal')
+                el.setAttribute('pattern', '[0-9]*')
               }
-              
-              // Focus and select
-              input.focus()
-              input.select()
-              
-              // For mobile devices, trigger additional focus attempts to ensure keyboard opens
+              el.focus()
+              if ((el as any).select) {
+                ;(el as any).select()
+              }
               if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-                // Small delay then click and focus again
                 setTimeout(() => {
-                  input.click()
-                  input.focus()
-                  input.select()
-                  // One more attempt after a short delay
+                  el.click()
+                  el.focus()
+                  if ((el as any).select) {
+                    ;(el as any).select()
+                  }
                   setTimeout(() => {
-                    input.focus()
-                    input.select()
+                    el.focus()
+                    if ((el as any).select) {
+                      ;(el as any).select()
+                    }
                   }, 150)
                 }, 100)
               }
@@ -444,13 +445,11 @@ export const sweetAlert = {
           }, 200)
         },
         didClose: () => {
-          // Clean up manually created backdrop after a short delay to let SweetAlert2 clean up first
           setTimeout(() => {
             const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
             if (manualBackdrop) {
               manualBackdrop.remove()
             }
-            // Also clean up any remaining backdrop elements that weren't cleaned up by SweetAlert2
             const backdrops = document.querySelectorAll('.swal2-backdrop')
             backdrops.forEach(backdrop => {
               if (backdrop.parentNode && backdrop.classList.contains('swal2-backdrop-manual')) {
@@ -459,6 +458,13 @@ export const sweetAlert = {
             })
           }, 100)
         },
+        preConfirm: (value: string) => {
+          if (isCurrency) {
+            const cleaned = (value || '').toString().replace(/[^0-9]/g, '')
+            return cleaned
+          }
+          return value
+        }
       })
       return result.isConfirmed ? result.value : null
     } catch (error: any) {

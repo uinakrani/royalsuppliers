@@ -139,8 +139,8 @@ export default function InvoicesPage() {
         text: `Remaining balance: ${formatIndianCurrency(remaining)}`,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
-        inputValue: remaining.toString(),
-        inputType: 'number',
+        inputType: 'text',
+        formatCurrencyInr: true,
         confirmText: 'Add Payment',
         cancelText: 'Cancel'
       })
@@ -163,6 +163,7 @@ export default function InvoicesPage() {
         inputLabel: 'Note',
         inputPlaceholder: 'Add a note (optional)',
         inputType: 'text',
+        required: false,
         confirmText: 'Save',
         cancelText: 'Skip',
       })
