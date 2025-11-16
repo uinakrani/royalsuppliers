@@ -659,7 +659,7 @@ export default function OrdersPage() {
                 applyFilterForm()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors"
             >
               Apply
             </button>
@@ -668,7 +668,7 @@ export default function OrdersPage() {
                 resetFilters()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
@@ -681,21 +681,21 @@ export default function OrdersPage() {
         <div className="fixed left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-40 shadow-lg" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
           <button
             onClick={handleBulkCreateInvoice}
-            className="flex-1 bg-green-600 text-white py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
+            className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors"
           >
             <FileText size={18} />
             Create Invoice ({selectedOrders.size})
           </button>
           <button
             onClick={handleBulkDelete}
-            className="flex-1 bg-red-600 text-white py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors shadow-sm"
+            className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors"
           >
             <Trash2 size={18} />
             Delete ({selectedOrders.size})
           </button>
           <button
             onClick={() => setSelectedOrders(new Set())}
-            className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
           >
             Clear
           </button>
@@ -720,9 +720,10 @@ export default function OrdersPage() {
                 <div className="p-3">
                   <button
                     onClick={() => handlePartyGroupClick(group)}
-                    className="w-full flex flex-col hover:bg-gray-50 transition-colors cursor-pointer -m-3 p-3 rounded-lg"
+                    className="w-full flex flex-col hover:bg-gray-50 transition-colors cursor-pointer rounded-lg text-left"
+                    style={{ width: '100%', padding: 0, margin: 0, border: 'none', background: 'transparent' }}
                   >
-                    <div className="w-full flex items-center justify-between mb-1">
+                    <div className="w-full flex items-center justify-between mb-1" style={{ width: '100%', boxSizing: 'border-box' }}>
                       <h3 className="font-semibold text-xs text-gray-900">{group.partyName}</h3>
                       <button
                         onClick={async (e) => {
@@ -757,30 +758,30 @@ export default function OrdersPage() {
                             }
                           }
                         }}
-                        className="px-2 py-1 bg-primary-600 text-white rounded text-[10px] font-medium hover:bg-primary-700 transition-colors flex items-center gap-1 flex-shrink-0"
+                        className="px-2 py-1 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center gap-1.5 flex-shrink-0"
                       >
                         <Plus size={12} />
                         Add Payment
                       </button>
                     </div>
                     {group.orders.length > 0 && group.orders[0].siteName && (
-                      <p className="text-[10px] text-gray-500 mb-2 text-left">{group.orders[0].siteName}</p>
+                      <p className="text-[10px] text-gray-500 mb-2 w-full">{group.orders[0].siteName}</p>
                     )}
-                    <div className="w-full space-y-2 text-xs">
-                      <div className="flex justify-between items-center w-full">
-                        <span className="text-gray-600 flex-shrink-0">Received</span>
-                        <span className="font-medium text-gray-900 flex-shrink-0 ml-4">{formatIndianCurrency(group.totalPaid)}</span>
+                    <div className="w-full space-y-2 text-xs" style={{ width: '100%', boxSizing: 'border-box' }}>
+                      <div className="flex justify-between items-center" style={{ width: '100%', boxSizing: 'border-box' }}>
+                        <span className="text-gray-600">Received</span>
+                        <span className="font-medium text-gray-900">{formatIndianCurrency(group.totalPaid)}</span>
                       </div>
-                      <div className="flex justify-between items-center w-full">
-                        <span className="text-gray-600 flex-shrink-0">Remaining</span>
-                        <span className={`font-medium flex-shrink-0 ml-4 ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <div className="flex justify-between items-center" style={{ width: '100%', boxSizing: 'border-box' }}>
+                        <span className="text-gray-600">Remaining</span>
+                        <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {formatIndianCurrency(Math.abs(balance))}
                         </span>
                       </div>
                       {group.lastPaymentDate && group.lastPaymentAmount !== null && (
-                        <div className="flex justify-between items-center w-full pt-2 border-t border-gray-200">
-                          <span className="text-gray-600 flex-shrink-0">Last paid at</span>
-                          <span className="font-medium text-gray-900 flex-shrink-0 ml-4 text-right">
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200" style={{ width: '100%', boxSizing: 'border-box' }}>
+                          <span className="text-gray-600">Last paid at</span>
+                          <span className="font-medium text-gray-900 text-right">
                             {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
                           </span>
                         </div>

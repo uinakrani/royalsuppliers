@@ -72,7 +72,7 @@ export default function AdminPage() {
           <button
             onClick={handleGenerateOrders}
             disabled={generating}
-            className="w-full bg-primary-600 text-white py-3 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-primary-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {generating ? (
               <>

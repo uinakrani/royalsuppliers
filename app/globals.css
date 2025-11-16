@@ -488,8 +488,8 @@ input:focus, select:focus, textarea:focus {
 
 .swal2-confirm-mobile,
 .swal2-cancel-mobile {
-  padding: 0.5rem 1rem !important;
-  font-size: 0.8125rem !important;
+  padding: 0.375rem 0.75rem !important; /* compact */
+  font-size: 12px !important; /* 12px */
   margin: 0.25rem !important;
   border-radius: 0.375rem !important;
 }

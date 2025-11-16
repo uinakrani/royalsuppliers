@@ -285,7 +285,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
               <button
                 onClick={handleAddPayment}
                 disabled={isProcessing}
-                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={14} />
                 Add Payment
