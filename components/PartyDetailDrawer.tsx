@@ -15,6 +15,7 @@ interface PartyGroup {
   totalSelling: number
   totalPaid: number
   lastPaymentDate: string | null
+  lastPaymentAmount: number | null
   orders: Order[]
   payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }>
 }

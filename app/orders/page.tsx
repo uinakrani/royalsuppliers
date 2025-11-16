@@ -24,6 +24,7 @@ interface PartyGroup {
   totalSelling: number
   totalPaid: number
   lastPaymentDate: string | null
+  lastPaymentAmount: number | null
   orders: Order[]
   payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }>
 }
@@ -448,6 +449,7 @@ export default function OrdersPage() {
       const allPayments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }> = []
       let totalPaid = 0
       let lastPaymentDate: string | null = null
+      let lastPaymentAmount: number | null = null
 
       partyPaymentRecords.forEach(payment => {
         allPayments.push({
@@ -461,10 +463,11 @@ export default function OrdersPage() {
         })
         totalPaid += payment.amount
         
-        // Track last payment date
+        // Track last payment date and amount
         const paymentDate = new Date(payment.date)
         if (!lastPaymentDate || paymentDate > new Date(lastPaymentDate)) {
           lastPaymentDate = payment.date
+          lastPaymentAmount = payment.amount
         }
       })
 
@@ -476,6 +479,7 @@ export default function OrdersPage() {
         totalSelling,
         totalPaid,
         lastPaymentDate,
+        lastPaymentAmount,
         orders: partyOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
         payments: allPayments
       })
@@ -719,28 +723,27 @@ export default function OrdersPage() {
                     className="w-full flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer -m-3 p-3 rounded-lg"
                   >
                     <div className="flex-1 text-left">
-                      <h3 className="font-semibold text-sm text-gray-900">{group.partyName}</h3>
-                      <div className="flex gap-2 mt-1 text-xs text-gray-600">
-                        <div className="flex flex-col items-center flex-1">
-                          <span>Total</span>
-                          <span className="font-medium">{formatIndianCurrency(group.totalSelling)}</span>
+                      <h3 className="font-semibold text-sm text-gray-900 mb-2">{group.partyName}</h3>
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Received</span>
+                          <span className="font-medium text-gray-900">{formatIndianCurrency(group.totalPaid)}</span>
                         </div>
-                        <div className="flex flex-col items-center flex-1">
-                          <span>Paid</span>
-                          <span className="font-medium">{formatIndianCurrency(group.totalPaid)}</span>
-                        </div>
-                        <div className="flex flex-col items-center flex-1">
-                          <span>Balance</span>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Remaining</span>
                           <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {formatIndianCurrency(Math.abs(balance))}
                           </span>
                         </div>
+                        {group.lastPaymentDate && group.lastPaymentAmount !== null && (
+                          <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                            <span className="text-gray-600">Last paid at</span>
+                            <span className="font-medium text-gray-900">
+                              {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      {group.lastPaymentDate && (
-                        <p className="text-xs text-gray-500 mt-0.5 text-center">
-                          Last Payment: {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')}
-                        </p>
-                      )}
                     </div>
                   </button>
                   <div className="mt-2 pt-2 border-t border-gray-200">
