@@ -15,6 +15,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderForm from '@/components/OrderForm'
 import { showToast } from '@/components/Toast'
 import { useRouter } from 'next/navigation'
+import { partyPaymentService } from '@/lib/partyPaymentService'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -194,6 +195,30 @@ export default function Dashboard() {
             })
           }
         })
+
+        // Include party-level payments as well (since payments moved to party level)
+        try {
+          const partyPayments = await partyPaymentService.getAllPayments()
+          partyPayments.forEach((p) => {
+            // Party filter (if applied)
+            if (filters.partyName) {
+              const filterPartyNames = filters.partyName.split(',').map((name) => name.trim().toLowerCase())
+              if (!filterPartyNames.some((fp) => p.partyName.toLowerCase() === fp)) {
+                return
+              }
+            }
+            // Date range filter on payment date
+            const payDate = new Date(p.date)
+            let inRange = true
+            if (dateRangeStart && payDate < dateRangeStart) inRange = false
+            if (dateRangeEnd && payDate > dateRangeEnd) inRange = false
+            if (inRange) {
+              paymentReceived += p.amount
+            }
+          })
+        } catch (err) {
+          console.warn('Party payments not included:', err)
+        }
       } catch (error) {
         console.error('Error loading invoices for payment calculation:', error)
       }
