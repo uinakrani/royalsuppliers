@@ -720,16 +720,16 @@ export default function OrdersPage() {
                   >
                     <div className="flex-1 text-left">
                       <h3 className="font-semibold text-sm text-gray-900">{group.partyName}</h3>
-                      <div className="flex gap-4 mt-1 text-xs text-gray-600">
-                        <div className="flex flex-col items-center">
+                      <div className="flex gap-2 mt-1 text-xs text-gray-600">
+                        <div className="flex flex-col items-center flex-1">
                           <span>Total</span>
                           <span className="font-medium">{formatIndianCurrency(group.totalSelling)}</span>
                         </div>
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center flex-1">
                           <span>Paid</span>
                           <span className="font-medium">{formatIndianCurrency(group.totalPaid)}</span>
                         </div>
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center flex-1">
                           <span>Balance</span>
                           <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {formatIndianCurrency(Math.abs(balance))}
