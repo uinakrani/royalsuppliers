@@ -655,7 +655,7 @@ export default function OrdersPage() {
                 applyFilterForm()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-[10px] font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
               Apply
             </button>
@@ -664,7 +664,7 @@ export default function OrdersPage() {
                 resetFilters()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>
@@ -677,21 +677,21 @@ export default function OrdersPage() {
         <div className="fixed left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-40 shadow-lg" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
           <button
             onClick={handleBulkCreateInvoice}
-            className="flex-1 bg-green-600 text-white py-2 rounded-lg text-[10px] font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
+            className="flex-1 bg-green-600 text-white py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm"
           >
             <FileText size={18} />
             Create Invoice ({selectedOrders.size})
           </button>
           <button
             onClick={handleBulkDelete}
-            className="flex-1 bg-red-600 text-white py-2 rounded-lg text-[10px] font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors shadow-sm"
+            className="flex-1 bg-red-600 text-white py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors shadow-sm"
           >
             <Trash2 size={18} />
             Delete ({selectedOrders.size})
           </button>
           <button
             onClick={() => setSelectedOrders(new Set())}
-            className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
+            className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
           >
             Clear
           </button>

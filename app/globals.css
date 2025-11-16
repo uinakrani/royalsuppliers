@@ -440,9 +440,9 @@ button, a, [role="button"] {
   touch-action: manipulation;
 }
 
-/* All button text size 10px */
+/* All button text size 12px */
 button {
-  font-size: 10px !important;
+  font-size: 12px !important;
 }
 
 /* Improve input focus on mobile */

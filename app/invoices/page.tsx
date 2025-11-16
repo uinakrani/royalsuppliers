@@ -371,7 +371,7 @@ export default function InvoicesPage() {
                   applyFilterForm()
                   setShowFilters(false)
                 }}
-                className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-[10px] font-medium hover:bg-primary-700 transition-colors shadow-sm"
+                className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
               >
                 Apply
               </button>
@@ -380,7 +380,7 @@ export default function InvoicesPage() {
                   resetFilters()
                   setShowFilters(false)
                 }}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
+                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
               >
                 Reset
               </button>
@@ -432,7 +432,7 @@ export default function InvoicesPage() {
                         )}
                         <button
                           onClick={() => toggleExpand(invoice.id!)}
-                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-[10px] font-medium hover:bg-gray-300"
+                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
                         >
                           {isExpanded ? 'Hide' : 'Details'}
                         </button>
@@ -484,7 +484,7 @@ export default function InvoicesPage() {
                       <span>{invoice.partialPayments?.length || 0} Payment{invoice.partialPayments?.length !== 1 ? 's' : ''}</span>
                       <button
                         onClick={() => handleDeleteInvoice(invoice.id!)}
-                        className="ml-auto px-2 py-0.5 bg-red-100 text-red-700 rounded text-[10px] hover:bg-red-200 flex items-center gap-1"
+                        className="ml-auto px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 flex items-center gap-1"
                         title="Delete Invoice"
                       >
                         <Trash2 size={12} />
@@ -570,7 +570,7 @@ export default function InvoicesPage() {
                                   </div>
                                   <button
                                     onClick={() => handleRemovePayment(invoice.id!, payment.id)}
-                                    className="px-2 py-1 bg-red-100 text-red-700 rounded-lg text-[10px] hover:bg-red-200 flex items-center gap-1 font-medium"
+                                    className="px-2 py-1 bg-red-100 text-red-700 rounded-lg text-xs hover:bg-red-200 flex items-center gap-1 font-medium"
                                   >
                                     <Trash2 size={12} />
                                     Remove

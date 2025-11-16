@@ -353,7 +353,7 @@ export default function Dashboard() {
                 applyFilters()
                 setShowFilters(false)
               }}
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-[10px] font-medium hover:bg-primary-700 transition-colors shadow-sm"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors shadow-sm"
             >
               Apply
             </button>
@@ -362,7 +362,7 @@ export default function Dashboard() {
                 resetFilters()
                 setShowFilters(false)
               }}
-              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-[10px] font-medium hover:bg-gray-300 transition-colors"
+              className="px-4 bg-gray-200 text-gray-700 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
             >
               Reset
             </button>

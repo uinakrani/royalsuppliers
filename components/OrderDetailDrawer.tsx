@@ -226,7 +226,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                 handleClose()
                 setTimeout(() => onEdit(order), 300)
               }}
-              className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 bg-primary-600 text-white py-3 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
             >
               <Edit size={18} />
               Edit Order
@@ -236,7 +236,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                 handleClose()
                 setTimeout(() => onDelete(order.id!), 300)
               }}
-              className="flex-1 bg-red-600 text-white py-3 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 bg-red-600 text-white py-3 rounded-lg text-xs font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
             >
               <Trash2 size={18} />
               Delete
