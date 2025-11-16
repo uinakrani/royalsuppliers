@@ -49,83 +49,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     loadTruckOwners()
   }, [])
 
-  // Scroll focused field to visible area, accounting for keyboard
-  const handleFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const field = e.currentTarget
-    if (modalContentRef.current && field) {
-      // Longer delay to allow keyboard to fully open on mobile
-      setTimeout(() => {
-        const container = modalContentRef.current
-        if (!container) return
-
-        // Find the field's parent div container (the div that wraps label + input)
-        // Walk up the DOM to find the direct child of the form
-        let fieldContainer: HTMLElement | null = field.parentElement
-        const form = container.querySelector('form')
-        
-        if (form) {
-          while (fieldContainer && fieldContainer !== form && fieldContainer !== container) {
-            if (fieldContainer.parentElement === form) {
-              break
-            }
-            fieldContainer = fieldContainer.parentElement
-          }
-        }
-        
-        // Use the field container if found, otherwise use the field itself
-        const elementToScroll = fieldContainer || field
-        
-        // Get viewport dimensions - use Visual Viewport API if available (better for keyboard)
-        const visualViewport = (window as any).visualViewport
-        const viewportHeight = visualViewport ? visualViewport.height : window.innerHeight
-        const viewportTop = visualViewport ? visualViewport.offsetTop : 0
-        
-        const containerRect = container.getBoundingClientRect()
-        const elementRect = elementToScroll.getBoundingClientRect()
-        
-        // Calculate available visible area accounting for keyboard
-        // The visible area is from the top of the container to the bottom of the viewport
-        const containerTop = containerRect.top
-        const visibleBottom = containerTop + viewportHeight - viewportTop
-        
-        // Sticky header height
-        const stickyHeaderHeight = 80
-        // Padding from top (below header) and bottom (above keyboard)
-        const topPadding = 30
-        const bottomPadding = 30
-        
-        // Calculate the safe visible area
-        const safeTop = containerTop + stickyHeaderHeight + topPadding
-        const safeBottom = visibleBottom - bottomPadding
-        
-        // Check if field is within the safe visible area
-        const fieldTop = elementRect.top
-        const fieldBottom = elementRect.bottom
-        
-        // If field is not fully visible in safe area, scroll it
-        if (fieldTop < safeTop || fieldBottom > safeBottom) {
-          // Calculate scroll needed to position field in safe area
-          const elementOffsetTop = elementToScroll.offsetTop
-          
-          // Calculate target scroll position
-          // Position element so its top is at safeTop (which is containerTop + stickyHeaderHeight + topPadding)
-          // Since safeTop = containerTop + stickyHeaderHeight + topPadding
-          // and containerTop is constant, we simplify:
-          const targetScrollTop = elementOffsetTop - stickyHeaderHeight - topPadding
-          
-          // Ensure we don't scroll past the bottom
-          const maxScroll = container.scrollHeight - container.clientHeight
-          const finalScrollTop = Math.min(Math.max(0, targetScrollTop), maxScroll)
-          
-          // Apply the scroll
-          container.scrollTo({
-            top: finalScrollTop,
-            behavior: 'smooth'
-          })
-        }
-      }, 400) // Increased delay to allow keyboard animation to complete on iOS
-    }
-  }
+	// Note: Removed auto-scroll on input focus for a calmer iOS experience
 
   useEffect(() => {
     // Update form data when order prop changes
@@ -273,7 +197,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     >
       <div 
         ref={modalContentRef} 
-        className={`bg-white w-full max-h-[90vh] rounded-t-2xl overflow-y-auto overflow-x-hidden shadow-lg ${
+				className={`bg-white w-full max-h-[85vh] rounded-t-2xl overflow-y-auto overflow-x-hidden shadow-lg ${
           isClosing ? 'animate-drawer-exit' : 'animate-drawer-enter'
         }`}
         style={{ 
@@ -285,19 +209,19 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10">
-          <h2 className="text-xl font-bold">
+				<div className="sticky top-0 bg-white border-b border-gray-200 p-2.5 flex justify-between items-center z-10">
+					<h2 className="text-lg font-bold">
             {order ? 'Edit Order' : 'Add New Order'}
           </h2>
-          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <X size={24} />
+					<button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+						<X size={20} />
           </button>
         </div>
 
         <form 
           ref={formRef}
           onSubmit={handleSubmit} 
-          className="p-4 space-y-4 pb-32 overflow-x-hidden"
+					className="p-2.5 space-y-3 pb-24 overflow-x-hidden"
           style={{ 
             width: '100%', 
             maxWidth: '100%', 
@@ -306,16 +230,15 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           }}
         >
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Date *
             </label>
             <input
               type="date"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              onFocus={(e) => handleFieldFocus(e)}
               required
-              className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+							className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               style={{ 
                 maxWidth: '100%', 
                 width: '100%',
@@ -326,7 +249,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Party Name *
             </label>
             {!showCustomPartyName ? (
@@ -340,9 +263,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                       setFormData({ ...formData, partyName: e.target.value })
                     }
                   }}
-                  onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomPartyName}
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+									className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="">Select a party name</option>
                   {partyNames.map((name) => (
@@ -359,10 +281,9 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   type="text"
                   value={formData.partyName}
                   onChange={(e) => setFormData({ ...formData, partyName: e.target.value })}
-                  onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter party name"
                   required
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+									className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -370,7 +291,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                     setShowCustomPartyName(false)
                     setFormData({ ...formData, partyName: '' })
                   }}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+									className="text-xs text-primary-600 hover:text-primary-700"
                 >
                   ← Select from existing names
                 </button>
@@ -379,7 +300,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Site Name *
             </label>
             {!showCustomSiteName ? (
@@ -393,9 +314,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                       setFormData({ ...formData, siteName: e.target.value })
                     }
                   }}
-                  onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomSiteName}
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+									className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="">Select a site name</option>
                   {siteNames.map((name) => (
@@ -412,10 +332,9 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   type="text"
                   value={formData.siteName}
                   onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
-                  onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter site name"
                   required
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+									className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -423,7 +342,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                     setShowCustomSiteName(false)
                     setFormData({ ...formData, siteName: '' })
                   }}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+									className="text-xs text-primary-600 hover:text-primary-700"
                 >
                   ← Select from existing names
                 </button>
@@ -432,10 +351,10 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Material *
             </label>
-            <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-gray-50">
+						<div className="grid grid-cols-2 gap-1.5 p-2 border border-gray-300 rounded-lg bg-gray-50">
               {['Bodeli', 'Panetha', 'Nareshware', 'Kali', 'Chikhli Kapchi VSI', 'Chikhli Kapchi', 'Areth'].map((materialOption) => {
                 const currentMaterials = Array.isArray(formData.material) 
                   ? formData.material 
@@ -443,7 +362,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 const isChecked = currentMaterials.includes(materialOption)
                 
                 return (
-                  <label key={materialOption} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
+									<label key={materialOption} className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-100 p-1.5 rounded transition-colors">
                     <input
                       type="checkbox"
                       checked={isChecked}
@@ -469,19 +388,19 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                         setFormData({ ...formData, material: newMaterials })
                       }}
                     />
-                    <span className="text-sm text-gray-700">{materialOption}</span>
+										<span className="text-xs text-gray-700">{materialOption}</span>
                   </label>
                 )
               })}
             </div>
             {(Array.isArray(formData.material) && formData.material.length === 0) && (
-              <p className="mt-1 text-xs text-red-600">Please select at least one material</p>
+						     <p className="mt-1 text-xs text-red-600">Please select at least one material</p>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+					<div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+							<label className="block text-xs font-medium text-gray-700 mb-0.5">
                 Weight *
               </label>
               <input
@@ -489,13 +408,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.weight || ''}
                 onChange={(e) => setFormData({ ...formData, weight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                onFocus={(e) => handleFieldFocus(e)}
                 required
-                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+								className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+							<label className="block text-xs font-medium text-gray-700 mb-0.5">
                 Rate *
               </label>
               <input
@@ -503,22 +421,21 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.rate || ''}
                 onChange={(e) => setFormData({ ...formData, rate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                onFocus={(e) => handleFieldFocus(e)}
                 required
-                className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+								className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           </div>
 
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <div className="flex justify-between mb-1">
-              <span className="text-sm text-gray-600">Total:</span>
-              <span className="font-semibold">{formatIndianCurrency(total)}</span>
+					<div className="bg-gray-50 p-2 rounded-lg">
+						<div className="flex justify-between mb-0.5">
+							<span className="text-xs text-gray-600">Total:</span>
+							<span className="font-semibold text-sm">{formatIndianCurrency(total)}</span>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Truck Owner *
             </label>
             {!showCustomTruckOwner ? (
@@ -532,9 +449,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                       setFormData({ ...formData, truckOwner: e.target.value })
                     }
                   }}
-                  onFocus={(e) => handleFieldFocus(e)}
                   required={!showCustomTruckOwner}
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+									className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="">Select a truck owner</option>
                   {truckOwners.map((owner) => (
@@ -551,10 +467,9 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   type="text"
                   value={formData.truckOwner}
                   onChange={(e) => setFormData({ ...formData, truckOwner: e.target.value })}
-                  onFocus={(e) => handleFieldFocus(e)}
                   placeholder="Enter truck owner name"
                   required
-                  className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+									className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -562,7 +477,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                     setShowCustomTruckOwner(false)
                     setFormData({ ...formData, truckOwner: '' })
                   }}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+									className="text-xs text-primary-600 hover:text-primary-700"
                 >
                   ← Select from existing owners
                 </button>
@@ -571,23 +486,22 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Truck No *
             </label>
             <input
               type="text"
               value={formData.truckNo}
               onChange={(e) => setFormData({ ...formData, truckNo: e.target.value })}
-              onFocus={(e) => handleFieldFocus(e)}
               placeholder="Enter truck number"
               required
-              className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+							className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+					<div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+							<label className="block text-xs font-medium text-gray-700 mb-0.5">
                 Original Weight *
               </label>
               <input
@@ -595,22 +509,21 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.originalWeight || ''}
                 onChange={(e) => setFormData({ ...formData, originalWeight: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                onFocus={(e) => handleFieldFocus(e)}
                 required
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
+								className={`w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                   formData.originalWeight > formData.weight && formData.weight > 0
                     ? 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500'
                     : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
                 }`}
               />
               {formData.originalWeight > formData.weight && formData.weight > 0 && (
-                <p className="mt-1 text-xs text-red-600 font-medium">
+								<p className="mt-1 text-[11px] text-red-600 font-medium">
                   ⚠️ Original weight is greater than selling weight!
                 </p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+							<label className="block text-xs font-medium text-gray-700 mb-0.5">
                 Original Rate *
               </label>
               <input
@@ -618,31 +531,30 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 step="0.01"
                 value={formData.originalRate || ''}
                 onChange={(e) => setFormData({ ...formData, originalRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0 })}
-                onFocus={(e) => handleFieldFocus(e)}
                 required
-                className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 ${
+								className={`w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                   formData.originalRate > formData.rate && formData.rate > 0
                     ? 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500'
                     : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
                 }`}
               />
               {formData.originalRate > formData.rate && formData.rate > 0 && (
-                <p className="mt-1 text-xs text-red-600 font-medium">
+								<p className="mt-1 text-[11px] text-red-600 font-medium">
                   ⚠️ Original rate is greater than selling rate!
                 </p>
               )}
             </div>
           </div>
 
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <div className="flex justify-between mb-1">
-              <span className="text-sm text-gray-600">Original Total:</span>
-              <span className="font-semibold">{formatIndianCurrency(originalTotal)}</span>
+					<div className="bg-gray-50 p-2 rounded-lg">
+						<div className="flex justify-between mb-0.5">
+							<span className="text-xs text-gray-600">Original Total:</span>
+							<span className="font-semibold text-sm">{formatIndianCurrency(originalTotal)}</span>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="block text-xs font-medium text-gray-700 mb-0.5">
               Additional Cost
             </label>
             <input
@@ -650,21 +562,20 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               step="0.01"
               value={formData.additionalCost}
               onChange={(e) => setFormData({ ...formData, additionalCost: parseFloat(e.target.value) || 0 })}
-              onFocus={(e) => handleFieldFocus(e)}
-              className="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+							className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <div className="flex justify-between mb-1">
-              <span className="text-sm text-gray-600">Profit:</span>
-              <span className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+					<div className="bg-gray-50 p-2 rounded-lg">
+						<div className="flex justify-between mb-0.5">
+							<span className="text-xs text-gray-600">Profit:</span>
+							<span className={`font-semibold text-sm ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {formatIndianCurrency(profit)}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+					<div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="paymentDue"
@@ -672,12 +583,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               onChange={(e) => setFormData({ ...formData, paymentDue: e.target.checked })}
               className="custom-checkbox"
             />
-            <label htmlFor="paymentDue" className="text-sm text-gray-700">
+						<label htmlFor="paymentDue" className="text-xs text-gray-700">
               Payment Due
             </label>
           </div>
 
-          <div className="flex items-center space-x-2">
+					<div className="flex items-center space-x-2">
             <input
               type="checkbox"
               id="paid"
@@ -685,7 +596,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               onChange={(e) => setFormData({ ...formData, paid: e.target.checked, paymentDue: !e.target.checked })}
               className="custom-checkbox"
             />
-            <label htmlFor="paid" className="text-sm text-gray-700">
+						<label htmlFor="paid" className="text-xs text-gray-700">
               Paid
             </label>
           </div>
@@ -693,12 +604,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         </form>
         
         {/* Fixed buttons at bottom */}
-        <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-20 shadow-lg">
+				<div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-20 shadow-lg">
           <div className="flex gap-2">
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 bg-gray-200 text-gray-700 px-2 py-1 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+							className="flex-1 bg-gray-200 text-gray-700 px-2 py-1 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
@@ -710,7 +621,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                 }
               }}
               disabled={saving}
-              className="flex-1 bg-primary-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+							className="flex-1 bg-primary-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
