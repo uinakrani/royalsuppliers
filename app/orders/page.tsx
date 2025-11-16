@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { orderService } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
+import { partyPaymentService, PartyPayment } from '@/lib/partyPaymentService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
@@ -13,11 +14,25 @@ import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import OrderDetailDrawer from '@/components/OrderDetailDrawer'
+import PartyDetailDrawer from '@/components/PartyDetailDrawer'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { Invoice, InvoicePayment } from '@/types/invoice'
+
+interface PartyGroup {
+  partyName: string
+  totalSelling: number
+  totalPaid: number
+  lastPaymentDate: string | null
+  orders: Order[]
+  payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }>
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [partyPayments, setPartyPayments] = useState<PartyPayment[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
@@ -25,6 +40,13 @@ export default function OrdersPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<OrderFilters>({})
   const [selectedPartyTags, setSelectedPartyTags] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<'byParty' | 'allOrders'>('byParty')
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<Order | null>(null)
+  const [showOrderDetailDrawer, setShowOrderDetailDrawer] = useState(false)
+  const [selectedPartyGroup, setSelectedPartyGroup] = useState<PartyGroup | null>(null)
+  const [showPartyDetailDrawer, setShowPartyDetailDrawer] = useState(false)
+  const headerRef = useRef<HTMLDivElement>(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
 
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
@@ -38,7 +60,20 @@ export default function OrdersPage() {
 
   useEffect(() => {
     loadOrders()
+    loadInvoices()
+    loadPartyPayments()
     loadPartyNames()
+  }, [])
+
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight)
+      }
+    }
+    updateHeaderHeight()
+    window.addEventListener('resize', updateHeaderHeight)
+    return () => window.removeEventListener('resize', updateHeaderHeight)
   }, [])
 
   // Check for highlight query parameter
@@ -85,6 +120,24 @@ export default function OrdersPage() {
       console.error('Error loading orders:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadInvoices = async () => {
+    try {
+      const allInvoices = await invoiceService.getAllInvoices()
+      setInvoices(allInvoices)
+    } catch (error) {
+      console.error('Error loading invoices:', error)
+    }
+  }
+
+  const loadPartyPayments = async () => {
+    try {
+      const allPayments = await partyPaymentService.getAllPayments()
+      setPartyPayments(allPayments)
+    } catch (error) {
+      console.error('Error loading party payments:', error)
     }
   }
 
@@ -161,6 +214,8 @@ export default function OrdersPage() {
       
       console.log('🔄 Reloading orders...')
       await loadOrders()
+      await loadInvoices()
+      await loadPartyPayments()
       console.log('✅ Orders reloaded')
       
       setEditingOrder(null)
@@ -196,6 +251,8 @@ export default function OrdersPage() {
           await orderService.deleteOrder(id)
           showToast('Order deleted successfully!', 'success')
           await loadOrders()
+          await loadInvoices()
+          await loadPartyPayments()
         } catch (error: any) {
           console.error('Error deleting order:', error)
           showToast(`Failed to delete order: ${error?.message || 'Unknown error'}`, 'error')
@@ -216,6 +273,8 @@ export default function OrdersPage() {
           await orderService.deleteOrder(id)
           showToast('Order deleted successfully!', 'success')
           await loadOrders()
+          await loadInvoices()
+          await loadPartyPayments()
         } catch (err: any) {
           console.error('Error deleting order:', err)
           showToast(`Failed to delete order: ${err?.message || 'Unknown error'}`, 'error')
@@ -280,6 +339,8 @@ export default function OrdersPage() {
         showToast(`Successfully deleted ${successCount} order(s)${failCount > 0 ? `. ${failCount} failed.` : ''}`, 'success')
         setSelectedOrders(new Set())
         await loadOrders()
+        await loadInvoices()
+        await loadPartyPayments()
       } else {
         showToast(`Failed to delete orders.`, 'error')
       }
@@ -328,6 +389,8 @@ export default function OrdersPage() {
       showToast(`Invoice created successfully for ${ordersToInvoice.length} order(s)!`, 'success')
       setSelectedOrders(new Set())
       await loadOrders()
+      await loadInvoices()
+      await loadPartyPayments()
     } catch (error: any) {
       showToast(`Failed to create invoice: ${error?.message || 'Unknown error'}`, 'error')
     }
@@ -357,10 +420,75 @@ export default function OrdersPage() {
     setShowFilters(false)
   }
 
+  const handlePartyGroupClick = (group: PartyGroup) => {
+    setSelectedPartyGroup(group)
+    setShowPartyDetailDrawer(true)
+  }
+
+  const getPartyGroups = (): PartyGroup[] => {
+    // Group orders by party
+    const partyMap = new Map<string, Order[]>()
+    filteredOrders.forEach(order => {
+      const party = order.partyName
+      if (!partyMap.has(party)) {
+        partyMap.set(party, [])
+      }
+      partyMap.get(party)!.push(order)
+    })
+
+    // Calculate totals and payment info for each party
+    const groups: PartyGroup[] = []
+    partyMap.forEach((partyOrders, partyName) => {
+      const totalSelling = partyOrders.reduce((sum, order) => sum + order.total, 0)
+      
+      // Get all payments for this party
+      const partyPaymentRecords = partyPayments.filter(p => p.partyName === partyName)
+      
+      // Convert party payments to the expected format
+      const allPayments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }> = []
+      let totalPaid = 0
+      let lastPaymentDate: string | null = null
+
+      partyPaymentRecords.forEach(payment => {
+        allPayments.push({
+          invoiceId: '', // No invoice ID for party payments
+          invoiceNumber: '', // No invoice number for party payments
+          payment: {
+            id: payment.id!,
+            amount: payment.amount,
+            date: payment.date
+          }
+        })
+        totalPaid += payment.amount
+        
+        // Track last payment date
+        const paymentDate = new Date(payment.date)
+        if (!lastPaymentDate || paymentDate > new Date(lastPaymentDate)) {
+          lastPaymentDate = payment.date
+        }
+      })
+
+      // Sort payments by date (newest first)
+      allPayments.sort((a, b) => new Date(b.payment.date).getTime() - new Date(a.payment.date).getTime())
+
+      groups.push({
+        partyName,
+        totalSelling,
+        totalPaid,
+        lastPaymentDate,
+        orders: partyOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+        payments: allPayments
+      })
+    })
+
+    // Sort groups by party name
+    return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
+  }
+
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-      <div className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm">
+    <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm">
         <div className="p-2.5">
           <div className="flex justify-between items-center gap-2">
             <h1 className="text-xl font-bold">Orders</h1>
@@ -383,12 +511,35 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
+          {/* View Toggle */}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => setViewMode('byParty')}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
+                viewMode === 'byParty'
+                  ? 'bg-white text-primary-600'
+                  : 'bg-primary-500 text-white hover:bg-primary-400'
+              }`}
+            >
+              By Party
+            </button>
+            <button
+              onClick={() => setViewMode('allOrders')}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
+                viewMode === 'allOrders'
+                  ? 'bg-white text-primary-600'
+                  : 'bg-primary-500 text-white hover:bg-primary-400'
+              }`}
+            >
+              All Orders
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Party Name Tags - Horizontal Scrollable */}
       {partyNames.length > 0 && (
-        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky top-[50px] z-30 shadow-sm -mt-px">
+        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky z-30 shadow-sm" style={{ top: headerHeight ? `${headerHeight}px` : 'auto' }}>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {partyNames.map((partyName) => {
               const isSelected = selectedPartyTags.has(partyName)
@@ -554,7 +705,81 @@ export default function OrdersPage() {
         </div>
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
+      ) : viewMode === 'byParty' ? (
+        // By Party View
+        <div className="p-2 space-y-2">
+          {getPartyGroups().map((group) => {
+            const balance = group.totalSelling - group.totalPaid
+            return (
+              <div key={group.partyName} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                {/* Party Group Header */}
+                <div className="p-3">
+                  <button
+                    onClick={() => handlePartyGroupClick(group)}
+                    className="w-full flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer -m-3 p-3 rounded-lg"
+                  >
+                    <div className="flex-1 text-left">
+                      <h3 className="font-semibold text-sm text-gray-900">{group.partyName}</h3>
+                      <div className="flex gap-4 mt-1 text-xs text-gray-600">
+                        <span>Total: {formatIndianCurrency(group.totalSelling)}</span>
+                        <span>Paid: {formatIndianCurrency(group.totalPaid)}</span>
+                        <span className={balance > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
+                          Balance: {formatIndianCurrency(Math.abs(balance))}
+                        </span>
+                      </div>
+                      {group.lastPaymentDate && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Last Payment: {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <button
+                      onClick={async () => {
+                        const balance = group.totalSelling - group.totalPaid
+                        try {
+                          const amountStr = await sweetAlert.prompt({
+                            title: 'Add Payment',
+                            text: `Remaining balance: ${formatIndianCurrency(balance)}`,
+                            inputLabel: 'Payment Amount',
+                            inputPlaceholder: 'Enter amount',
+                            inputValue: balance > 0 ? balance.toString() : '',
+                            inputType: 'number',
+                            confirmText: 'Add Payment',
+                            cancelText: 'Cancel'
+                          })
+                          
+                          if (!amountStr) return
+
+                          const amount = parseFloat(amountStr)
+                          if (isNaN(amount) || amount <= 0) {
+                            showToast('Invalid amount', 'error')
+                            return
+                          }
+
+                          await partyPaymentService.addPayment(group.partyName, amount)
+                          showToast('Payment added successfully!', 'success')
+                          await loadPartyPayments()
+                        } catch (error: any) {
+                          if (error?.message && !error.message.includes('SweetAlert')) {
+                            showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Plus size={14} />
+                      Add Payment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        // All Orders View (existing table view)
         <div className="px-2 pb-1 overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200">
@@ -708,6 +933,44 @@ export default function OrdersPage() {
           onSave={handleSaveOrder}
         />
       )}
+
+      <OrderDetailDrawer
+        order={selectedOrderDetail}
+        isOpen={showOrderDetailDrawer}
+        onClose={() => {
+          setShowOrderDetailDrawer(false)
+          setSelectedOrderDetail(null)
+        }}
+        onEdit={(order) => {
+          setEditingOrder(order)
+          setShowForm(true)
+        }}
+        onDelete={handleDeleteOrder}
+      />
+
+      <PartyDetailDrawer
+        group={selectedPartyGroup}
+        isOpen={showPartyDetailDrawer}
+        onClose={() => {
+          setShowPartyDetailDrawer(false)
+          setSelectedPartyGroup(null)
+        }}
+        onEditOrder={(order) => {
+          setEditingOrder(order)
+          setShowForm(true)
+        }}
+        onDeleteOrder={handleDeleteOrder}
+        onOrderClick={(order) => {
+          setSelectedOrderDetail(order)
+          setShowOrderDetailDrawer(true)
+        }}
+        onPaymentAdded={async () => {
+          await loadPartyPayments()
+        }}
+        onPaymentRemoved={async () => {
+          await loadPartyPayments()
+        }}
+      />
 
       <NavBar />
     </div>

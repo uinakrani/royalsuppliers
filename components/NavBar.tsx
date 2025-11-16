@@ -11,7 +11,8 @@ export default function NavBar() {
     <nav 
       className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 shadow-lg" 
       style={{ 
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0), 0px)'
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        height: 'calc(4rem + env(safe-area-inset-bottom, 0px))'
       }}
     >
       <div className="flex justify-around items-center h-16">
