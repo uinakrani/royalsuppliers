@@ -158,7 +158,16 @@ export default function InvoicesPage() {
         return
       }
 
-      await invoiceService.addPayment(invoiceId, amount)
+      const note = await sweetAlert.prompt({
+        title: 'Payment Note (optional)',
+        inputLabel: 'Note',
+        inputPlaceholder: 'Add a note (optional)',
+        inputType: 'text',
+        confirmText: 'Save',
+        cancelText: 'Skip',
+      })
+
+      await invoiceService.addPayment(invoiceId, amount, note || undefined)
       showToast('Payment added successfully!', 'success')
       await loadInvoices()
     } catch (error: any) {
@@ -567,6 +576,9 @@ export default function InvoicesPage() {
                                   <div>
                                     <p className="font-semibold text-gray-900 text-xs">{formatIndianCurrency(payment.amount)}</p>
                                     <p className="text-xs text-gray-500">{format(new Date(payment.date), 'dd MMM yyyy HH:mm')}</p>
+                                    {payment.note && (
+                                      <p className="text-xs text-gray-600 mt-1">{payment.note}</p>
+                                    )}
                                   </div>
                                   <button
                                     onClick={() => handleRemovePayment(invoice.id!, payment.id)}

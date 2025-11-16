@@ -88,8 +88,17 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
         return
       }
 
+      const note = await sweetAlert.prompt({
+        title: 'Payment Note (optional)',
+        inputLabel: 'Note',
+        inputPlaceholder: 'Add a note (optional)',
+        inputType: 'text',
+        confirmText: 'Save',
+        cancelText: 'Skip'
+      })
+
       setIsProcessing(true)
-      await partyPaymentService.addPayment(group.partyName, amount)
+      await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
       showToast('Payment added successfully!', 'success')
       
       if (onPaymentAdded) {
@@ -197,11 +206,15 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                   {balance > 0 ? ' (Due)' : ' (Overpaid)'}
                 </span>
               </div>
-              {group.lastPaymentDate && (
+              {group.lastPaymentDate && group.lastPaymentAmount !== null && (
                 <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                   <span className="text-sm font-medium text-gray-600">Last Payment</span>
                   <span className="text-sm font-semibold text-gray-900">
                     {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')}
+                    {(() => {
+                      const last = group.payments.find((p) => p.payment && p.payment.date === group.lastPaymentDate)
+                      return last?.payment?.note ? ` – ${last.payment.note}` : ''
+                    })()}
                   </span>
                 </div>
               )}
@@ -306,6 +319,11 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                         <p className="text-xs text-gray-500 mt-0.5">
                           {format(new Date(paymentItem.payment.date), 'dd MMM yyyy HH:mm')}
                         </p>
+                        {paymentItem.payment.note && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {paymentItem.payment.note}
+                          </p>
+                        )}
                       </div>
                       <button
                         onClick={() => handleRemovePayment(paymentItem.payment.id)}

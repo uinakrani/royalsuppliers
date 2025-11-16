@@ -458,7 +458,8 @@ export default function OrdersPage() {
           payment: {
             id: payment.id!,
             amount: payment.amount,
-            date: payment.date
+            date: payment.date,
+            note: payment.note
           }
         })
         totalPaid += payment.amount
@@ -749,7 +750,16 @@ export default function OrdersPage() {
                               return
                             }
 
-                            await partyPaymentService.addPayment(group.partyName, amount)
+                            const note = await sweetAlert.prompt({
+                              title: 'Payment Note (optional)',
+                              inputLabel: 'Note',
+                              inputPlaceholder: 'Add a note (optional)',
+                              inputType: 'text',
+                              confirmText: 'Save',
+                              cancelText: 'Skip',
+                            })
+
+                            await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
                             showToast('Payment added successfully!', 'success')
                             await loadPartyPayments()
                           } catch (error: any) {

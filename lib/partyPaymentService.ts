@@ -19,25 +19,28 @@ export interface PartyPayment {
   partyName: string
   amount: number
   date: string // ISO date string
+  note?: string
   createdAt?: string
   updatedAt?: string
 }
 
 export const partyPaymentService = {
   // Add payment for a party
-  async addPayment(partyName: string, amount: number): Promise<string> {
+  async addPayment(partyName: string, amount: number, note?: string): Promise<string> {
     const db = getDb()
     if (!db) {
       throw new Error('Firebase is not configured.')
     }
     
     try {
+      const now = new Date().toISOString()
       const paymentData: Omit<PartyPayment, 'id'> = {
         partyName,
         amount,
-        date: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        date: now,
+        note,
+        createdAt: now,
+        updatedAt: now,
       }
       
       const docRef = await addDoc(collection(db, PARTY_PAYMENTS_COLLECTION), paymentData)

@@ -166,7 +166,7 @@ export const invoiceService = {
   },
 
   // Add partial payment to invoice
-  async addPayment(invoiceId: string, amount: number): Promise<void> {
+  async addPayment(invoiceId: string, amount: number, note?: string): Promise<void> {
     const db = getDb()
     if (!db) {
       throw new Error('Firebase is not configured.')
@@ -185,6 +185,7 @@ export const invoiceService = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount,
       date: new Date().toISOString(),
+      note,
     }
     
     const updatedPayments = [...(invoice.partialPayments || []), newPayment]

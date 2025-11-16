@@ -2,6 +2,7 @@ export interface InvoicePayment {
   id: string
   amount: number
   date: string // ISO date string
+  note?: string
 }
 
 export interface Invoice {
@@ -14,7 +15,7 @@ export interface Invoice {
   createdAt: string // ISO date string - invoice creation date
   dueDate: string // ISO date string - 1 week from creation
   paid: boolean // Whether invoice is fully paid
-  overdue: boolean // Whether invoice is overdue (not fully paid after due date)
+  overdue: boolean // Whether invoice is overdue
   partyName: string // Party name from orders
   siteName: string // Site name from orders
   archived: boolean // Whether orders are archived (when invoice is fully paid)
