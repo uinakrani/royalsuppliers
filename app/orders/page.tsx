@@ -785,7 +785,7 @@ export default function OrdersPage() {
             <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrders.has(o.id!))}
@@ -800,22 +800,22 @@ export default function OrdersPage() {
                     className="custom-checkbox"
                   />
                 </th>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
-                <th className="px-1.5 py-1 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
-                <th className="px-1.5 py-1 text-left text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
-                <th className="px-1.5 py-1 text-right text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
-                <th className="px-1.5 py-1 text-center text-[10px] font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
+                <th className="px-1.5 py-1 text-center text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
+                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
+                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
+                <th className="px-1.5 py-1 text-center text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -837,59 +837,59 @@ export default function OrdersPage() {
                       className="custom-checkbox"
                     />
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900">
                     {format(new Date(order.date), 'dd MMM yyyy')}
                   </td>
                   <td className="px-1.5 py-0.5 whitespace-nowrap text-center">
                     {order.invoiced ? (
-                      <span className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                      <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
                         Invoiced
                       </span>
                     ) : (
-                      <span className="text-[10px] text-gray-400">-</span>
+                      <span className="text-xs text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] font-medium text-gray-900">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs font-medium text-gray-900">
                     {order.partyName}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-600">
                     {order.siteName}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-600">
                     {Array.isArray(order.material) ? order.material.join(', ') : order.material}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {order.weight.toFixed(2)}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {formatIndianCurrency(order.rate)}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] font-semibold text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
                     {formatIndianCurrency(order.total)}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-600">
                     {order.truckOwner}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-600">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-600">
                     {order.truckNo}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {order.originalWeight.toFixed(2)}
                   </td>
-                  <td className={`px-1.5 py-0.5 whitespace-nowrap text-[10px] text-right ${
+                  <td className={`px-1.5 py-0.5 whitespace-nowrap text-xs text-right ${
                     order.originalRate > order.rate && order.rate > 0
                       ? 'text-red-600 font-semibold'
                       : 'text-gray-900'
                   }`}>
                     {formatIndianCurrency(order.originalRate)}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] font-semibold text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
                     {formatIndianCurrency(order.originalTotal)}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-[10px] text-gray-900 text-right">
+                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {formatIndianCurrency(order.additionalCost)}
                   </td>
-                  <td className={`px-1.5 py-0.5 whitespace-nowrap text-[10px] text-right font-medium ${
+                  <td className={`px-1.5 py-0.5 whitespace-nowrap text-xs text-right font-medium ${
                     order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {formatIndianCurrency(order.profit)}

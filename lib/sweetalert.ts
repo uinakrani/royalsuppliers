@@ -60,6 +60,8 @@ const swalConfig = {
   allowEscapeKey: true,
   width: '90%',
   padding: '1rem',
+  backdrop: true,
+  allowEnterKey: true,
   showClass: {
     popup: 'animate-fade-in',
     backdrop: 'animate-fade-in'
@@ -73,7 +75,8 @@ const swalConfig = {
     confirmButton: 'swal2-confirm-mobile',
     cancelButton: 'swal2-cancel-mobile',
     title: 'swal2-title-mobile',
-    htmlContainer: 'swal2-html-container-mobile'
+    htmlContainer: 'swal2-html-container-mobile',
+    backdrop: 'swal2-backdrop-custom'
   }
 }
 
@@ -104,6 +107,77 @@ export const sweetAlert = {
         showCancelButton: true,
         confirmButtonText: options.confirmText || 'Yes',
         cancelButtonText: options.cancelText || 'Cancel',
+        willOpen: () => {
+          // Ensure backdrop is enabled before opening
+        },
+        didOpen: () => {
+          // Ensure backdrop is visible - try multiple selectors and methods
+          const ensureBackdrop = () => {
+            // Try different selectors
+            let backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+            const container = document.querySelector('.swal2-container') as HTMLElement
+            
+            // If no backdrop element exists, create one
+            if (!backdrop && container) {
+              backdrop = document.createElement('div')
+              backdrop.className = 'swal2-backdrop swal2-backdrop-show swal2-backdrop-manual'
+              backdrop.style.cssText = `
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                background-color: rgba(0, 0, 0, 0.5) !important;
+                opacity: 1 !important;
+                z-index: 1059 !important;
+                display: block !important;
+                visibility: visible !important;
+              `
+              document.body.appendChild(backdrop)
+            }
+            
+            if (backdrop) {
+              backdrop.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
+              backdrop.style.setProperty('opacity', '1', 'important')
+              backdrop.style.setProperty('z-index', '1059', 'important')
+              backdrop.style.setProperty('position', 'fixed', 'important')
+              backdrop.style.setProperty('top', '0', 'important')
+              backdrop.style.setProperty('left', '0', 'important')
+              backdrop.style.setProperty('width', '100%', 'important')
+              backdrop.style.setProperty('height', '100%', 'important')
+              backdrop.style.setProperty('display', 'block', 'important')
+              backdrop.style.setProperty('visibility', 'visible', 'important')
+            }
+            
+            // Also ensure container has backdrop-show class
+            if (container) {
+              container.classList.add('swal2-backdrop-show')
+              container.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
+            }
+          }
+          
+          // Try immediately and with delays
+          ensureBackdrop()
+          setTimeout(ensureBackdrop, 10)
+          setTimeout(ensureBackdrop, 50)
+          setTimeout(ensureBackdrop, 100)
+        },
+        didClose: () => {
+          // Clean up manually created backdrop after a short delay to let SweetAlert2 clean up first
+          setTimeout(() => {
+            const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+            if (manualBackdrop) {
+              manualBackdrop.remove()
+            }
+            // Also clean up any remaining backdrop elements that weren't cleaned up by SweetAlert2
+            const backdrops = document.querySelectorAll('.swal2-backdrop')
+            backdrops.forEach(backdrop => {
+              if (backdrop.parentNode && backdrop.classList.contains('swal2-backdrop-manual')) {
+                backdrop.remove()
+              }
+            })
+          }, 100)
+        },
       })
       console.log('SweetAlert result:', result)
       return result.isConfirmed
@@ -123,6 +197,29 @@ export const sweetAlert = {
       icon: 'success',
       timer: 2000,
       showConfirmButton: false,
+      didOpen: () => {
+        // Ensure backdrop is visible
+        const backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+        if (backdrop) {
+          backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
+          backdrop.style.opacity = '1'
+          backdrop.style.zIndex = '1060'
+        }
+      },
+      didClose: () => {
+        // Clean up manually created backdrop
+        const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+        if (manualBackdrop) {
+          manualBackdrop.remove()
+        }
+        // Also clean up any backdrop elements that might remain
+        const backdrops = document.querySelectorAll('.swal2-backdrop')
+        backdrops.forEach(backdrop => {
+          if (backdrop.parentNode) {
+            backdrop.remove()
+          }
+        })
+      },
     })
   },
 
@@ -135,6 +232,29 @@ export const sweetAlert = {
       text,
       icon: 'error',
       confirmButtonText: 'OK',
+      didOpen: () => {
+        // Ensure backdrop is visible
+        const backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+        if (backdrop) {
+          backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
+          backdrop.style.opacity = '1'
+          backdrop.style.zIndex = '1060'
+        }
+      },
+      didClose: () => {
+        // Clean up manually created backdrop
+        const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+        if (manualBackdrop) {
+          manualBackdrop.remove()
+        }
+        // Also clean up any backdrop elements that might remain
+        const backdrops = document.querySelectorAll('.swal2-backdrop')
+        backdrops.forEach(backdrop => {
+          if (backdrop.parentNode) {
+            backdrop.remove()
+          }
+        })
+      },
     })
   },
 
@@ -147,6 +267,29 @@ export const sweetAlert = {
       text,
       icon: 'info',
       confirmButtonText: 'OK',
+      didOpen: () => {
+        // Ensure backdrop is visible
+        const backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+        if (backdrop) {
+          backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
+          backdrop.style.opacity = '1'
+          backdrop.style.zIndex = '1060'
+        }
+      },
+      didClose: () => {
+        // Clean up manually created backdrop
+        const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+        if (manualBackdrop) {
+          manualBackdrop.remove()
+        }
+        // Also clean up any backdrop elements that might remain
+        const backdrops = document.querySelectorAll('.swal2-backdrop')
+        backdrops.forEach(backdrop => {
+          if (backdrop.parentNode) {
+            backdrop.remove()
+          }
+        })
+      },
     })
   },
 
@@ -159,6 +302,29 @@ export const sweetAlert = {
       text,
       icon: 'warning',
       confirmButtonText: 'OK',
+      didOpen: () => {
+        // Ensure backdrop is visible
+        const backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+        if (backdrop) {
+          backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
+          backdrop.style.opacity = '1'
+          backdrop.style.zIndex = '1060'
+        }
+      },
+      didClose: () => {
+        // Clean up manually created backdrop
+        const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+        if (manualBackdrop) {
+          manualBackdrop.remove()
+        }
+        // Also clean up any backdrop elements that might remain
+        const backdrops = document.querySelectorAll('.swal2-backdrop')
+        backdrops.forEach(backdrop => {
+          if (backdrop.parentNode) {
+            backdrop.remove()
+          }
+        })
+      },
     })
   },
 
@@ -192,6 +358,81 @@ export const sweetAlert = {
             return 'Please enter a value'
           }
           return null
+        },
+        didOpen: () => {
+          // Ensure backdrop is visible - try multiple selectors and methods
+          const ensureBackdrop = () => {
+            // Try different selectors
+            let backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+            const container = document.querySelector('.swal2-container') as HTMLElement
+            
+            // If no backdrop element exists, create one
+            if (!backdrop && container) {
+              backdrop = document.createElement('div')
+              backdrop.className = 'swal2-backdrop swal2-backdrop-show swal2-backdrop-manual'
+              backdrop.style.cssText = `
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                background-color: rgba(0, 0, 0, 0.5) !important;
+                opacity: 1 !important;
+                z-index: 1059 !important;
+                display: block !important;
+                visibility: visible !important;
+              `
+              document.body.appendChild(backdrop)
+            }
+            
+            if (backdrop) {
+              backdrop.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
+              backdrop.style.setProperty('opacity', '1', 'important')
+              backdrop.style.setProperty('z-index', '1059', 'important')
+              backdrop.style.setProperty('position', 'fixed', 'important')
+              backdrop.style.setProperty('top', '0', 'important')
+              backdrop.style.setProperty('left', '0', 'important')
+              backdrop.style.setProperty('width', '100%', 'important')
+              backdrop.style.setProperty('height', '100%', 'important')
+              backdrop.style.setProperty('display', 'block', 'important')
+              backdrop.style.setProperty('visibility', 'visible', 'important')
+            }
+            
+            // Also ensure container has backdrop-show class
+            if (container) {
+              container.classList.add('swal2-backdrop-show')
+              container.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
+            }
+          }
+          
+          // Try immediately and with delays
+          ensureBackdrop()
+          setTimeout(ensureBackdrop, 10)
+          setTimeout(ensureBackdrop, 50)
+          setTimeout(ensureBackdrop, 100)
+          
+          // Auto-focus and select all text in the input
+          const input = Swal.getInput() as HTMLInputElement | null
+          if (input) {
+            input.focus()
+            input.select()
+          }
+        },
+        didClose: () => {
+          // Clean up manually created backdrop after a short delay to let SweetAlert2 clean up first
+          setTimeout(() => {
+            const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+            if (manualBackdrop) {
+              manualBackdrop.remove()
+            }
+            // Also clean up any remaining backdrop elements that weren't cleaned up by SweetAlert2
+            const backdrops = document.querySelectorAll('.swal2-backdrop')
+            backdrops.forEach(backdrop => {
+              if (backdrop.parentNode && backdrop.classList.contains('swal2-backdrop-manual')) {
+                backdrop.remove()
+              }
+            })
+          }, 100)
         },
       })
       return result.isConfirmed ? result.value : null
