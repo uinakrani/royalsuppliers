@@ -764,23 +764,23 @@ export default function OrdersPage() {
                       </button>
                     </div>
                     {group.orders.length > 0 && group.orders[0].siteName && (
-                      <p className="text-[10px] text-gray-500 mt-0.5 mb-2 text-left">{group.orders[0].siteName}</p>
+                      <p className="text-[10px] text-gray-500 mb-2 text-left">{group.orders[0].siteName}</p>
                     )}
-                    <div className="w-full space-y-1.5 text-xs">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Received</span>
-                        <span className="font-medium text-gray-900">{formatIndianCurrency(group.totalPaid)}</span>
+                    <div className="w-full space-y-2 text-xs">
+                      <div className="flex justify-between items-center w-full">
+                        <span className="text-gray-600 flex-shrink-0">Received</span>
+                        <span className="font-medium text-gray-900 flex-shrink-0 ml-4">{formatIndianCurrency(group.totalPaid)}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Remaining</span>
-                        <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <div className="flex justify-between items-center w-full">
+                        <span className="text-gray-600 flex-shrink-0">Remaining</span>
+                        <span className={`font-medium flex-shrink-0 ml-4 ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {formatIndianCurrency(Math.abs(balance))}
                         </span>
                       </div>
                       {group.lastPaymentDate && group.lastPaymentAmount !== null && (
-                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
-                          <span className="text-gray-600">Last paid at</span>
-                          <span className="font-medium text-gray-900">
+                        <div className="flex justify-between items-center w-full pt-2 border-t border-gray-200">
+                          <span className="text-gray-600 flex-shrink-0">Last paid at</span>
+                          <span className="font-medium text-gray-900 flex-shrink-0 ml-4 text-right">
                             {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
                           </span>
                         </div>
