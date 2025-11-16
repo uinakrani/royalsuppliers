@@ -149,10 +149,9 @@ export const sweetAlert = {
               backdrop.style.setProperty('visibility', 'visible', 'important')
             }
             
-            // Also ensure container has backdrop-show class
+            // Also ensure container has backdrop-show class (but don't set background on container)
             if (container) {
               container.classList.add('swal2-backdrop-show')
-              container.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
             }
           }
           
@@ -398,10 +397,9 @@ export const sweetAlert = {
               backdrop.style.setProperty('visibility', 'visible', 'important')
             }
             
-            // Also ensure container has backdrop-show class
+            // Also ensure container has backdrop-show class (but don't set background on container)
             if (container) {
               container.classList.add('swal2-backdrop-show')
-              container.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
             }
           }
           
@@ -411,12 +409,39 @@ export const sweetAlert = {
           setTimeout(ensureBackdrop, 50)
           setTimeout(ensureBackdrop, 100)
           
-          // Auto-focus and select all text in the input
-          const input = Swal.getInput() as HTMLInputElement | null
-          if (input) {
-            input.focus()
-            input.select()
-          }
+          // Auto-focus and select all text in the input with proper mobile keyboard support
+          setTimeout(() => {
+            const input = Swal.getInput() as HTMLInputElement | null
+            if (input) {
+              // For number inputs, set proper attributes for mobile numeric keypad
+              if (options.inputType === 'number') {
+                // Use inputmode for better mobile keyboard support
+                input.setAttribute('inputmode', 'decimal')
+                // For iOS, pattern helps show numeric keypad
+                input.setAttribute('pattern', '[0-9]*')
+                // Keep type as number but inputmode will override keyboard on mobile
+              }
+              
+              // Focus and select
+              input.focus()
+              input.select()
+              
+              // For mobile devices, trigger additional focus attempts to ensure keyboard opens
+              if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                // Small delay then click and focus again
+                setTimeout(() => {
+                  input.click()
+                  input.focus()
+                  input.select()
+                  // One more attempt after a short delay
+                  setTimeout(() => {
+                    input.focus()
+                    input.select()
+                  }, 150)
+                }, 100)
+              }
+            }
+          }, 200)
         },
         didClose: () => {
           // Clean up manually created backdrop after a short delay to let SweetAlert2 clean up first
