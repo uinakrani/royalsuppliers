@@ -11,15 +11,16 @@ const generateOrderNumber = (order: Order): string => {
 
 // Format number in Indian currency format (lakhs/crores)
 const formatIndianCurrency = (amount: number): string => {
-  // Convert to string with 2 decimal places
-  const parts = amount.toFixed(2).split('.')
-  const integerPart = parts[0]
-  const decimalPart = parts[1]
+  // Round to nearest whole number
+  const roundedAmount = Math.round(amount)
+  
+  // Convert to string (no decimals needed after rounding)
+  const integerPart = roundedAmount.toString()
   
   // Format integer part with Indian numbering system
   // First 3 digits from right, then groups of 2
   if (integerPart.length <= 3) {
-    return integerPart + '.' + decimalPart
+    return integerPart
   }
   
   // Reverse the string to work from right to left
@@ -38,7 +39,7 @@ const formatIndianCurrency = (amount: number): string => {
   }
   
   // Reverse back and join with commas
-  return formatted.reverse().join(',') + '.' + decimalPart
+  return formatted.reverse().join(',')
 }
 
 // Helper function to load an image
