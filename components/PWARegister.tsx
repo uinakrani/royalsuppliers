@@ -5,47 +5,50 @@ import { useEffect } from 'react'
 export default function PWARegister() {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      // Register service worker
+      const activateUpdate = (registration: ServiceWorkerRegistration) => {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+        }
+      }
+
       const registerSW = async () => {
         try {
           const registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/',
           })
-          
           console.log('Service Worker registered:', registration)
 
           // Check for updates periodically
           setInterval(() => {
             registration.update()
-          }, 60000) // Check every minute
+          }, 60000)
 
-          // Handle updates
+          // If there's already an updated worker waiting, activate it
+          if (registration.waiting) {
+            activateUpdate(registration)
+          }
+
+          // When a new service worker is found, activate it as soon as it's installed
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New service worker available, prompt user to refresh
-                  if (confirm('New version available! Reload to update?')) {
-                    window.location.reload()
-                  }
-                }
-              })
-            }
+            if (!newWorker) return
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed') {
+                activateUpdate(registration)
+              }
+            })
           })
         } catch (error) {
           console.error('Service Worker registration failed:', error)
         }
       }
 
-      // Register immediately if page is already loaded
       if (document.readyState === 'complete') {
         registerSW()
       } else {
         window.addEventListener('load', registerSW)
       }
 
-      // Handle service worker controller changes
       let refreshing = false
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
