@@ -18,6 +18,20 @@ export default function LedgerPage() {
     return entries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
   }, [entries])
 
+  // Balance at the time of each entry (running balance after that entry), keyed by id
+  const balanceAtMap = useMemo(() => {
+    const sorted = [...entries].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+    let acc = 0
+    const map = new Map<string, number>()
+    for (const e of sorted) {
+      acc += e.type === 'credit' ? e.amount : -e.amount
+      if (e.id) map.set(e.id, acc)
+    }
+    return map
+  }, [entries])
+
   const load = async () => {
     setLoading(true)
     try {
@@ -144,38 +158,48 @@ export default function LedgerPage() {
           <div className="text-center text-gray-500 text-sm py-6">No transactions yet</div>
         ) : (
           <div className="space-y-2 pb-2">
-            {entries.map((e) => (
-              <div key={e.id} className="bg-white rounded-lg border border-gray-200 p-3 flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  {e.type === 'credit' ? (
-                    <div className="text-green-600 mt-0.5"><PlusCircle size={18} /></div>
-                  ) : (
-                    <div className="text-red-600 mt-0.5"><MinusCircle size={18} /></div>
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{formatIndianCurrency(e.amount)}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100'}${e.type === 'credit' ? '' : ' text-red-700'}`}>
-                        {e.type.toUpperCase()}
-                      </span>
+            {entries.map((e) => {
+              const bal = e.id ? balanceAtMap.get(e.id) ?? 0 : undefined
+              const balAbs = bal !== undefined ? Math.abs(bal) : undefined
+              const balSign = bal !== undefined && bal < 0 ? ' (Dr)' : ''
+              return (
+                <div key={e.id} className="bg-white rounded-lg border border-gray-200 p-3 flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    {e.type === 'credit' ? (
+                      <div className="text-green-600 mt-0.5"><PlusCircle size={18} /></div>
+                    ) : (
+                      <div className="text-red-600 mt-0.5"><MinusCircle size={18} /></div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{formatIndianCurrency(e.amount)}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {e.type.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {format(new Date(e.date), 'dd MMM yyyy, HH:mm')}
+                      </div>
+                      {e.note && <div className="text-xs text-gray-700 mt-1">{e.note}</div>}
+                      {balAbs !== undefined && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Balance: {formatIndianCurrency(balAbs)}{balSign}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {format(new Date(e.date), 'dd MMM yyyy, HH:mm')}
-                    </div>
-                    {e.note && <div className="text-xs text-gray-700 mt-1">{e.note}</div>}
                   </div>
+                  {e.id && (
+                    <button
+                      onClick={() => removeEntry(e.id!)}
+                      className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
-                {e.id && (
-                  <button
-                    onClick={() => removeEntry(e.id!)}
-                    className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
