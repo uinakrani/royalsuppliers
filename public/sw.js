@@ -1,5 +1,5 @@
 // Service Worker for PWA
-const CACHE_NAME = 'royal-suppliers-v1'
+const CACHE_NAME = 'royal-suppliers-v2'
 const urlsToCache = [
   '/',
   '/orders',
@@ -29,7 +29,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+					if (cacheName !== CACHE_NAME) {
             console.log('Deleting old cache:', cacheName)
             return caches.delete(cacheName)
           }
@@ -39,6 +39,15 @@ self.addEventListener('activate', (event) => {
   )
   // Take control of all pages immediately
   return self.clients.claim()
+})
+
+// Support manual skip waiting from client
+self.addEventListener('message', (event) => {
+	try {
+		if (event && event.data && event.data.type === 'SKIP_WAITING') {
+			self.skipWaiting()
+		}
+	} catch (e) {}
 })
 
 // Fetch event - serve from cache, fallback to network
@@ -53,36 +62,43 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version or fetch from network
-        if (response) {
-          return response
-        }
+	// Use network-first for navigations/HTML to get latest UI, cache-first for others
+	const isDocumentRequest =
+		event.request.mode === 'navigate' ||
+		(event.request.destination === 'document') ||
+		(event.request.headers.get('accept') || '').includes('text/html')
 
-        return fetch(event.request).then((response) => {
-          // Don't cache if not a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response
-          }
+	if (isDocumentRequest) {
+		event.respondWith(
+			(async () => {
+				try {
+					const networkResponse = await fetch(event.request, { cache: 'no-store' })
+					const cache = await caches.open(CACHE_NAME)
+					cache.put(event.request, networkResponse.clone())
+					return networkResponse
+				} catch (e) {
+					const cached = await caches.match(event.request)
+					return cached || caches.match('/')
+				}
+			})()
+		)
+		return
+	}
 
-          // Clone the response
-          const responseToCache = response.clone()
-
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache)
-          })
-
-          return response
-        })
-      })
-      .catch(() => {
-        // If both cache and network fail, return offline page if available
-        if (event.request.destination === 'document') {
-          return caches.match('/')
-        }
-      })
-  )
+	// Assets: cache-first
+	event.respondWith(
+		(async () => {
+			const cached = await caches.match(event.request)
+			if (cached) return cached
+			try {
+				const networkResponse = await fetch(event.request)
+				const cache = await caches.open(CACHE_NAME)
+				cache.put(event.request, networkResponse.clone())
+				return networkResponse
+			} catch (e) {
+				return cached
+			}
+		})()
+	)
 })
 
