@@ -721,14 +721,23 @@ export default function OrdersPage() {
                     <div className="flex-1 text-left">
                       <h3 className="font-semibold text-sm text-gray-900">{group.partyName}</h3>
                       <div className="flex gap-4 mt-1 text-xs text-gray-600">
-                        <span>Total: {formatIndianCurrency(group.totalSelling)}</span>
-                        <span>Paid: {formatIndianCurrency(group.totalPaid)}</span>
-                        <span className={balance > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
-                          Balance: {formatIndianCurrency(Math.abs(balance))}
-                        </span>
+                        <div className="flex flex-col items-center">
+                          <span>Total</span>
+                          <span className="font-medium">{formatIndianCurrency(group.totalSelling)}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span>Paid</span>
+                          <span className="font-medium">{formatIndianCurrency(group.totalPaid)}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span>Balance</span>
+                          <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {formatIndianCurrency(Math.abs(balance))}
+                          </span>
+                        </div>
                       </div>
                       {group.lastPaymentDate && (
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5 text-center">
                           Last Payment: {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')}
                         </p>
                       )}
