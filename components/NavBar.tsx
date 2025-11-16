@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Package, FileText } from 'lucide-react'
+import { Home, Package, FileText, Wallet } from 'lucide-react'
 
 export default function NavBar() {
   const pathname = usePathname()
@@ -33,6 +33,15 @@ export default function NavBar() {
         >
           <Package size={24} />
           <span className="text-[10px] mt-1">Orders</span>
+        </Link>
+        <Link
+          href="/ledger"
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            pathname === '/ledger' ? 'text-primary-600' : 'text-gray-500'
+          }`}
+        >
+          <Wallet size={24} />
+          <span className="text-[10px] mt-1">Ledger</span>
         </Link>
         <Link
           href="/invoices"
