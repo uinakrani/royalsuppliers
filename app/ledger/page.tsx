@@ -5,7 +5,6 @@ import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { format } from 'date-fns'
 import { PlusCircle, MinusCircle, Wallet, Trash2 } from 'lucide-react'
 import { sweetAlert } from '@/lib/sweetalert'
-import { showToast } from '@/components/Toast'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import NavBar from '@/components/NavBar'
 
@@ -37,16 +36,18 @@ export default function LedgerPage() {
     try {
       const items = await ledgerService.list()
       setEntries(items)
-    } catch (e: any) {
-      console.error(e)
-      showToast('Failed to load transactions', 'error')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
+    // initial fetch then subscribe
     load()
+    const unsub = ledgerService.subscribe((items) => {
+      setEntries(items)
+    })
+    return () => unsub()
   }, [])
 
   const addEntry = async (type: 'credit' | 'debit') => {
@@ -68,7 +69,6 @@ export default function LedgerPage() {
       }
       const amount = Math.abs(parseFloat(String(amountStr)))
       if (!amount || Number.isNaN(amount) || amount <= 0) {
-        showToast('Please enter a valid amount', 'error')
         setAdding(false)
         return
       }
@@ -83,13 +83,7 @@ export default function LedgerPage() {
       })
 
       await ledgerService.addEntry(type, amount, note || undefined)
-      await load()
-      showToast('Transaction added', 'success')
-    } catch (e: any) {
-      if (!String(e?.message || '').includes('SweetAlert')) {
-        console.error(e)
-        showToast('Failed to add transaction', 'error')
-      }
+      // realtime will update UI automatically
     } finally {
       setAdding(false)
     }
@@ -106,14 +100,8 @@ export default function LedgerPage() {
       })
       if (!ok) return
       await ledgerService.remove(id)
-      await load()
-      showToast('Deleted', 'success')
-    } catch (e: any) {
-      if (!String(e?.message || '').includes('SweetAlert')) {
-        console.error(e)
-        showToast('Failed to delete', 'error')
-      }
-    }
+      // realtime will update UI automatically
+    } catch {}
   }
 
   return (
@@ -159,42 +147,52 @@ export default function LedgerPage() {
         ) : (
           <div className="space-y-2 pb-2">
             {entries.map((e) => {
-              const bal = e.id ? balanceAtMap.get(e.id) ?? 0 : undefined
-              const balAbs = bal !== undefined ? Math.abs(bal) : undefined
-              const balSign = bal !== undefined && bal < 0 ? ' (Dr)' : ''
+              const after = e.id ? balanceAtMap.get(e.id) ?? 0 : undefined
+              const delta = e.type === 'credit' ? e.amount : -e.amount
+              const before = after !== undefined ? after - delta : undefined
+              const beforeAbs = before !== undefined ? Math.abs(before) : undefined
+              const afterAbs = after !== undefined ? Math.abs(after) : undefined
+              const beforeSign = before !== undefined && before < 0 ? ' (Dr)' : ''
+              const afterSign = after !== undefined && after < 0 ? ' (Dr)' : ''
+              const removable = (e.source ?? 'manual') === 'manual'
               return (
-                <div key={e.id} className="bg-white rounded-lg border border-gray-200 p-3 flex items-start justify-between">
-                  <div className="flex items-start gap-3">
+                <div key={e.id} className="bg-white rounded-lg border border-gray-200 p-2 flex items-start justify-between">
+                  <div className="flex items-start gap-2">
                     {e.type === 'credit' ? (
-                      <div className="text-green-600 mt-0.5"><PlusCircle size={18} /></div>
+                      <div className="text-green-600 mt-0.5"><PlusCircle size={14} /></div>
                     ) : (
-                      <div className="text-red-600 mt-0.5"><MinusCircle size={18} /></div>
+                      <div className="text-red-600 mt-0.5"><MinusCircle size={14} /></div>
                     )}
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-sm">{formatIndianCurrency(e.amount)}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        <span className={`text-[10px] px-1 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {e.type.toUpperCase()}
                         </span>
+                        <span className="text-[10px] text-gray-500">{format(new Date(e.date), 'dd MMM, HH:mm')}</span>
+                        {e.source && e.source !== 'manual' && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{e.source}</span>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {format(new Date(e.date), 'dd MMM yyyy, HH:mm')}
-                      </div>
-                      {e.note && <div className="text-xs text-gray-700 mt-1">{e.note}</div>}
-                      {balAbs !== undefined && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Balance: {formatIndianCurrency(balAbs)}{balSign}
+                      {e.note && (
+                        <div className="text-[11px] text-gray-600 mt-0.5 truncate" title={e.note}>{e.note}</div>
+                      )}
+                      {(beforeAbs !== undefined && afterAbs !== undefined) && (
+                        <div className="text-[11px] text-gray-500 mt-0.5">
+                          Bal: {formatIndianCurrency(beforeAbs)}{beforeSign}
+                          <span className="mx-1 text-gray-400">→</span>
+                          {formatIndianCurrency(afterAbs)}{afterSign}
                         </div>
                       )}
                     </div>
                   </div>
-                  {e.id && (
+                  {e.id && removable && (
                     <button
                       onClick={() => removeEntry(e.id!)}
                       className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
                       title="Delete"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>

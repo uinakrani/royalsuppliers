@@ -11,6 +11,7 @@ import {
   deleteField
 } from 'firebase/firestore'
 import { getDb } from './firebase'
+import { ledgerService } from './ledgerService'
 
 const PARTY_PAYMENTS_COLLECTION = 'partyPayments'
 
@@ -45,6 +46,15 @@ export const partyPaymentService = {
       
       const docRef = await addDoc(collection(db, PARTY_PAYMENTS_COLLECTION), paymentData)
       console.log('✅ Party payment added successfully with ID:', docRef.id)
+
+      // Create a ledger credit entry for this payment (best-effort)
+      try {
+        const ledgerNote = note ? `Party ${partyName}: ${note}` : `Party ${partyName} payment`
+        await ledgerService.addEntry('credit', amount, ledgerNote, 'partyPayment')
+      } catch (e) {
+        console.warn('Ledger entry for party payment failed (non-fatal):', e)
+      }
+
       return docRef.id
     } catch (error: any) {
       console.error('Error adding party payment:', error)

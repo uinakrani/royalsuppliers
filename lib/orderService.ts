@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import { getDb } from './firebase'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
+import { ledgerService } from './ledgerService'
 
 const ORDERS_COLLECTION = 'orders'
 
@@ -45,7 +46,6 @@ export const orderService = {
         dbInitialized: !!db
       })
       
-      // Add timeout to prevent hanging (reduced to 10 seconds for faster feedback)
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
           console.error('❌ Save operation timed out after 10 seconds')
@@ -59,6 +59,20 @@ export const orderService = {
       const docRef = await Promise.race([savePromise, timeoutPromise])
       
       console.log('✅ Order created successfully with ID:', docRef.id)
+
+      // Mirror order raw material expense to ledger: originalTotal + additionalCost (best-effort)
+      try {
+        const original = Number(order.originalTotal || 0)
+        const extra = Number(order.additionalCost || 0)
+        const expense = original + extra
+        if (expense > 0) {
+          const note = `Order expense - ${order.partyName} (${order.siteName})`
+          await ledgerService.addEntry('debit', expense, note, 'orderExpense')
+        }
+      } catch (e) {
+        console.warn('Ledger entry for order expense failed (non-fatal):', e)
+      }
+
       return docRef.id
     } catch (error: any) {
       console.error('❌ Firestore error creating order:', error)
@@ -89,6 +103,34 @@ export const orderService = {
       throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials. See README.md for setup instructions.')
     }
     try {
+      // Compute expense delta if originalTotal or additionalCost are being updated
+      let expenseDelta: number | null = null
+      let nextOriginal = 0
+      let nextExtra = 0
+      if (
+        Object.prototype.hasOwnProperty.call(order, 'originalTotal') ||
+        Object.prototype.hasOwnProperty.call(order, 'additionalCost')
+      ) {
+        try {
+          const existing = await this.getOrderById(id)
+          const prevOriginal = Number(existing?.originalTotal || 0)
+          const prevExtra = Number(existing?.additionalCost || 0)
+          const prevExpense = prevOriginal + prevExtra
+
+          nextOriginal = Object.prototype.hasOwnProperty.call(order, 'originalTotal')
+            ? Number(order.originalTotal || 0)
+            : prevOriginal
+          nextExtra = Object.prototype.hasOwnProperty.call(order, 'additionalCost')
+            ? Number(order.additionalCost || 0)
+            : prevExtra
+          const nextExpense = nextOriginal + nextExtra
+
+          expenseDelta = nextExpense - prevExpense
+        } catch (e) {
+          console.warn('Could not compute expense delta for order update:', e)
+        }
+      }
+
       const orderRef = doc(db, ORDERS_COLLECTION, id)
       console.log('Updating order in Firestore:', id, order)
       await updateDoc(orderRef, {
@@ -96,6 +138,29 @@ export const orderService = {
         updatedAt: new Date().toISOString(),
       })
       console.log('Order updated successfully:', id)
+
+      // Post delta to ledger (best-effort) based on originalTotal + additionalCost
+      if (typeof expenseDelta === 'number' && expenseDelta !== 0) {
+        try {
+          if (expenseDelta > 0) {
+            await ledgerService.addEntry(
+              'debit',
+              expenseDelta,
+              `Order expense updated - ${order.partyName || ''}`.trim(),
+              'orderExpense'
+            )
+          } else {
+            await ledgerService.addEntry(
+              'credit',
+              Math.abs(expenseDelta),
+              `Order expense reduced - ${order.partyName || ''}`.trim(),
+              'orderExpense'
+            )
+          }
+        } catch (e) {
+          console.warn('Ledger entry for order expense delta failed (non-fatal):', e)
+        }
+      }
     } catch (error: any) {
       console.error('Firestore error updating order:', error)
       if (error.code === 'permission-denied') {

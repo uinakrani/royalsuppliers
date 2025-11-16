@@ -5,6 +5,7 @@ import {
   doc,
   getDocs,
   getDoc,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -13,6 +14,7 @@ import {
 import { getDb } from './firebase'
 
 export type LedgerType = 'credit' | 'debit'
+export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense'
 
 export interface LedgerEntry {
   id?: string
@@ -21,12 +23,13 @@ export interface LedgerEntry {
   note?: string
   date: string // ISO timestamp
   createdAt?: string
+  source?: LedgerSource
 }
 
 const LEDGER_COLLECTION = 'ledgerEntries'
 
 export const ledgerService = {
-  async addEntry(type: LedgerType, amount: number, note?: string): Promise<string> {
+  async addEntry(type: LedgerType, amount: number, note?: string, source: LedgerSource = 'manual'): Promise<string> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     const now = new Date().toISOString()
@@ -36,6 +39,7 @@ export const ledgerService = {
       note,
       date: now,
       createdAt: now,
+      source,
     }
     const ref = await addDoc(collection(db, LEDGER_COLLECTION), {
       ...payload,
@@ -62,10 +66,37 @@ export const ledgerService = {
         amount: data.amount,
         note: data.note,
         date: data.date,
+        source: data.source,
         ...(createdAt ? { createdAt } : {}),
       })
     })
     return items
+  },
+
+  subscribe(callback: (entries: LedgerEntry[]) => void): () => void {
+    const db = getDb()
+    if (!db) return () => {}
+    const qRef = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
+    return onSnapshot(qRef, (snap) => {
+      const items: LedgerEntry[] = []
+      snap.forEach((d) => {
+        const data = d.data() as any
+        const createdAt =
+          data.createdAt ??
+          (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+          undefined
+        items.push({
+          id: d.id,
+          type: data.type,
+          amount: data.amount,
+          note: data.note,
+          date: data.date,
+          source: data.source,
+          ...(createdAt ? { createdAt } : {}),
+        })
+      })
+      callback(items)
+    })
   },
 
   async getBalance(): Promise<number> {

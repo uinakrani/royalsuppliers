@@ -15,6 +15,7 @@ import { Invoice, InvoiceFilters, InvoicePayment } from '@/types/invoice'
 import { orderService } from './orderService'
 import { Order } from '@/types/order'
 import { format } from 'date-fns'
+import { ledgerService } from './ledgerService'
 
 const INVOICES_COLLECTION = 'invoices'
 
@@ -203,6 +204,16 @@ export const invoiceService = {
       // If fully paid, archive the orders
       if (isFullyPaid && !invoice.archived) {
         await this.archiveOrders(invoiceId)
+      }
+      
+      // Create a ledger credit entry for this invoice payment (best-effort)
+      try {
+        const ledgerNote = note
+          ? `Invoice ${invoice.invoiceNumber} (${invoice.partyName}): ${note}`
+          : `Invoice ${invoice.invoiceNumber} (${invoice.partyName}) payment`
+        await ledgerService.addEntry('credit', amount, ledgerNote, 'invoicePayment')
+      } catch (e) {
+        console.warn('Ledger entry for invoice payment failed (non-fatal):', e)
       }
       
       console.log('✅ Payment added successfully')

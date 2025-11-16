@@ -173,6 +173,10 @@ export default function OrdersPage() {
       filtered = filtered.filter((o) => new Date(o.date) <= new Date(filters.endDate!))
     }
 
+    // Sort by createdAt (desc), fallback to updatedAt, then date
+    const getTime = (o: Order) => new Date(o.createdAt || o.updatedAt || o.date).getTime()
+    filtered.sort((a, b) => getTime(b) - getTime(a))
+
     setFilteredOrders(filtered)
   }
 
@@ -481,7 +485,11 @@ export default function OrdersPage() {
         totalPaid,
         lastPaymentDate,
         lastPaymentAmount,
-        orders: partyOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+        orders: partyOrders.sort((a, b) => {
+          const ta = new Date(a.createdAt || a.updatedAt || a.date).getTime()
+          const tb = new Date(b.createdAt || b.updatedAt || b.date).getTime()
+          return tb - ta
+        }),
         payments: allPayments
       })
     })
