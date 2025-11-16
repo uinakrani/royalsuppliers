@@ -122,7 +122,7 @@ export default function LedgerPage() {
             <button
               onClick={() => addEntry('debit')}
               disabled={adding}
-              className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-medium hover:bg-red-700 transition-colors flex items-center gap-1"
+              className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-medium hover:bg-red-700 transition-colors"
             >
               <MinusCircle size={16} />
               Debit
@@ -155,7 +155,7 @@ export default function LedgerPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm">{formatIndianCurrency(e.amount)}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100'}${e.type === 'credit' ? '' : ' text-red-700'}`}>
                         {e.type.toUpperCase()}
                       </span>
                     </div>
@@ -163,7 +163,8 @@ export default function LedgerPage() {
                       {format(new Date(e.date), 'dd MMM yyyy, HH:mm')}
                     </div>
                     {e.note && <div className="text-xs text-gray-700 mt-1">{e.note}</div>}
-                  </div>\n                </div>
+                  </div>
+                </div>
                 {e.id && (
                   <button
                     onClick={() => removeEntry(e.id!)}
@@ -178,5 +179,9 @@ export default function LedgerPage() {
           </div>
         )}
       </div>
-\n      <NavBar />\n    </div>\n  )\n}\n
+
+      <NavBar />
+    </div>
+  )
+}
 
