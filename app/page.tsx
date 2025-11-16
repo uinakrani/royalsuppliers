@@ -256,8 +256,8 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-      <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
+    <div className="bg-gray-50" style={{ minHeight: '100dvh', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">

@@ -300,8 +300,8 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
+    <div className="bg-gray-50 pb-20" style={{ minHeight: '100dvh' }}>
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Invoices</h1>
           <button
