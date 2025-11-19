@@ -339,7 +339,7 @@ export default function OrdersPage() {
         }
       }
       // Also update payment history if it's open
-      if (selectedOrderForPayments?.id === order.id) {
+      if (selectedOrderForPayments?.id === order.id && order.id) {
         const updated = await orderService.getOrderById(order.id)
         if (updated) {
           setSelectedOrderForPayments(updated)
@@ -372,7 +372,7 @@ export default function OrdersPage() {
       await loadOrders()
       
       // Update selected order if payment history is open
-      if (selectedOrderForPayments?.id === order.id) {
+      if (selectedOrderForPayments?.id === order.id && order.id) {
         const updated = await orderService.getOrderById(order.id)
         if (updated) {
           setSelectedOrderForPayments(updated)
@@ -380,7 +380,7 @@ export default function OrdersPage() {
       }
       
       // Update order detail drawer if it's open
-      if (selectedOrderDetail?.id === order.id) {
+      if (selectedOrderDetail?.id === order.id && order.id) {
         const updated = await orderService.getOrderById(order.id)
         if (updated) {
           setSelectedOrderDetail(updated)
