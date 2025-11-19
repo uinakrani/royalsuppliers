@@ -62,12 +62,19 @@ export const ledgerService = {
         data.createdAt ??
         (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
         undefined
+      
+      // Convert date field from Timestamp to ISO string if needed
+      let dateValue = data.date
+      if (dateValue && typeof dateValue.toDate === 'function') {
+        dateValue = (dateValue as Timestamp).toDate().toISOString()
+      }
+      
       items.push({
         id: d.id,
         type: data.type,
         amount: data.amount,
         note: data.note,
-        date: data.date,
+        date: dateValue,
         source: data.source,
         ...(createdAt ? { createdAt } : {}),
       })
@@ -87,12 +94,19 @@ export const ledgerService = {
           data.createdAt ??
           (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
           undefined
+        
+        // Convert date field from Timestamp to ISO string if needed
+        let dateValue = data.date
+        if (dateValue && typeof dateValue.toDate === 'function') {
+          dateValue = (dateValue as Timestamp).toDate().toISOString()
+        }
+        
         items.push({
           id: d.id,
           type: data.type,
           amount: data.amount,
           note: data.note,
-          date: data.date,
+          date: dateValue,
           source: data.source,
           ...(createdAt ? { createdAt } : {}),
         })
@@ -110,6 +124,19 @@ export const ledgerService = {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     await deleteDoc(doc(db, LEDGER_COLLECTION, id))
+  },
+
+  async removeLastEntry(): Promise<void> {
+    const entries = await this.list()
+    if (entries.length === 0) {
+      throw new Error('No ledger entries found')
+    }
+    // Entries are already sorted by date desc, so first entry is the most recent
+    const lastEntry = entries[0]
+    if (!lastEntry.id) {
+      throw new Error('Last entry does not have an ID')
+    }
+    await this.remove(lastEntry.id)
   },
 }
 

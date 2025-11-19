@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Edit, Trash2 } from 'lucide-react'
+import { X, Edit, Trash2, Plus } from 'lucide-react'
 import { Order } from '@/types/order'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
+import { orderService } from '@/lib/orderService'
+import { showToast } from '@/components/Toast'
+import { sweetAlert } from '@/lib/sweetalert'
 
 interface OrderDetailDrawerProps {
   order: Order | null
@@ -12,12 +15,14 @@ interface OrderDetailDrawerProps {
   onClose: () => void
   onEdit: (order: Order) => void
   onDelete: (id: string) => void
+  onOrderUpdated?: () => void
 }
 
-export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDelete }: OrderDetailDrawerProps) {
+export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDelete, onOrderUpdated }: OrderDetailDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
   const [isClosing, setIsClosing] = useState(false)
+  const [addingPayment, setAddingPayment] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -45,7 +50,88 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
     }
   }
 
+  // Calculate expense amount and remaining payment
+  const getExpenseInfo = (order: Order) => {
+    // Expense amount is just originalTotal (raw material cost)
+    const expenseAmount = Number(order.originalTotal || 0)
+    const existingPayments = order.partialPayments || []
+    let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+    // If order is marked as paid but has no partial payments, consider it fully paid
+    if (order.paid && totalPaid === 0 && expenseAmount > 0) {
+      totalPaid = expenseAmount
+    }
+    const remainingAmount = expenseAmount - totalPaid
+    return { expenseAmount, totalPaid, remainingAmount }
+  }
+
+  const handleAddPayment = async () => {
+    if (!order || order.paid) return
+    
+    const { remainingAmount } = getExpenseInfo(order)
+    
+    if (remainingAmount <= 0) {
+      showToast('Order is already fully paid', 'error')
+      return
+    }
+
+    setAddingPayment(true)
+    try {
+      const amountStr = await sweetAlert.prompt({
+        title: 'Add Payment',
+        text: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
+        inputLabel: 'Payment Amount',
+        inputPlaceholder: 'Enter amount',
+        inputType: 'text',
+        formatCurrencyInr: true,
+        confirmText: 'Add Payment',
+        cancelText: 'Cancel',
+      })
+      
+      if (!amountStr) {
+        setAddingPayment(false)
+        return
+      }
+      
+      const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+      if (!amount || Number.isNaN(amount) || amount <= 0) {
+        showToast('Invalid amount', 'error')
+        setAddingPayment(false)
+        return
+      }
+      
+      if (amount > remainingAmount) {
+        showToast(`Payment amount cannot exceed remaining amount (${formatIndianCurrency(remainingAmount)})`, 'error')
+        setAddingPayment(false)
+        return
+      }
+      
+      const note = await sweetAlert.prompt({
+        title: 'Add Note (optional)',
+        inputLabel: 'Note',
+        inputPlaceholder: 'e.g. Cash payment / Bank transfer',
+        inputType: 'text',
+        required: false,
+        confirmText: 'Save',
+        cancelText: 'Skip',
+      })
+      
+      await orderService.addPaymentToOrder(order.id!, amount, note || undefined)
+      showToast('Payment added successfully!', 'success')
+      
+      if (onOrderUpdated) {
+        onOrderUpdated()
+      }
+    } catch (error: any) {
+      console.error('Error adding payment:', error)
+      showToast(error.message || 'Failed to add payment', 'error')
+    } finally {
+      setAddingPayment(false)
+    }
+  }
+
   if (!isOpen || !order) return null
+
+  const { expenseAmount, totalPaid, remainingAmount } = getExpenseInfo(order)
 
   return (
     <>
@@ -187,6 +273,55 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                 <span className="text-sm font-medium text-gray-500">Truck No</span>
                 <span className="text-sm font-semibold text-gray-900 text-right">{order.truckNo}</span>
               </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-3">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Expense Payment</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-start">
+                <span className="text-sm font-medium text-gray-500">Total Expense</span>
+                <span className="text-sm font-semibold text-gray-900">{formatIndianCurrency(expenseAmount)}</span>
+              </div>
+              
+              <div className="flex justify-between items-start">
+                <span className="text-sm font-medium text-gray-500">Paid Amount</span>
+                <span className="text-sm font-semibold text-green-600">{formatIndianCurrency(totalPaid)}</span>
+              </div>
+              
+              <div className="flex justify-between items-start">
+                <span className="text-sm font-medium text-gray-500">Remaining</span>
+                <span className={`text-sm font-semibold ${
+                  remainingAmount > 0 ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {formatIndianCurrency(remainingAmount)}
+                </span>
+              </div>
+              
+              {order.partialPayments && order.partialPayments.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <span className="text-xs font-medium text-gray-500 block mb-2">Payment History</span>
+                  <div className="space-y-2">
+                    {order.partialPayments.map((payment) => (
+                      <div key={payment.id} className="flex justify-between items-center text-xs">
+                        <span className="text-gray-600">{format(new Date(payment.date), 'dd MMM yyyy')}</span>
+                        <span className="font-semibold text-gray-900">{formatIndianCurrency(payment.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {!order.paid && remainingAmount > 0 && (
+                <button
+                  onClick={handleAddPayment}
+                  disabled={addingPayment}
+                  className="w-full mt-3 bg-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} />
+                  {addingPayment ? 'Adding...' : 'Add Payment'}
+                </button>
+              )}
             </div>
           </div>
 

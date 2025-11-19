@@ -254,6 +254,41 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                       <p className="text-xs text-gray-500 mt-0.5">Weight: {order.weight.toFixed(2)}</p>
                     </div>
                   </div>
+                  {(() => {
+                    // Expense amount is just originalTotal (raw material cost)
+                    const expenseAmount = Number(order.originalTotal || 0)
+                    const existingPayments = order.partialPayments || []
+                    let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+                    // If order is marked as paid but has no partial payments, consider it fully paid
+                    if (order.paid && totalPaid === 0 && expenseAmount > 0) {
+                      totalPaid = expenseAmount
+                    }
+                    const remainingAmount = expenseAmount - totalPaid
+                    
+                    if (expenseAmount > 0) {
+                      return (
+                        <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600">Expense:</span>
+                            <span className="font-medium text-gray-900">{formatIndianCurrency(expenseAmount)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600">Paid:</span>
+                            <span className={`font-medium ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                              {formatIndianCurrency(totalPaid)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600">Remaining:</span>
+                            <span className={`font-medium ${remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {formatIndianCurrency(remainingAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
                     <div className="flex items-center justify-between pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         {order.invoiced ? (

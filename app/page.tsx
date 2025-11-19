@@ -405,13 +405,13 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-1">
-                <Package className="text-primary-600" size={16} />
-                <span className="text-[10px] text-gray-500">Weight</span>
+                <CreditCard className="text-purple-600" size={16} />
+                <span className="text-[10px] text-gray-500">Balance</span>
               </div>
               <p className="text-sm font-bold text-gray-900">
-                {stats.totalWeight.toFixed(2)}
+                {formatIndianCurrency(stats.currentBalance)}
               </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Total sold</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">Paid orders</p>
             </div>
 
             <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
@@ -445,17 +445,6 @@ export default function Dashboard() {
                 {formatIndianCurrency(stats.paymentReceived)}
               </p>
               <p className="text-[10px] text-gray-500 mt-0.5">Payment received</p>
-            </div>
-
-            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-1">
-                <CreditCard className="text-purple-600" size={16} />
-                <span className="text-[10px] text-gray-500">Balance</span>
-              </div>
-              <p className="text-sm font-bold text-gray-900">
-                {formatIndianCurrency(stats.currentBalance)}
-              </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Paid orders</p>
             </div>
           </div>
 

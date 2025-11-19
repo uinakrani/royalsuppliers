@@ -580,7 +580,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
               type="checkbox"
               id="paymentDue"
               checked={formData.paymentDue}
-              onChange={(e) => setFormData({ ...formData, paymentDue: e.target.checked })}
+              onChange={(e) => setFormData({ ...formData, paymentDue: e.target.checked, paid: !e.target.checked })}
               className="custom-checkbox"
             />
 						<label htmlFor="paymentDue" className="text-xs text-gray-700">

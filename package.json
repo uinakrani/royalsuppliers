@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export-db": "ts-node --project tsconfig.scripts.json scripts/export-db.ts",
+    "import-db": "ts-node --project tsconfig.scripts.json scripts/import-db.ts",
+    "remove-last-ledger": "ts-node --project tsconfig.scripts.json scripts/remove-last-ledger-entry.ts"
   },
   "dependencies": {
     "date-fns": "^3.0.6",
@@ -31,6 +34,7 @@
     "eslint-config-next": "^14.0.4",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
 }

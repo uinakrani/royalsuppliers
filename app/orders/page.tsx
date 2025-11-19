@@ -9,7 +9,7 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
-import { Plus, Edit, Trash2, Filter, FileText } from 'lucide-react'
+import { Plus, Edit, Trash2, Filter, FileText, X } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
@@ -46,6 +46,8 @@ export default function OrdersPage() {
   const [showOrderDetailDrawer, setShowOrderDetailDrawer] = useState(false)
   const [selectedPartyGroup, setSelectedPartyGroup] = useState<PartyGroup | null>(null)
   const [showPartyDetailDrawer, setShowPartyDetailDrawer] = useState(false)
+  const [selectedOrderForPayments, setSelectedOrderForPayments] = useState<Order | null>(null)
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false)
   const headerRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
 
@@ -236,6 +238,158 @@ export default function OrdersPage() {
       const errorMessage = error?.message || 'Failed to save order'
       showToast(errorMessage, 'error')
       throw error // Re-throw so OrderForm can handle it
+    }
+  }
+
+  // Helper function to calculate payment info for an order
+  const getOrderPaymentInfo = (order: Order) => {
+    // Expense amount is just originalTotal (raw material cost)
+    const expenseAmount = Number(order.originalTotal || 0)
+    const existingPayments = order.partialPayments || []
+    let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+    // If order is marked as paid but has no partial payments, consider it fully paid
+    // Also check paidAmount as a fallback
+    if (totalPaid === 0) {
+      if (order.paid && expenseAmount > 0) {
+        totalPaid = expenseAmount
+      } else if (order.paidAmount && order.paidAmount > 0) {
+        totalPaid = order.paidAmount
+      }
+    }
+    const remainingAmount = expenseAmount - totalPaid
+    return { expenseAmount, totalPaid, remainingAmount }
+  }
+
+  const handleAddPaymentToOrder = async (order: Order) => {
+    if (order.paid) {
+      showToast('Order is already fully paid', 'error')
+      return
+    }
+    
+    // Calculate expense amount and remaining payment
+    const { remainingAmount } = getOrderPaymentInfo(order)
+    
+    if (remainingAmount <= 0) {
+      showToast('Order is already fully paid', 'error')
+      return
+    }
+
+    try {
+      const amountStr = await sweetAlert.prompt({
+        title: 'Add Payment',
+        text: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
+        inputLabel: 'Payment Amount',
+        inputPlaceholder: 'Enter amount',
+        inputType: 'text',
+        formatCurrencyInr: true,
+        confirmText: 'Add Payment',
+        cancelText: 'Cancel',
+      })
+      
+      if (!amountStr) {
+        return
+      }
+      
+      const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+      if (!amount || Number.isNaN(amount) || amount <= 0) {
+        showToast('Invalid amount', 'error')
+        return
+      }
+      
+      if (amount > remainingAmount) {
+        showToast(`Payment amount cannot exceed remaining amount (${formatIndianCurrency(remainingAmount)})`, 'error')
+        return
+      }
+      
+      const note = await sweetAlert.prompt({
+        title: 'Add Note (optional)',
+        inputLabel: 'Note',
+        inputPlaceholder: 'e.g. Cash payment / Bank transfer',
+        inputType: 'text',
+        required: false,
+        confirmText: 'Save',
+        cancelText: 'Skip',
+      })
+      
+      await orderService.addPaymentToOrder(order.id!, amount, note || undefined)
+      showToast('Payment added successfully!', 'success')
+      
+      // Wait a bit for Firestore to update
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Reload orders to get updated payment information
+      await loadOrders()
+      
+      // Double-check: fetch the specific order to verify payment was saved
+      const updatedOrderCheck = await orderService.getOrderById(order.id!)
+      if (updatedOrderCheck) {
+        console.log('Order after payment:', {
+          id: updatedOrderCheck.id,
+          partialPayments: updatedOrderCheck.partialPayments,
+          paidAmount: updatedOrderCheck.paidAmount,
+          paid: updatedOrderCheck.paid,
+          paymentDue: updatedOrderCheck.paymentDue
+        })
+      }
+      // Also reload if order detail drawer is open
+      if (selectedOrderDetail?.id === order.id) {
+        const updatedOrder = await orderService.getOrderById(order.id!)
+        if (updatedOrder) {
+          setSelectedOrderDetail(updatedOrder)
+        }
+      }
+      // Also update payment history if it's open
+      if (selectedOrderForPayments?.id === order.id) {
+        const updated = await orderService.getOrderById(order.id)
+        if (updated) {
+          setSelectedOrderForPayments(updated)
+        }
+      }
+    } catch (error: any) {
+      console.error('Error adding payment:', error)
+      showToast(error.message || 'Failed to add payment', 'error')
+    }
+  }
+
+  const handleRemovePayment = async (order: Order, paymentId: string) => {
+    if (!order.id) return
+    
+    try {
+      const confirmed = await sweetAlert.confirm({
+        title: 'Remove Payment?',
+        text: 'Are you sure you want to remove this payment? This action cannot be undone.',
+        icon: 'warning',
+        confirmText: 'Remove',
+        cancelText: 'Cancel'
+      })
+
+      if (!confirmed) return
+
+      await orderService.removePartialPayment(order.id, paymentId)
+      showToast('Payment removed successfully!', 'success')
+      
+      // Reload orders
+      await loadOrders()
+      
+      // Update selected order if payment history is open
+      if (selectedOrderForPayments?.id === order.id) {
+        const updated = await orderService.getOrderById(order.id)
+        if (updated) {
+          setSelectedOrderForPayments(updated)
+        }
+      }
+      
+      // Update order detail drawer if it's open
+      if (selectedOrderDetail?.id === order.id) {
+        const updated = await orderService.getOrderById(order.id)
+        if (updated) {
+          setSelectedOrderDetail(updated)
+        }
+      }
+    } catch (error: any) {
+      if (error?.message && !error.message.includes('SweetAlert')) {
+        showToast(`Failed to remove payment: ${error?.message || 'Unknown error'}`, 'error')
+      }
     }
   }
 
@@ -918,7 +1072,47 @@ export default function OrdersPage() {
                     {formatIndianCurrency(order.originalRate)}
                   </td>
                   <td className="px-1.5 py-0.5 whitespace-nowrap text-xs font-semibold text-gray-900 text-right">
-                    {formatIndianCurrency(order.originalTotal)}
+                    <div className="flex items-center justify-end gap-1 flex-wrap">
+                      <span>{formatIndianCurrency(order.originalTotal)}</span>
+                      {(() => {
+                        const { totalPaid } = getOrderPaymentInfo(order)
+                        // Show badge if there are any payments (from partialPayments array or paidAmount)
+                        const hasPartialPayments = order.partialPayments && Array.isArray(order.partialPayments) && order.partialPayments.length > 0
+                        const hasPaidAmount = order.paidAmount && order.paidAmount > 0
+                        const isMarkedPaid = order.paid === true && Number(order.originalTotal || 0) > 0
+                        
+                        // Debug logging (remove in production)
+                        if (hasPartialPayments || hasPaidAmount || isMarkedPaid) {
+                          console.log('Badge should show for order:', {
+                            id: order.id,
+                            totalPaid,
+                            hasPartialPayments,
+                            partialPayments: order.partialPayments,
+                            hasPaidAmount,
+                            paidAmount: order.paidAmount,
+                            isMarkedPaid,
+                            paid: order.paid
+                          })
+                        }
+                        
+                        if (totalPaid > 0 || hasPartialPayments || hasPaidAmount || isMarkedPaid) {
+                          const displayAmount = totalPaid > 0 ? totalPaid : (order.paidAmount || (isMarkedPaid ? Number(order.originalTotal || 0) : 0))
+                          return (
+                            <button
+                              onClick={() => {
+                                setSelectedOrderForPayments(order)
+                                setShowPaymentHistory(true)
+                              }}
+                              className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium hover:bg-green-200 transition-colors"
+                              title="View payment history"
+                            >
+                              Paid: {formatIndianCurrency(displayAmount)}
+                            </button>
+                          )
+                        }
+                        return null
+                      })()}
+                    </div>
                   </td>
                   <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900 text-right">
                     {formatIndianCurrency(order.additionalCost)}
@@ -930,23 +1124,41 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-1.5 py-0.5 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-0.5">
-                      <button
-                        onClick={() => {
-                          setEditingOrder(order)
-                          setShowForm(true)
-                        }}
-                        className="p-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteOrder(order.id!)}
-                        className="p-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {(() => {
+                        const { remainingAmount } = getOrderPaymentInfo(order)
+                        const isFullyPaid = order.paid || remainingAmount <= 0
+                        
+                        return (
+                          <>
+                            {!isFullyPaid && (
+                              <button
+                                onClick={() => handleAddPaymentToOrder(order)}
+                                className="p-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors"
+                                title="Add Payment"
+                              >
+                                <Plus size={14} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setEditingOrder(order)
+                                setShowForm(true)
+                              }}
+                              className="p-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteOrder(order.id!)}
+                              className="p-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -980,6 +1192,9 @@ export default function OrdersPage() {
           setShowForm(true)
         }}
         onDelete={handleDeleteOrder}
+        onOrderUpdated={async () => {
+          await loadOrders()
+        }}
       />
 
       <PartyDetailDrawer
@@ -1005,6 +1220,107 @@ export default function OrdersPage() {
           await loadPartyPayments()
         }}
       />
+
+      {/* Payment History Modal */}
+      {showPaymentHistory && selectedOrderForPayments && (
+        <>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-50"
+            onClick={() => {
+              setShowPaymentHistory(false)
+              setSelectedOrderForPayments(null)
+            }}
+          />
+          <div className="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Payment History</h2>
+              <button
+                onClick={() => {
+                  setShowPaymentHistory(false)
+                  setSelectedOrderForPayments(null)
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {(() => {
+                const { expenseAmount, totalPaid, remainingAmount } = getOrderPaymentInfo(selectedOrderForPayments)
+                const payments = selectedOrderForPayments.partialPayments || []
+                
+                return (
+                  <>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Total Expense</span>
+                        <span className="text-sm font-semibold text-gray-900">{formatIndianCurrency(expenseAmount)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Total Paid</span>
+                        <span className="text-sm font-semibold text-green-600">{formatIndianCurrency(totalPaid)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                        <span className="text-sm font-medium text-gray-600">Remaining</span>
+                        <span className={`text-sm font-semibold ${remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {formatIndianCurrency(remainingAmount)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-3">Payment Records</h3>
+                      {payments.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">No payment records found</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {payments.map((payment) => (
+                            <div
+                              key={payment.id}
+                              className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    {formatIndianCurrency(payment.amount)}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {format(new Date(payment.date), 'dd MMM yyyy, hh:mm a')}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
+                                className="ml-3 p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                                title="Remove payment"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {remainingAmount > 0 && (
+                      <button
+                        onClick={() => {
+                          setShowPaymentHistory(false)
+                          handleAddPaymentToOrder(selectedOrderForPayments)
+                        }}
+                        className="w-full bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus size={18} />
+                        Add Payment
+                      </button>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+        </>
+      )}
 
       <NavBar />
     </div>
