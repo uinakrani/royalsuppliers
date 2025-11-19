@@ -313,13 +313,13 @@ export const orderService = {
   },
 
   // Add payment to a due order (for expense payments)
-  async addPaymentToOrder(id: string, paymentAmount: number, note?: string): Promise<void> {
+  async addPaymentToOrder(id: string, paymentAmount: number, note?: string, markAsPaid?: boolean): Promise<void> {
     const order = await this.getOrderById(id)
     if (!order) {
       throw new Error('Order not found')
     }
     
-    if (order.paid) {
+    if (order.paid && !markAsPaid) {
       throw new Error('Order is already fully paid')
     }
     
@@ -339,7 +339,13 @@ export const orderService = {
       throw new Error('Payment amount must be greater than 0')
     }
     
-    if (paymentAmount > remainingAmount) {
+    // Payment cannot exceed the original total (expense amount)
+    if (paymentAmount > expenseAmount) {
+      throw new Error(`Payment amount (${paymentAmount}) cannot exceed original total (${expenseAmount})`)
+    }
+    
+    // If markAsPaid is not true, validate that payment doesn't exceed remaining amount
+    if (!markAsPaid && paymentAmount > remainingAmount) {
       throw new Error(`Payment amount (${paymentAmount}) exceeds remaining amount (${remainingAmount})`)
     }
     
@@ -354,8 +360,19 @@ export const orderService = {
     // Calculate total paid amount from payments array
     const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
     
-    // Check if fully paid
-    const isFullyPaid = totalPaid >= expenseAmount
+    // Check if fully paid (either by amount or by markAsPaid flag)
+    const isFullyPaid = markAsPaid || totalPaid >= expenseAmount
+    
+    // Calculate profit adjustment: if marked as paid but paid less than expense, add difference to profit
+    let profitAdjustment = 0
+    if (isFullyPaid && totalPaid < expenseAmount) {
+      // Remaining amount (expenseAmount - totalPaid) goes to profit
+      profitAdjustment = expenseAmount - totalPaid
+    }
+    
+    // Calculate new profit (current profit + adjustment)
+    const currentProfit = Number(order.profit || 0)
+    const newProfit = currentProfit + profitAdjustment
     
     // Create ledger entry for this payment
     try {
@@ -367,12 +384,20 @@ export const orderService = {
       console.warn('Ledger entry for order payment failed (non-fatal):', e)
     }
     
-    await this.updateOrder(id, {
+    // Prepare update data
+    const updateData: any = {
       paid: isFullyPaid,
       paidAmount: isFullyPaid ? undefined : totalPaid,
       partialPayments: updatedPayments,
       paymentDue: !isFullyPaid,
-    })
+    }
+    
+    // Update profit if there's an adjustment (when marked as paid with less than full payment)
+    if (profitAdjustment > 0) {
+      updateData.profit = newProfit
+    }
+    
+    await this.updateOrder(id, updateData)
   },
 
   // Mark order as paid (fully or partially) - legacy function, kept for backward compatibility

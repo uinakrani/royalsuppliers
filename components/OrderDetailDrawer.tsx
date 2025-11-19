@@ -99,11 +99,32 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
         return
       }
       
+      // Get the expense amount (originalTotal)
+      const { expenseAmount } = getExpenseInfo(order)
+      
+      // Check if payment exceeds the original total (expense amount)
+      if (amount > expenseAmount) {
+        showToast(`Payment amount cannot exceed original total (${formatIndianCurrency(expenseAmount)})`, 'error')
+        setAddingPayment(false)
+        return
+      }
+      
+      // Check if payment exceeds remaining amount
       if (amount > remainingAmount) {
         showToast(`Payment amount cannot exceed remaining amount (${formatIndianCurrency(remainingAmount)})`, 'error')
         setAddingPayment(false)
         return
       }
+      
+      // Ask user what they want to do: Add Payment or Add and Mark as Paid
+      const actionChoice = await sweetAlert.confirm({
+        title: 'Add Payment',
+        text: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
+        icon: 'question',
+        confirmText: 'Add and Mark as Paid',
+        cancelText: 'Just Add Payment',
+      })
+      const markAsPaid = actionChoice || false
       
       const note = await sweetAlert.prompt({
         title: 'Add Note (optional)',
@@ -115,7 +136,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
         cancelText: 'Skip',
       })
       
-      await orderService.addPaymentToOrder(order.id!, amount, note || undefined)
+      await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid)
       showToast('Payment added successfully!', 'success')
       
       if (onOrderUpdated) {
