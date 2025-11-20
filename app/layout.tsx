@@ -5,7 +5,7 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import FirebaseSetupAlert from '@/components/FirebaseSetupAlert'
 import FirestoreRulesAlert from '@/components/FirestoreRulesAlert'
 import ToastContainer from '@/components/Toast'
-import SweetAlertLoader from '@/components/SweetAlertLoader'
+import NativePopup from '@/components/NativePopup'
 import '@/lib/firebaseTest' // Load test utility
 
 export const metadata: Metadata = {
@@ -111,11 +111,6 @@ export default function RootLayout({
         <meta name="application-name" content="Royal Suppliers" />
         <meta name="msapplication-TileColor" content="#2e31fb" />
         <meta name="msapplication-tap-highlight" content="no" />
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
-        <script
-          src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"
-          async
-        ></script>
       </head>
       <body className="bg-gray-50">
         <script
@@ -132,7 +127,7 @@ export default function RootLayout({
             `,
           }}
         />
-        <SweetAlertLoader />
+        <NativePopup />
         <PWARegister />
         <PWAInstallPrompt />
         <FirebaseSetupAlert />

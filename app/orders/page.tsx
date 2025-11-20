@@ -919,38 +919,50 @@ export default function OrdersPage() {
         </div>
       </FilterDrawer>
 
-      {/* Action Buttons - Sticky at Bottom (only when orders are selected) */}
+      {/* Action Buttons - Fixed at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
-        <div className="fixed left-0 right-0 bg-white border-t border-gray-200 p-2.5 flex gap-2 z-40 shadow-lg" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-          <button
-            onClick={handleBulkCreateInvoice}
-            className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-green-700 transition-colors"
-          >
-            <FileText size={18} />
-            Create Invoice ({selectedOrders.size})
-          </button>
-          <button
-            onClick={handleBulkDelete}
-            className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-red-700 transition-colors"
-          >
-            <Trash2 size={18} />
-            Delete ({selectedOrders.size})
-          </button>
-          <button
-            onClick={() => setSelectedOrders(new Set())}
-            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
-          >
-            Clear
-          </button>
+        <div 
+          className="fixed left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-lg"
+          style={{ 
+            bottom: '4rem',
+            padding: '0.75rem',
+            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
+          }}
+        >
+          <div className="flex gap-2">
+            <button
+              onClick={handleBulkCreateInvoice}
+              className="flex-1 bg-green-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation shadow-md"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <FileText size={18} />
+              <span>Create Invoice ({selectedOrders.size})</span>
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation shadow-md"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Trash2 size={18} />
+              <span>Delete ({selectedOrders.size})</span>
+            </button>
+            <button
+              onClick={() => setSelectedOrders(new Set())}
+              className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium active:bg-gray-300 transition-colors touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Content Area - Scrollable, fits between header and nav */}
+      {/* Content Area - Scrollable, fits between header and buttons/nav */}
       <div style={{ 
         flex: 1,
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        paddingBottom: '4rem'
+        paddingBottom: selectedOrders.size > 0 ? '9rem' : '4rem'
       }}>
       {/* Orders List */}
       {loading ? (

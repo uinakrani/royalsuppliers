@@ -240,16 +240,16 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black z-[90] ${
+        className={`fixed inset-0 bg-black/50 z-[9990] ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        style={{ WebkitTapHighlightColor: 'transparent', backdropFilter: 'blur(2px)' }}
       />
       
       {/* Drawer */}
       <div
         ref={drawerRef}
-        className={`fixed right-0 top-0 bottom-0 w-full max-w-full bg-white z-[100] shadow-2xl ${
+        className={`fixed right-0 top-0 bottom-0 w-full max-w-md bg-white z-[9991] shadow-2xl flex flex-col ${
           isClosing ? 'native-drawer-exit' : isMounted ? 'native-drawer-enter' : 'translate-x-full'
         }`}
         style={{ 
@@ -257,11 +257,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           touchAction: 'pan-y',
           backfaceVisibility: 'hidden',
           willChange: 'transform',
+          maxHeight: '100dvh',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10 shadow-sm">
+        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
           <h2 className="text-lg font-bold text-gray-900">
             {order ? 'Edit Order' : 'Add New Order'}
           </h2>
@@ -275,12 +276,14 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </button>
         </div>
 
-        {/* Form Content */}
+        {/* Form Content - Scrollable */}
         <form 
           ref={formRef}
           onSubmit={handleSubmit} 
-          className="p-4 space-y-3 pb-24"
-          style={{ maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto' }}
+          className="flex-1 overflow-y-auto p-4 space-y-3"
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -724,7 +727,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         </form>
         
         {/* Fixed buttons at bottom */}
-        <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-20 shadow-lg">
+        <div className="flex-shrink-0 bg-white border-t border-gray-200 p-4 shadow-lg">
           <div className="flex gap-2">
             <button
               type="button"

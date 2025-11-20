@@ -188,13 +188,70 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* Sticky Add Buttons Bar - Positioned at thumb depth */}
+      {/* Content Area - Fixed height, fits between header and buttons */}
+      <div style={{ 
+        flex: 1,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        paddingBottom: '9rem'
+      }}>
+        {loading ? (
+          <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>
+        ) : (
+          <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
+            {/* Income Column */}
+            <div className="bg-green-50 rounded-lg p-1.5 border border-green-200 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                  <PlusCircle size={14} />
+                  Income
+                </h2>
+              </div>
+              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300 flex-shrink-0">
+                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+                {incomeEntries.length === 0 ? (
+                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                ) : (
+                  incomeEntries.map(renderEntry)
+                )}
+              </div>
+            </div>
+
+            {/* Expenses Column */}
+            <div className="bg-red-50 rounded-lg p-1.5 border border-red-200 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                  <MinusCircle size={14} />
+                  Expenses
+                </h2>
+              </div>
+              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300 flex-shrink-0">
+                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+                {expenseEntries.length === 0 ? (
+                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                ) : (
+                  expenseEntries.map(renderEntry)
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add Buttons Bar - Fixed at bottom, above NavBar */}
       <div 
-        className="bg-white border-b border-gray-200 sticky z-30 shadow-sm"
+        className="bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-30 shadow-lg"
         style={{ 
-          top: 0,
+          bottom: '4rem',
           padding: '0.75rem',
-          flexShrink: 0
+          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
         }}
       >
         <div className="flex gap-2">
@@ -221,65 +278,6 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* Content Area - Scrollable, fits between header and nav */}
-      <div style={{ 
-        flex: 1,
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        paddingBottom: '4rem'
-      }}>
-      <div className="p-1.5">
-        {loading ? (
-          <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>
-        ) : (
-          <div className="grid grid-cols-2 gap-1.5">
-            {/* Income Column */}
-            <div className="bg-green-50 rounded-lg p-1.5 border border-green-200">
-              <div className="flex items-center justify-between mb-1.5">
-                <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
-                  <PlusCircle size={14} />
-                  Income
-                </h2>
-              </div>
-              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300">
-                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
-                <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
-              </div>
-              <div className="space-y-1" style={{ maxHeight: 'calc(100dvh - 260px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                {incomeEntries.length === 0 ? (
-                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
-                ) : (
-                  incomeEntries.map(renderEntry)
-                )}
-              </div>
-            </div>
-
-            {/* Expenses Column */}
-            <div className="bg-red-50 rounded-lg p-1.5 border border-red-200">
-              <div className="flex items-center justify-between mb-1.5">
-                <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
-                  <MinusCircle size={14} />
-                  Expenses
-                </h2>
-              </div>
-              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300">
-                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
-                <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
-              </div>
-              <div className="space-y-1" style={{ maxHeight: 'calc(100dvh - 260px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                {expenseEntries.length === 0 ? (
-                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
-                ) : (
-                  expenseEntries.map(renderEntry)
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-      </div>
-
-      {/* Bottom Navigation - Fixed at bottom */}
       {/* Entry Drawer */}
       <LedgerEntryDrawer
         isOpen={drawerOpen}
