@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   themeColor: '#2e31fb',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent', // Translucent allows content behind, background color shows through
+    statusBarStyle: 'default', // Use default to show theme color properly
     title: 'Royal Suppliers',
   },
   viewport: {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'apple-mobile-web-app-status-bar-style': 'default',
     'apple-mobile-web-app-title': 'Royal Suppliers',
   },
 }
@@ -50,7 +50,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="theme-color" content="#2e31fb" />
         <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: dark)" />
@@ -59,10 +59,12 @@ export default function RootLayout({
           /* iOS Status Bar Color - Match header color (#2e31fb) */
           @supports (-webkit-touch-callout: none) {
             html {
-              background-color: #2e31fb;
+              background-color: #2e31fb !important;
             }
             body {
               background-color: #f9fafb;
+              /* Blue background at top for status bar area */
+              background: linear-gradient(to bottom, #2e31fb 0%, #2e31fb env(safe-area-inset-top, 44px), #f9fafb env(safe-area-inset-top, 44px)) !important;
             }
             /* Ensure header background matches status bar */
             .bg-primary-600 {
@@ -76,15 +78,19 @@ export default function RootLayout({
             html.standalone {
               background-color: #2e31fb !important;
             }
+            html.standalone body {
+              background: linear-gradient(to bottom, #2e31fb 0%, #2e31fb env(safe-area-inset-top, 44px), #f9fafb env(safe-area-inset-top, 44px)) !important;
+            }
             html.standalone #__next::before {
               content: '';
               position: fixed;
               top: 0;
               left: 0;
               right: 0;
-              height: env(safe-area-inset-top, 0px);
-              background-color: #2e31fb;
+              height: env(safe-area-inset-top, 44px);
+              background-color: #2e31fb !important;
               z-index: 9999;
+              pointer-events: none;
             }
           }
           /* Android status bar color */

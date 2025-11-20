@@ -300,8 +300,18 @@ export default function Dashboard() {
 
 
   return (
-    <div className="bg-gray-50" style={{ minHeight: '100dvh', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
+    <div className="bg-gray-50" style={{ 
+      height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+      minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+      paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))',
+      paddingBottom: '4rem',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch'
+    }}>
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ 
+        top: 'env(safe-area-inset-top, 0px)',
+        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))'
+      }}>
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
@@ -336,9 +346,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Content spacing for sticky header */}
-      <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))' }}></div>
-
+      {/* Content starts right below header - no extra spacing needed */}
       {/* Filters Drawer */}
       <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
         <div className="space-y-3">

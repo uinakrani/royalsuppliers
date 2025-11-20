@@ -71,6 +71,8 @@ html {
   min-height: -webkit-fill-available;
   margin: 0;
   padding: 0;
+  /* Blue background for status bar area */
+  background-color: #2e31fb;
   /* Prevent horizontal scroll */
   overflow-x: hidden;
   box-sizing: border-box;
@@ -159,6 +161,8 @@ html, body, * {
     margin: 0;
     padding: 0;
     overflow: hidden; /* Prevent body scroll - #__next handles scrolling */
+    /* Blue background at top for status bar */
+    background: linear-gradient(to bottom, #2e31fb 0%, #2e31fb env(safe-area-inset-top, 44px), #f9fafb env(safe-area-inset-top, 44px));
   }
   
   html.standalone {
@@ -353,6 +357,17 @@ img, video, iframe {
   padding-top: calc(env(safe-area-inset-top, 0px) + 0.625rem);
   /* Ensure blue background extends to top */
   background-color: #2e31fb !important;
+}
+
+/* Content area utility - fits between header and nav */
+.content-area {
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  padding-top: calc(70px + env(safe-area-inset-top, 0px));
+  padding-bottom: 4rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 /* Ensure modals and drawers account for safe areas */

@@ -727,8 +727,18 @@ export default function OrdersPage() {
 
 
   return (
-    <div className="bg-gray-50" style={{ minHeight: '100dvh', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
-      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe">
+    <div className="bg-gray-50" style={{ 
+      height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+      minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+      paddingTop: headerHeight ? `calc(${headerHeight}px + env(safe-area-inset-top, 0px))` : 'calc(70px + env(safe-area-inset-top, 0px))',
+      paddingBottom: '4rem',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch'
+    }}>
+      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe" style={{ 
+        top: 'env(safe-area-inset-top, 0px)',
+        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))'
+      }}>
         <div className="p-2.5">
           <div className="flex justify-between items-center gap-2">
             <h1 className="text-xl font-bold">Orders</h1>
@@ -1044,7 +1054,7 @@ export default function OrdersPage() {
         </div>
       ) : (
         // All Orders View (existing table view)
-        <div className="px-2 pb-1 overflow-x-auto" style={{ paddingTop: headerHeight ? `calc(${headerHeight}px + env(safe-area-inset-top, 0px) + 0.5rem)` : 'calc(70px + env(safe-area-inset-top, 0px) + 0.5rem)' }}>
+        <div className="px-2 pb-1 overflow-x-auto" style={{ paddingTop: '0.5rem' }}>
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200" style={{ borderSpacing: 0, borderCollapse: 'separate' }}>
             <thead className="bg-gray-50 sticky top-0 z-10">

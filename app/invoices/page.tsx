@@ -300,23 +300,31 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="bg-gray-50 pb-20" style={{ minHeight: '100dvh' }}>
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">Invoices</h1>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-          >
-            <Filter size={18} />
-          </button>
+    <div className="bg-gray-50" style={{ 
+        height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+        minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+        paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))',
+        paddingBottom: '4rem',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}>
+        <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ 
+          top: 'env(safe-area-inset-top, 0px)',
+          marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))'
+        }}>
+          <div className="flex justify-between items-center">
+            <h1 className="text-xl font-bold">Invoices</h1>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+            >
+              <Filter size={18} />
+            </button>
+          </div>
         </div>
-      </div>
-      
-      {/* Content spacing for sticky header */}
-      <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))' }}></div>
-      
-      <div className="max-w-7xl mx-auto px-4 py-4">
+        
+        {/* Content starts right below header */}
+        <div className="max-w-7xl mx-auto px-4 py-4">
 
         {/* Filters Drawer */}
         <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
