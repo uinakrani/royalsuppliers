@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   themeColor: '#0ea5e9',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'black-translucent', // Translucent allows content behind, background color shows through
     title: 'Royal Suppliers',
   },
   viewport: {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
     'apple-mobile-web-app-title': 'Royal Suppliers',
   },
 }
@@ -56,13 +56,17 @@ export default function RootLayout({
         <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-title" content="Royal Suppliers" />
         <style dangerouslySetInnerHTML={{__html: `
-          /* iOS Status Bar Color Fix - Match theme color */
+          /* iOS Status Bar Color - Match header color (#0ea5e9) */
           @supports (-webkit-touch-callout: none) {
             html {
               background-color: #0ea5e9;
             }
             body {
               background-color: #f9fafb;
+            }
+            /* Ensure header background matches status bar */
+            .bg-primary-600 {
+              background-color: #0ea5e9 !important;
             }
           }
         `}} />

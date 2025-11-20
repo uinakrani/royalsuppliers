@@ -23,13 +23,15 @@ body {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  /* iOS PWA full screen support - take full height of html (which includes safe areas) */
+  /* Simple full height - takes device height, not browser viewport */
   width: 100%;
   max-width: 100vw;
   height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
   margin: 0;
   padding: 0;
-  padding-bottom: 0 !important; /* Ensure no extra space at bottom */
   /* Prevent content overflow */
   position: relative;
   box-sizing: border-box;
@@ -56,19 +58,19 @@ textarea,
   }
 }
 
-/* Smooth scrolling */
+/* Smooth scrolling - Simple full height for PWA */
 html {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  /* iOS PWA full screen support - take full viewport height */
   width: 100%;
   max-width: 100vw;
-  height: 100vh;
-  height: 100dvh; /* Dynamic viewport height for mobile browsers */
-  height: -webkit-fill-available;
+  /* Use device height, not browser viewport */
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
   margin: 0;
   padding: 0;
-  padding-bottom: 0 !important; /* Ensure no extra space at bottom */
   /* Prevent horizontal scroll */
   overflow-x: hidden;
   box-sizing: border-box;
@@ -109,41 +111,48 @@ html, body, * {
   -ms-overflow-style: none; /* IE and Edge */
 }
 
-/* Main app container for full screen on iOS */
+/* Main app container - Simple full device height */
 #__next {
   width: 100%;
   max-width: 100vw;
-  /* Take full viewport height including safe areas */
-  height: 100vh;
-  height: 100dvh;
-  height: -webkit-fill-available;
-  min-height: 100%;
+  /* Take full device height, not browser viewport */
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  /* Add safe area padding: content starts below status bar */
-  /* Note: Don't add bottom padding here - NavBar handles it and pages account for NavBar height */
+  /* Safe area padding - content starts below status bar */
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  /* Ensure content doesn't overflow */
+  /* No bottom padding - NavBar handles it */
+  padding-bottom: 0;
   position: relative;
   box-sizing: border-box;
 }
 
-/* iOS PWA specific: When in standalone mode, ensure full screen */
-/* This only applies when app is launched from home screen, not Safari */
+/* iOS PWA specific: Simple full device height configuration */
 @supports (-webkit-touch-callout: none) {
   /* iOS Safari - detect standalone mode */
   html.standalone {
-    height: 100vh;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    /* Full device height, not browser viewport */
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
     width: 100%;
+    margin: 0;
+    padding: 0;
   }
   
   html.standalone body {
+    /* Full device height */
     height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
     width: 100%;
     margin: 0;
     padding: 0;
@@ -151,50 +160,26 @@ html, body, * {
   }
   
   html.standalone #__next {
-    height: 100vh;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    /* Full device height with safe area padding */
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     /* Content starts below status bar */
-    /* Note: Don't add bottom padding here - NavBar handles it and pages account for NavBar height */
     padding-top: env(safe-area-inset-top, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: 0; /* NavBar handles bottom */
   }
   
-  /* Ensure NavBar sits flush at bottom in PWA mode with no gap */
+  /* NavBar - flush to bottom with safe area */
   html.standalone nav[class*="fixed"][class*="bottom-0"] {
     bottom: 0 !important;
-    margin-bottom: 0 !important;
+    margin: 0 !important;
     position: fixed !important;
-    /* Ensure it extends to the very bottom including safe area */
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-    /* Force hardware acceleration for smooth positioning */
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    will-change: transform;
-  }
-  
-  /* Ensure no extra space below viewport in PWA mode */
-  html.standalone {
-    overflow: hidden;
-    /* Prevent any extra spacing */
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
-  }
-  
-  html.standalone body {
-    overflow: hidden;
-    /* Prevent any extra spacing */
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
-  }
-  
-  html.standalone #__next {
-    /* Prevent any extra spacing at bottom */
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
   }
 }
 
@@ -328,9 +313,16 @@ img, video, iframe {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* Fix for sticky headers - since html has safe area padding, top-0 is already correct */
+/* Fix for sticky headers - positioned at top with safe area */
 .sticky.top-0 {
-  top: 0; /* Already positioned correctly below status bar due to html padding */
+  top: 0; /* Position at top of #__next (which has safe area padding) */
+  position: sticky;
+  z-index: 40;
+}
+
+/* Ensure headers with pt-safe account for safe area */
+.sticky.top-0.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* Ensure modals and drawers account for safe areas */
