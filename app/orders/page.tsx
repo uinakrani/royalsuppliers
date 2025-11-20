@@ -1046,10 +1046,10 @@ export default function OrdersPage() {
         // All Orders View (existing table view)
         <div className="px-2 pb-1 overflow-x-auto">
           <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200">
-            <thead className="bg-gray-50">
+            <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200" style={{ borderSpacing: 0, borderCollapse: 'separate' }}>
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">
                   <input
                     type="checkbox"
                     checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrders.has(o.id!))}
@@ -1062,24 +1062,25 @@ export default function OrdersPage() {
                       }
                     }}
                     className="custom-checkbox"
+                    style={{ width: '18px', height: '18px' }}
                   />
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
-                <th className="px-1.5 py-1 text-center text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
-                <th className="px-1.5 py-1 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
-                <th className="px-1.5 py-1 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
-                <th className="px-1.5 py-1 text-center text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Date</th>
+                <th className="px-2 py-2.5 text-center text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Invoice</th>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Party Name</th>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Site Name</th>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Material</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Weight</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Rate</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Total</th>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Truck Owner</th>
+                <th className="px-2 py-2.5 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Truck No</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Weight</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Rate</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Original Total</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Additional Cost</th>
+                <th className="px-2 py-2.5 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Profit</th>
+                <th className="px-2 py-2.5 text-center text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -1087,21 +1088,23 @@ export default function OrdersPage() {
                 <tr
                   key={order.id}
                   data-order-id={order.id}
-                  className={`hover:bg-gray-50 transition-colors ${
-                    selectedOrders.has(order.id!) ? 'bg-primary-50' : ''
+                  className={`transition-colors touch-manipulation ${
+                    selectedOrders.has(order.id!) ? 'bg-primary-50' : 'hover:bg-gray-50'
                   } ${
                     highlightedOrderId === order.id ? 'highlight-row' : ''
                   }`}
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
-                  <td className="px-1.5 py-0.5 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={selectedOrders.has(order.id!)}
                       onChange={() => toggleOrderSelection(order.id!)}
                       className="custom-checkbox"
+                      style={{ width: '18px', height: '18px' }}
                     />
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900">
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                     {(() => {
                       const orderDate = safeParseDate(order.date)
                       return orderDate ? format(orderDate, 'dd MMM yyyy') : 'Invalid Date'
@@ -1201,8 +1204,8 @@ export default function OrdersPage() {
                   }`}>
                     {formatIndianCurrency(order.profit)}
                   </td>
-                  <td className="px-1.5 py-0.5 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-0.5">
+                  <td className="px-2 py-2 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-2">
                       {(() => {
                         const { remainingAmount } = getOrderPaymentInfo(order)
                         const isFullyPaid = order.paid || remainingAmount <= 0
@@ -1212,10 +1215,11 @@ export default function OrdersPage() {
                             {!isFullyPaid && (
                               <button
                                 onClick={() => handleAddPaymentToOrder(order)}
-                                className="p-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors"
+                                className="p-2.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 active:bg-green-200 transition-colors touch-manipulation shadow-sm"
                                 title="Add Payment"
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
                               >
-                                <Plus size={14} />
+                                <Plus size={20} />
                               </button>
                             )}
                             <button
@@ -1223,17 +1227,19 @@ export default function OrdersPage() {
                                 setEditingOrder(order)
                                 setShowForm(true)
                               }}
-                              className="p-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                              className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-colors touch-manipulation shadow-sm"
                               title="Edit"
+                              style={{ WebkitTapHighlightColor: 'transparent' }}
                             >
-                              <Edit size={14} />
+                              <Edit size={20} />
                             </button>
                             <button
                               onClick={() => handleDeleteOrder(order.id!)}
-                              className="p-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                              className="p-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 active:bg-red-200 transition-colors touch-manipulation shadow-sm"
                               title="Delete"
+                              style={{ WebkitTapHighlightColor: 'transparent' }}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={20} />
                             </button>
                           </>
                         )

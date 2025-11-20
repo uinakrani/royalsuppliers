@@ -174,10 +174,14 @@ export const orderService = {
             : Number(existingOrder.originalTotal || 0)
           
           // Get the final total paid amount (from update data if provided, otherwise from existing)
-          const finalPayments = order.partialPayments || existingOrder.partialPayments || []
+          // Preserve existing partialPayments when marking as paid (they contain payment history)
+          const finalPayments = order.partialPayments !== undefined 
+            ? order.partialPayments 
+            : (existingOrder.partialPayments || [])
           const totalPaid = finalPayments.reduce((sum, p) => sum + p.amount, 0)
           const remainingAmount = expenseAmount - totalPaid
           
+          // Create expense entry for the remaining amount (if any)
           if (remainingAmount > 0) {
             const note = `Order expense - ${existingOrder.partyName} (${existingOrder.siteName})`
             await ledgerService.addEntry('debit', remainingAmount, note, 'orderExpense')
@@ -186,12 +190,35 @@ export const orderService = {
           // Note: Only expense (debit) entries are created for raw material payments
           // No income (credit) entries are created, even if paid less than full expense or for order profit
           
-          // Clear partial payments when marking as paid directly (not through payment flow)
-          // BUT only if partialPayments is not explicitly provided in the update data
-          // (if it's provided, it means we're updating through addPaymentToOrder and want to keep the payments)
+          // When marking as paid directly (not through payment flow):
+          // - If order already has partialPayments, preserve them (they contain payment history)
+          //   The expense entry for remaining amount was already created above (line 185-188)
+          // - If order has no partialPayments and paidAmountForRawMaterials is provided, create a payment record
+          // - Only clear partialPayments if explicitly set to empty array in update data
           if (isMarkingAsPaid && !Object.prototype.hasOwnProperty.call(order, 'partialPayments')) {
-            updateData.partialPayments = []
-            updateData.paidAmount = deleteField()
+            // If order already has partialPayments, preserve them (don't overwrite with paidAmountForRawMaterials)
+            if (existingOrder.partialPayments && existingOrder.partialPayments.length > 0) {
+              // Preserve existing partialPayments - they contain payment history
+              // The expense entry for remaining amount was already created above (line 185-188)
+              // No need to update partialPayments in updateData - they'll be preserved from existing order
+            } else {
+              // No existing partialPayments - check if paidAmountForRawMaterials is provided (from OrderForm)
+              const paidAmountForRawMaterials = (order as any).paidAmountForRawMaterials
+              if (paidAmountForRawMaterials && paidAmountForRawMaterials > 0) {
+                // Create a payment record for the paid amount
+                const paymentRecord: PaymentRecord = {
+                  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                  amount: paidAmountForRawMaterials,
+                  date: new Date().toISOString(),
+                }
+                updateData.partialPayments = [paymentRecord]
+                updateData.paidAmount = paidAmountForRawMaterials
+              } else {
+                // No existing payments and no paidAmountForRawMaterials - clear partialPayments
+                updateData.partialPayments = []
+                updateData.paidAmount = deleteField()
+              }
+            }
           }
         }
         // If expense amount changed and order is paid, post delta (only for originalTotal changes)

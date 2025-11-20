@@ -302,6 +302,25 @@ button, input, select, textarea {
   box-sizing: border-box;
 }
 
+/* Native app feel for order list table */
+table tbody tr {
+  min-height: 48px; /* Minimum touch target size */
+}
+
+table tbody td {
+  vertical-align: middle;
+  padding: 0.5rem 0.375rem; /* Better spacing for touch */
+}
+
+/* Larger touch targets for action buttons */
+table tbody button {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Toast animations */
 @keyframes slide-in {
   from {
