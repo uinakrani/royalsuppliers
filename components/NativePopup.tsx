@@ -358,7 +358,7 @@ export default function NativePopup() {
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black/50 z-[9998] ${
+        className={`fixed inset-0 bg-black/50 z-[10000] ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
         style={{ 
@@ -370,7 +370,7 @@ export default function NativePopup() {
 
       {/* Popup */}
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
+        className="fixed inset-0 z-[10001] flex items-center justify-center p-4 pointer-events-none"
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
         <div

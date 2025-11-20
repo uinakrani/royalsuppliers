@@ -16,7 +16,7 @@ import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderDetailDrawer from '@/components/OrderDetailDrawer'
-import PartyDetailDrawer from '@/components/PartyDetailDrawer'
+import PartyDetailPopup from '@/components/PartyDetailPopup'
 import OrderDetailPopup from '@/components/OrderDetailPopup'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Invoice, InvoicePayment } from '@/types/invoice'
@@ -976,10 +976,16 @@ export default function OrdersPage() {
       ) : viewMode === 'byParty' ? (
         // By Party View
         <div className="p-2 space-y-2">
-          {getPartyGroups().map((group) => {
+          {getPartyGroups().map((group, index) => {
             const balance = group.totalSelling - group.totalPaid
             return (
-              <div key={group.partyName} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <div 
+                key={group.partyName} 
+                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-md"
+                style={{
+                  animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both`,
+                }}
+              >
                 {/* Party Group Header */}
                 <div className="p-3">
                   <button
@@ -987,7 +993,7 @@ export default function OrdersPage() {
                       createRipple(e)
                       handlePartyGroupClick(group)
                     }}
-                    className="w-full flex flex-col hover:bg-gray-50 transition-colors cursor-pointer rounded-lg text-left native-press"
+                    className="w-full flex flex-col hover:bg-gray-50 active:bg-gray-100 transition-all duration-150 cursor-pointer rounded-lg text-left native-press"
                     style={{ 
                       width: '100%', 
                       padding: 0, 
@@ -1044,7 +1050,15 @@ export default function OrdersPage() {
                             }
                           }
                         }}
-                        className="px-2 py-1 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center gap-1.5 flex-shrink-0"
+                        className="px-2 py-1 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 active:bg-primary-800 transition-all duration-150 touch-manipulation native-press flex items-center gap-1.5 flex-shrink-0"
+                        style={{
+                          WebkitTapHighlightColor: 'transparent',
+                          position: 'relative',
+                          overflow: 'hidden'
+                        }}
+                        onMouseDown={(e) => {
+                          createRipple(e as any)
+                        }}
                       >
                         <Plus size={12} />
                         Add Payment
@@ -1275,7 +1289,7 @@ export default function OrdersPage() {
         }}
       />
 
-      <PartyDetailDrawer
+      <PartyDetailPopup
         group={selectedPartyGroup}
         isOpen={showPartyDetailDrawer}
         onClose={() => {

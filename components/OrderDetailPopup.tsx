@@ -106,7 +106,7 @@ export default function OrderDetailPopup({
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black/50 z-[9998] ${
+        className={`fixed inset-0 bg-black/50 z-[10000] ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
         style={{
@@ -118,11 +118,14 @@ export default function OrderDetailPopup({
 
       {/* Popup */}
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
+        className="fixed z-[10001] flex items-center justify-center pointer-events-none"
         style={{ 
           WebkitTapHighlightColor: 'transparent',
-          paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
-          paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+          top: 'calc(70px + env(safe-area-inset-top, 0px))', // Header height (~70px) + safe area
+          bottom: '4rem', // NavBar height (4rem = 64px)
+          left: 0,
+          right: 0,
+          padding: '1rem',
           paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
         }}
@@ -140,7 +143,7 @@ export default function OrderDetailPopup({
             willChange: 'transform, opacity',
             backfaceVisibility: 'hidden',
             WebkitFontSmoothing: 'antialiased',
-            maxHeight: 'calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+            maxHeight: 'calc(100dvh - 70px - 4rem - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
           }}
         >
           {/* Header */}
