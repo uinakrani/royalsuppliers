@@ -20,6 +20,7 @@ import PartyDetailDrawer from '@/components/PartyDetailDrawer'
 import OrderDetailPopup from '@/components/OrderDetailPopup'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Invoice, InvoicePayment } from '@/types/invoice'
+import { createRipple } from '@/lib/rippleEffect'
 
 interface PartyGroup {
   partyName: string
@@ -68,36 +69,6 @@ export default function OrdersPage() {
   const [editingPayment, setEditingPayment] = useState<{ order: Order; paymentId: string } | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
-
-  const createRipple = (e: React.MouseEvent<HTMLDivElement>) => {
-    const button = e.currentTarget
-    const rect = button.getBoundingClientRect()
-    const size = Math.max(rect.width, rect.height)
-    const x = e.clientX - rect.left - size / 2
-    const y = e.clientY - rect.top - size / 2
-    
-    const ripple = document.createElement('span')
-    ripple.style.cssText = `
-      position: absolute;
-      width: ${size}px;
-      height: ${size}px;
-      left: ${x}px;
-      top: ${y}px;
-      border-radius: 50%;
-      background: rgba(46, 49, 251, 0.3);
-      transform: scale(0);
-      animation: ripple 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-      pointer-events: none;
-    `
-    
-    button.style.position = 'relative'
-    button.style.overflow = 'hidden'
-    button.appendChild(ripple)
-    
-    setTimeout(() => {
-      ripple.remove()
-    }, 600)
-  }
 
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
@@ -1012,9 +983,21 @@ export default function OrdersPage() {
                 {/* Party Group Header */}
                 <div className="p-3">
                   <button
-                    onClick={() => handlePartyGroupClick(group)}
-                    className="w-full flex flex-col hover:bg-gray-50 transition-colors cursor-pointer rounded-lg text-left"
-                    style={{ width: '100%', padding: 0, margin: 0, border: 'none', background: 'transparent' }}
+                    onClick={(e) => {
+                      createRipple(e)
+                      handlePartyGroupClick(group)
+                    }}
+                    className="w-full flex flex-col hover:bg-gray-50 transition-colors cursor-pointer rounded-lg text-left native-press"
+                    style={{ 
+                      width: '100%', 
+                      padding: 0, 
+                      margin: 0, 
+                      border: 'none', 
+                      background: 'transparent',
+                      WebkitTapHighlightColor: 'transparent',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
                   >
                     <div className="w-full flex items-center justify-between mb-1" style={{ width: '100%', boxSizing: 'border-box' }}>
                       <h3 className="font-semibold text-xs text-gray-900">{group.partyName}</h3>

@@ -16,6 +16,7 @@ import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
+import { createRipple } from '@/lib/rippleEffect'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -439,24 +440,48 @@ export default function InvoicesPage() {
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <button
-                          onClick={() => handleDownloadInvoice(invoice)}
-                          className="p-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center"
+                          onClick={(e) => {
+                            createRipple(e)
+                            handleDownloadInvoice(invoice)
+                          }}
+                          className="p-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center justify-center native-press"
                           title="Download Invoice"
+                          style={{
+                            WebkitTapHighlightColor: 'transparent',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
                         >
                           <Download size={14} />
                         </button>
                         {!invoice.paid && (
                           <button
-                            onClick={() => handleAddPayment(invoice.id!)}
-                            className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
+                            onClick={(e) => {
+                              createRipple(e)
+                              handleAddPayment(invoice.id!)
+                            }}
+                            className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center native-press"
                             title="Add Payment"
+                            style={{
+                              WebkitTapHighlightColor: 'transparent',
+                              position: 'relative',
+                              overflow: 'hidden'
+                            }}
                           >
                             <Plus size={14} />
                           </button>
                         )}
                         <button
-                          onClick={() => toggleExpand(invoice.id!)}
-                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300"
+                          onClick={(e) => {
+                            createRipple(e)
+                            toggleExpand(invoice.id!)
+                          }}
+                          className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-300 native-press"
+                          style={{
+                            WebkitTapHighlightColor: 'transparent',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
                         >
                           {isExpanded ? 'Hide' : 'Details'}
                         </button>
@@ -507,9 +532,17 @@ export default function InvoicesPage() {
                       <span>•</span>
                       <span>{invoice.partialPayments?.length || 0} Payment{invoice.partialPayments?.length !== 1 ? 's' : ''}</span>
                       <button
-                        onClick={() => handleDeleteInvoice(invoice.id!)}
-                        className="ml-auto px-2 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 flex items-center gap-1"
+                        onClick={(e) => {
+                          createRipple(e)
+                          handleDeleteInvoice(invoice.id!)
+                        }}
+                        className="ml-auto px-2 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 flex items-center gap-1 native-press"
                         title="Delete Invoice"
+                        style={{
+                          WebkitTapHighlightColor: 'transparent',
+                          position: 'relative',
+                          overflow: 'hidden'
+                        }}
                       >
                         <Trash2 size={12} />
                         Delete
@@ -596,8 +629,16 @@ export default function InvoicesPage() {
                                     )}
                                   </div>
                                   <button
-                                    onClick={() => handleRemovePayment(invoice.id!, payment.id)}
-                                    className="px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 flex items-center gap-1"
+                                    onClick={(e) => {
+                                      createRipple(e)
+                                      handleRemovePayment(invoice.id!, payment.id)
+                                    }}
+                                    className="px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 flex items-center gap-1 native-press"
+                                    style={{
+                                      WebkitTapHighlightColor: 'transparent',
+                                      position: 'relative',
+                                      overflow: 'hidden'
+                                    }}
                                   >
                                     <Trash2 size={12} />
                                     Remove

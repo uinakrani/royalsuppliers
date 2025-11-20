@@ -119,11 +119,17 @@ export default function OrderDetailPopup({
       {/* Popup */}
       <div
         className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        style={{ 
+          WebkitTapHighlightColor: 'transparent',
+          paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+        }}
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] pointer-events-auto flex flex-col ${
+          className={`bg-white rounded-2xl shadow-2xl max-w-lg w-full pointer-events-auto flex flex-col ${
             isClosing
               ? 'native-modal-exit'
               : isMounted
@@ -134,6 +140,7 @@ export default function OrderDetailPopup({
             willChange: 'transform, opacity',
             backfaceVisibility: 'hidden',
             WebkitFontSmoothing: 'antialiased',
+            maxHeight: 'calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
           }}
         >
           {/* Header */}

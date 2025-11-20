@@ -9,6 +9,16 @@ import { partyPaymentService } from '@/lib/partyPaymentService'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import { format } from 'date-fns'
+import { createRipple } from '@/lib/rippleEffect'
+
+// Helper function to safely parse dates
+const safeParseDate = (dateString: string | null | undefined): Date | null => {
+  if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
+    return null
+  }
+  const date = new Date(dateString)
+  return isNaN(date.getTime()) ? null : date
+}
 
 interface PartyGroup {
   partyName: string
@@ -207,18 +217,21 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                   {balance > 0 ? ' (Due)' : ' (Overpaid)'}
                 </span>
               </div>
-              {group.lastPaymentDate && group.lastPaymentAmount !== null && (
-                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                  <span className="text-sm font-medium text-gray-600">Last Payment</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')}
-                    {(() => {
-                      const last = group.payments.find((p) => p.payment && p.payment.date === group.lastPaymentDate)
-                      return last?.payment?.note ? ` – ${last.payment.note}` : ''
-                    })()}
-                  </span>
-                </div>
-              )}
+              {group.lastPaymentDate && group.lastPaymentAmount !== null && (() => {
+                const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+                return lastPaymentDateObj ? (
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Last Payment</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {format(lastPaymentDateObj, 'dd MMM yyyy')}
+                      {(() => {
+                        const last = group.payments.find((p) => p.payment && p.payment.date === group.lastPaymentDate)
+                        return last?.payment?.note ? ` – ${last.payment.note}` : ''
+                      })()}
+                    </span>
+                  </div>
+                ) : null
+              })()}
             </div>
           </div>
 
@@ -229,20 +242,29 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
               {group.orders.map((order) => (
                 <div
                   key={order.id}
-                  className={`bg-white border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors ${
+                  className={`bg-white border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors native-press ${
                     onOrderClick ? 'cursor-pointer' : ''
                   }`}
-                  onClick={() => {
+                  onClick={(e) => {
                     if (onOrderClick) {
+                      createRipple(e)
                       handleClose()
                       setTimeout(() => onOrderClick(order), 300)
                     }
+                  }}
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    position: 'relative',
+                    overflow: 'hidden'
                   }}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
                       <p className="text-xs font-medium text-gray-500">
-                        {format(new Date(order.date), 'dd MMM yyyy')}
+                        {(() => {
+                          const orderDate = safeParseDate(order.date)
+                          return orderDate ? format(orderDate, 'dd MMM yyyy') : 'Invalid Date'
+                        })()}
                       </p>
                       <p className="text-sm font-semibold text-gray-900 mt-0.5">{order.siteName}</p>
                       <p className="text-xs text-gray-600 mt-0.5">
@@ -353,7 +375,10 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                           {formatIndianCurrency(paymentItem.payment.amount)}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {format(new Date(paymentItem.payment.date), 'dd MMM yyyy HH:mm')}
+                          {(() => {
+                            const paymentDate = safeParseDate(paymentItem.payment.date)
+                            return paymentDate ? format(paymentDate, 'dd MMM yyyy HH:mm') : 'Invalid Date'
+                          })()}
                         </p>
                         {paymentItem.payment.note && (
                           <p className="text-xs text-gray-600 mt-1">

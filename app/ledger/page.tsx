@@ -9,6 +9,7 @@ import NavBar from '@/components/NavBar'
 import LedgerEntryDrawer from '@/components/LedgerEntryDrawer'
 import BottomSheet from '@/components/BottomSheet'
 import LedgerEntryModal from '@/components/LedgerEntryModal'
+import { createRipple } from '@/lib/rippleEffect'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
@@ -148,9 +149,16 @@ export default function LedgerPage() {
     return (
       <button
         key={e.id}
-        onClick={() => handleEntryClick(e)}
-        className="w-full bg-white rounded-lg border border-gray-200 mb-1 p-2 flex items-center justify-between active:bg-gray-50 transition-all duration-150 touch-manipulation shadow-sm"
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        onClick={(event) => {
+          createRipple(event)
+          handleEntryClick(e)
+        }}
+        className="w-full bg-white rounded-lg border border-gray-200 mb-1 p-2 flex items-center justify-between active:bg-gray-50 transition-all duration-150 touch-manipulation shadow-sm native-press"
+        style={{ 
+          WebkitTapHighlightColor: 'transparent',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
       >
         <div className="flex items-center justify-between flex-1 min-w-0">
           <span className={`font-bold ${e.type === 'credit' ? 'text-green-700' : 'text-red-700'}`} style={{ fontSize: '12px' }}>
