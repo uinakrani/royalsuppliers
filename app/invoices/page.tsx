@@ -301,26 +301,32 @@ export default function InvoicesPage() {
 
   return (
     <div className="bg-gray-50" style={{ 
-        height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-        minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-        paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))',
-        paddingBottom: '4rem',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch'
-      }}>
-        <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
-          <div className="flex justify-between items-center">
-            <h1 className="text-xl font-bold">Invoices</h1>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-            >
-              <Filter size={18} />
-            </button>
-          </div>
+      height: '100dvh',
+      minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      {/* Header - Fixed at top */}
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ flexShrink: 0 }}>
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl font-bold">Invoices</h1>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+          >
+            <Filter size={18} />
+          </button>
         </div>
-        
-        {/* Content starts right below header */}
+      </div>
+      
+      {/* Content Area - Scrollable, fits between header and nav */}
+      <div style={{ 
+        flex: 1,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: '4rem'
+      }}>
         <div className="max-w-7xl mx-auto px-4 py-4">
 
         {/* Filters Drawer */}
@@ -611,6 +617,7 @@ export default function InvoicesPage() {
             })
           )}
         </div>
+        </div>
       </div>
 
       {/* Order Form */}
@@ -632,7 +639,9 @@ export default function InvoicesPage() {
           }}
         />
       )}
+      </div>
 
+      {/* Bottom Navigation - Fixed at bottom */}
       <NavBar />
     </div>
   )

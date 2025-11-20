@@ -728,14 +728,14 @@ export default function OrdersPage() {
 
   return (
     <div className="bg-gray-50" style={{ 
-      height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-      minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-      paddingTop: headerHeight ? `calc(${headerHeight}px + env(safe-area-inset-top, 0px))` : 'calc(70px + env(safe-area-inset-top, 0px))',
-      paddingBottom: '4rem',
-      overflowY: 'auto',
-      WebkitOverflowScrolling: 'touch'
+      height: '100dvh',
+      minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
     }}>
-      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe">
+      {/* Header - Fixed at top */}
+      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe" style={{ flexShrink: 0 }}>
         <div className="p-2.5">
           <div className="flex justify-between items-center gap-2">
             <h1 className="text-xl font-bold">Orders</h1>
@@ -945,6 +945,13 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/* Content Area - Scrollable, fits between header and nav */}
+      <div style={{ 
+        flex: 1,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: '4rem'
+      }}>
       {/* Orders List */}
       {loading ? (
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">

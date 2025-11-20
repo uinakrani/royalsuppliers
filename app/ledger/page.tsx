@@ -166,14 +166,14 @@ export default function LedgerPage() {
 
   return (
     <div className="bg-gray-50" style={{ 
-      height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-      minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-      paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))',
-      paddingBottom: '4rem',
-      overflowY: 'auto',
-      WebkitOverflowScrolling: 'touch'
+      height: '100dvh',
+      minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
     }}>
-      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40 shadow-sm">
+      {/* Header - Fixed at top */}
+      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40 shadow-sm" style={{ flexShrink: 0 }}>
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
             <Wallet size={18} />
@@ -192,9 +192,9 @@ export default function LedgerPage() {
       <div 
         className="bg-white border-b border-gray-200 sticky z-30 shadow-sm"
         style={{ 
-          top: 'calc(70px + env(safe-area-inset-top, 0px))',
+          top: 0,
           padding: '0.75rem',
-          marginTop: 'calc(-1 * (70px + env(safe-area-inset-top, 0px)))',
+          flexShrink: 0
         }}
       >
         <div className="flex gap-2">
@@ -221,7 +221,14 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      <div className="p-1.5" style={{ paddingTop: '0.75rem' }}>
+      {/* Content Area - Scrollable, fits between header and nav */}
+      <div style={{ 
+        flex: 1,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: '4rem'
+      }}>
+      <div className="p-1.5">
         {loading ? (
           <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>
         ) : (
@@ -270,7 +277,9 @@ export default function LedgerPage() {
           </div>
         )}
       </div>
+      </div>
 
+      {/* Bottom Navigation - Fixed at bottom */}
       {/* Entry Drawer */}
       <LedgerEntryDrawer
         isOpen={drawerOpen}

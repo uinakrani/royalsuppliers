@@ -301,14 +301,14 @@ export default function Dashboard() {
 
   return (
     <div className="bg-gray-50" style={{ 
-      height: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-      minHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
-      paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))',
-      paddingBottom: '4rem',
-      overflowY: 'auto',
-      WebkitOverflowScrolling: 'touch'
+      height: '100dvh',
+      minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
     }}>
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
+      {/* Header - Fixed at top */}
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ flexShrink: 0 }}>
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
@@ -343,8 +343,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Content starts right below header - no extra spacing needed */}
-      {/* Filters Drawer */}
+      {/* Content Area - Scrollable, fits between header and nav */}
+      <div style={{ 
+        flex: 1,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        paddingBottom: '4rem'
+      }}>
+        {/* Filters Drawer */}
       <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
         <div className="space-y-3">
           {/* Date Range */}
@@ -569,7 +575,9 @@ export default function Dashboard() {
           }}
         />
       )}
+      </div>
 
+      {/* Bottom Navigation - Fixed at bottom */}
       <NavBar />
     </div>
   )
