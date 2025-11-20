@@ -12,7 +12,12 @@ export default function NavBar() {
       className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 shadow-lg" 
       style={{ 
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        height: 'calc(4rem + env(safe-area-inset-bottom, 0px))'
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
+        height: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+        width: '100%',
+        maxWidth: '100vw',
+        boxSizing: 'border-box'
       }}
     >
       <div className="flex justify-around items-center h-16">
