@@ -735,10 +735,7 @@ export default function OrdersPage() {
       overflowY: 'auto',
       WebkitOverflowScrolling: 'touch'
     }}>
-      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe" style={{ 
-        top: 'env(safe-area-inset-top, 0px)',
-        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))'
-      }}>
+      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe">
         <div className="p-2.5">
           <div className="flex justify-between items-center gap-2">
             <h1 className="text-xl font-bold">Orders</h1>

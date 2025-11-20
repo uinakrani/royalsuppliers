@@ -173,10 +173,7 @@ export default function LedgerPage() {
       overflowY: 'auto',
       WebkitOverflowScrolling: 'touch'
     }}>
-      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40 shadow-sm" style={{ 
-        top: 'env(safe-area-inset-top, 0px)',
-        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))'
-      }}>
+      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40 shadow-sm">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
             <Wallet size={18} />

@@ -308,10 +308,7 @@ export default function Dashboard() {
       overflowY: 'auto',
       WebkitOverflowScrolling: 'touch'
     }}>
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ 
-        top: 'env(safe-area-inset-top, 0px)',
-        marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))'
-      }}>
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">

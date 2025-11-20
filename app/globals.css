@@ -341,8 +341,8 @@ img, video, iframe {
 
 /* Fix for sticky headers - positioned at top with safe area */
 .sticky.top-0 {
-  top: 0; /* Position at top of #__next (which has safe area padding) */
-  position: sticky;
+  top: 0; /* Position at top of container */
+  position: sticky !important; /* Ensure sticky works */
   z-index: 40;
 }
 
@@ -353,8 +353,6 @@ img, video, iframe {
 
 /* Make headers extend to cover status bar area for blue background */
 .bg-primary-600.sticky.top-0 {
-  margin-top: calc(-1 * env(safe-area-inset-top, 0px));
-  padding-top: calc(env(safe-area-inset-top, 0px) + 0.625rem);
   /* Ensure blue background extends to top */
   background-color: #2e31fb !important;
 }
