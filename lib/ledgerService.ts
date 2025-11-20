@@ -15,7 +15,7 @@ import {
 import { getDb } from './firebase'
 
 export type LedgerType = 'credit' | 'debit'
-export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit'
+export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit' | 'orderPaymentUpdate'
 
 export interface LedgerEntry {
   id?: string

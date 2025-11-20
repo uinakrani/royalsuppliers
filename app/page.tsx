@@ -32,6 +32,7 @@ export default function Dashboard() {
     costAmount: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState<OrderFilters>({})
   const [showFilters, setShowFilters] = useState(false)
   const [duration, setDuration] = useState('currentMonth')
@@ -48,7 +49,11 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    loadOrders()
+    // Small delay to ensure Firebase is initialized
+    const timer = setTimeout(() => {
+      loadOrders()
+    }, 100)
+    return () => clearTimeout(timer)
   }, [filters, duration])
 
   const loadPartyNames = async () => {
@@ -63,8 +68,16 @@ export default function Dashboard() {
   const loadOrders = async () => {
     setLoading(true)
     try {
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Loading timeout after 30 seconds')), 30000)
+      })
+      
       // Get all orders first
-      const allOrders = await orderService.getAllOrders()
+      const allOrders = await Promise.race([
+        orderService.getAllOrders(),
+        timeoutPromise
+      ]) as Order[]
       
       // Determine date range: custom date filters take precedence over duration
       let dateRangeStart: Date | null = null
@@ -95,16 +108,25 @@ export default function Dashboard() {
       // Apply date range filter (order date)
       if (dateRangeStart || dateRangeEnd) {
         filteredOrders = filteredOrders.filter((order) => {
-          const orderDate = new Date(order.date)
-          orderDate.setHours(12, 0, 0, 0) // Use noon to avoid timezone issues
-          
-          if (dateRangeStart && orderDate < dateRangeStart) {
+          try {
+            const orderDate = new Date(order.date)
+            if (isNaN(orderDate.getTime())) {
+              console.warn('Invalid order date:', order.date, order.id)
+              return false // Exclude orders with invalid dates
+            }
+            orderDate.setHours(12, 0, 0, 0) // Use noon to avoid timezone issues
+            
+            if (dateRangeStart && orderDate < dateRangeStart) {
+              return false
+            }
+            if (dateRangeEnd && orderDate > dateRangeEnd) {
+              return false
+            }
+            return true
+          } catch (e) {
+            console.warn('Error parsing order date:', order.date, e)
             return false
           }
-          if (dateRangeEnd && orderDate > dateRangeEnd) {
-            return false
-          }
-          return true
         })
       }
       
@@ -226,8 +248,31 @@ export default function Dashboard() {
       
       setOrders(filteredOrders)
       setStats(calculatedStats)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading orders:', error)
+      // Show error but still set loading to false so UI can render
+      if (error?.message?.includes('timeout')) {
+        const errorMsg = 'Loading timed out. Please check your Firebase configuration or network connection.'
+        console.error(errorMsg)
+        setError(errorMsg)
+      } else {
+        setError('Failed to load orders. Please check your Firebase configuration.')
+      }
+      // Set empty state so app can still render
+      setOrders([])
+      setStats({
+        totalWeight: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        currentBalance: 0,
+        totalOrders: 0,
+        paidOrders: 0,
+        unpaidOrders: 0,
+        partialOrders: 0,
+        estimatedProfit: 0,
+        paymentReceived: 0,
+        costAmount: 0,
+      })
     } finally {
       setLoading(false)
     }
@@ -396,8 +441,37 @@ export default function Dashboard() {
 
       {/* Statistics Cards */}
       {loading ? (
-        <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
+        <div className="fixed inset-0 flex flex-col items-center justify-center z-30 bg-gray-50 gap-4 p-4">
           <LoadingSpinner size={32} />
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md text-center">
+              <p className="text-sm text-red-800 mb-2">{error}</p>
+              <button
+                onClick={() => {
+                  setError(null)
+                  loadOrders()
+                }}
+                className="text-xs bg-red-600 text-white px-3 py-1.5 rounded hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+      ) : error ? (
+        <div className="p-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+            <p className="text-sm text-red-800 mb-3">{error}</p>
+            <button
+              onClick={() => {
+                setError(null)
+                loadOrders()
+              }}
+              className="text-xs bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       ) : (
         <div className="p-2.5 space-y-2.5">

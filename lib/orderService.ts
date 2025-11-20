@@ -92,12 +92,8 @@ export const orderService = {
             await ledgerService.addEntry('debit', ledgerAmount, note, 'orderExpense')
           }
           
-          // If paid less than originalTotal, add the difference as additional profit (credit)
-          if (paidAmountForRawMaterials && paidAmountForRawMaterials > 0 && paidAmountForRawMaterials < expenseAmount) {
-            const additionalProfit = expenseAmount - paidAmountForRawMaterials
-            const profitNote = `Order additional profit (saved on raw materials) - ${order.partyName} (${order.siteName})`
-            await ledgerService.addEntry('credit', additionalProfit, profitNote, 'orderProfit')
-          }
+          // Note: Only expense (debit) entries are created for raw material payments
+          // No income (credit) entries are created, even if paid less than full expense
         } catch (e) {
           console.warn('Ledger entry for order expense failed (non-fatal):', e)
         }
@@ -182,27 +178,8 @@ export const orderService = {
             await ledgerService.addEntry('debit', remainingAmount, note, 'orderExpense')
           }
           
-          // If total paid is less than expense amount, add the difference as additional profit (credit)
-          if (totalPaid > 0 && totalPaid < expenseAmount) {
-            const additionalProfit = expenseAmount - totalPaid
-            try {
-              const profitNote = `Order additional profit (saved on raw materials) - ${existingOrder.partyName} (${existingOrder.siteName})`
-              await ledgerService.addEntry('credit', additionalProfit, profitNote, 'orderProfit')
-            } catch (e) {
-              console.warn('Ledger entry for additional profit failed (non-fatal):', e)
-            }
-          }
-          
-          // Add order's profit as income (credit) when marking a due order as paid
-          const orderProfit = Number(existingOrder.profit || 0)
-          if (orderProfit > 0) {
-            try {
-              const profitNote = `Order profit - ${existingOrder.partyName} (${existingOrder.siteName})`
-              await ledgerService.addEntry('credit', orderProfit, profitNote, 'orderProfit')
-            } catch (e) {
-              console.warn('Ledger entry for order profit income failed (non-fatal):', e)
-            }
-          }
+          // Note: Only expense (debit) entries are created for raw material payments
+          // No income (credit) entries are created, even if paid less than full expense or for order profit
           
           // Clear partial payments when marking as paid directly (not through payment flow)
           // BUT only if partialPayments is not explicitly provided in the update data
@@ -403,10 +380,11 @@ export const orderService = {
     }
     
     // Add new payment record
+    const paymentDate = new Date().toISOString()
     const newPayment: PaymentRecord = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount: paymentAmount,
-      date: new Date().toISOString(),
+      date: paymentDate,
     }
     const updatedPayments = [...existingPayments, newPayment]
     
@@ -427,25 +405,18 @@ export const orderService = {
     const currentProfit = Number(order.profit || 0)
     const newProfit = currentProfit + profitAdjustment
     
-    // Create ledger entry for this payment (debit - expense)
+    // Create ledger entry for this payment (debit - expense for raw materials ONLY, no income entry)
     try {
       const ledgerNote = note && note.trim() 
-        ? `Order expense payment - ${order.partyName} (${order.siteName}): ${note.trim()}`
-        : `Order expense payment - ${order.partyName} (${order.siteName})`
-      await ledgerService.addEntry('debit', paymentAmount, ledgerNote, 'orderExpense')
+        ? `Raw materials payment - ${order.partyName} (${order.siteName}): ${note.trim()}`
+        : `Raw materials payment - ${order.partyName} (${order.siteName})`
+      await ledgerService.addEntry('debit', paymentAmount, ledgerNote, 'orderExpense', paymentDate)
     } catch (e) {
       console.warn('Ledger entry for order payment failed (non-fatal):', e)
     }
     
-    // If marked as paid with less than full payment, add the difference as additional profit (credit)
-    if (profitAdjustment > 0) {
-      try {
-        const profitNote = `Order additional profit (saved on raw materials) - ${order.partyName} (${order.siteName})`
-        await ledgerService.addEntry('credit', profitAdjustment, profitNote, 'orderProfit')
-      } catch (e) {
-        console.warn('Ledger entry for additional profit failed (non-fatal):', e)
-      }
-    }
+    // Note: Profit adjustment is calculated and saved to order, but NO ledger entry is created
+    // Only expense (debit) entries are created for raw material payments
     
     // Prepare update data
     const updateData: any = {

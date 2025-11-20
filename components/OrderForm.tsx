@@ -204,7 +204,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         adjustedProfit = profit + (originalTotal - formData.paidAmountForRawMaterials)
       }
 
-      const orderData: Omit<Order, 'id'> = {
+      const orderData: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number } = {
         ...formData,
         material: materials, // Store as array
         total,

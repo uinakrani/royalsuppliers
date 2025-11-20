@@ -49,10 +49,12 @@ export const partyPaymentService = {
       const docRef = await addDoc(collection(db, PARTY_PAYMENTS_COLLECTION), paymentData)
       console.log('✅ Party payment added successfully with ID:', docRef.id)
 
-      // Create a ledger credit entry for this payment (best-effort)
+      // Create a ledger credit entry for this payment (income - best-effort)
       try {
-        const ledgerNote = note && note.trim() ? `Party ${partyName}: ${note.trim()}` : `Party ${partyName} payment`
-        await ledgerService.addEntry('credit', amount, ledgerNote, 'partyPayment')
+        const ledgerNote = note && note.trim() 
+          ? `Income from ${partyName}: ${note.trim()}` 
+          : `Income from ${partyName}`
+        await ledgerService.addEntry('credit', amount, ledgerNote, 'partyPayment', now)
       } catch (e) {
         console.warn('Ledger entry for party payment failed (non-fatal):', e)
       }

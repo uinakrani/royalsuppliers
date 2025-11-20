@@ -472,5 +472,74 @@ export const sweetAlert = {
       throw error
     }
   },
+
+  // Generic fire method for custom SweetAlert dialogs
+  fire: async (options: any): Promise<any> => {
+    try {
+      const Swal = await getSwal()
+      return Swal.fire({
+        ...swalConfig,
+        ...options,
+        didOpen: () => {
+          const ensureBackdrop = () => {
+            let backdrop = document.querySelector('.swal2-backdrop') as HTMLElement
+            const container = document.querySelector('.swal2-container') as HTMLElement
+            if (!backdrop && container) {
+              backdrop = document.createElement('div')
+              backdrop.className = 'swal2-backdrop swal2-backdrop-show swal2-backdrop-manual'
+              backdrop.style.cssText = `
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                background-color: rgba(0, 0, 0, 0.5) !important;
+                opacity: 1 !important;
+                z-index: 1059 !important;
+                display: block !important;
+                visibility: visible !important;
+              `
+              document.body.appendChild(backdrop)
+            }
+            if (backdrop) {
+              backdrop.style.setProperty('background-color', 'rgba(0, 0, 0, 0.5)', 'important')
+              backdrop.style.setProperty('opacity', '1', 'important')
+              backdrop.style.setProperty('z-index', '1059', 'important')
+            }
+            if (container) {
+              container.classList.add('swal2-backdrop-show')
+            }
+          }
+          ensureBackdrop()
+          setTimeout(ensureBackdrop, 10)
+          setTimeout(ensureBackdrop, 50)
+          setTimeout(ensureBackdrop, 100)
+          if (options.didOpen) {
+            options.didOpen()
+          }
+        },
+        didClose: () => {
+          setTimeout(() => {
+            const manualBackdrop = document.querySelector('.swal2-backdrop-manual') as HTMLElement
+            if (manualBackdrop) {
+              manualBackdrop.remove()
+            }
+            const backdrops = document.querySelectorAll('.swal2-backdrop')
+            backdrops.forEach(backdrop => {
+              if (backdrop.parentNode && backdrop.classList.contains('swal2-backdrop-manual')) {
+                backdrop.remove()
+              }
+            })
+          }, 100)
+          if (options.didClose) {
+            options.didClose()
+          }
+        },
+      })
+    } catch (error: any) {
+      console.error('SweetAlert.fire error:', error)
+      throw error
+    }
+  },
 }
 
