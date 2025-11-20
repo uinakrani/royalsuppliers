@@ -1,13 +1,34 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import { getFirestore, Firestore } from 'firebase/firestore'
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+// Get Firebase configuration based on environment
+function getFirebaseConfig() {
+  // Get environment (production or development) - check at runtime
+  const environment = process.env.NEXT_PUBLIC_ENVIRONMENT || 'production'
+  
+  if (environment === 'development') {
+    // Development database configuration
+    return {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_DEV_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_DEV_AUTH_DOMAIN || process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_DEV_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_DEV_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_DEV_MESSAGING_SENDER_ID || process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_DEV_APP_ID || process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+      environment: 'development'
+    }
+  } else {
+    // Production database configuration (default)
+    return {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+      environment: 'production'
+    }
+  }
 }
 
 let app: FirebaseApp | undefined
@@ -26,6 +47,9 @@ function initializeFirebase(): Firestore | undefined {
     return db
   }
 
+  // Get config at runtime
+  const firebaseConfig = getFirebaseConfig()
+  
   // Check if Firebase is configured
   const isConfigured = firebaseConfig.apiKey && 
                        firebaseConfig.projectId && 
@@ -34,6 +58,7 @@ function initializeFirebase(): Firestore | undefined {
   if (!isConfigured) {
     console.error('Firebase is not configured. Please create a .env.local file with your Firebase credentials.')
     console.error('Missing configuration:', {
+      environment: firebaseConfig.environment || 'production',
       apiKey: !firebaseConfig.apiKey,
       projectId: !firebaseConfig.projectId,
       appId: !firebaseConfig.appId,
@@ -47,18 +72,28 @@ function initializeFirebase(): Firestore | undefined {
   }
 
   try {
-    if (!getApps().length) {
+    const environment = firebaseConfig.environment || 'production'
+    
+    // Check if we need to initialize a new app or use existing
+    const existingApps = getApps()
+    if (existingApps.length === 0) {
+      // No apps initialized, create new one
       app = initializeApp(firebaseConfig)
       console.log('Firebase initialized successfully', {
+        environment,
         projectId: firebaseConfig.projectId,
         apiKey: firebaseConfig.apiKey?.substring(0, 10) + '...'
       })
     } else {
-      app = getApps()[0]
-      console.log('Using existing Firebase app')
+      // Use existing app (Firebase SDK handles multiple configs)
+      app = existingApps[0]
+      console.log('Using existing Firebase app', {
+        environment,
+        projectId: firebaseConfig.projectId
+      })
     }
     db = getFirestore(app)
-    console.log('Firestore database initialized', { db: !!db })
+    console.log('Firestore database initialized', { environment, db: !!db })
     return db
   } catch (error: any) {
     console.error('Error initializing Firebase:', error)

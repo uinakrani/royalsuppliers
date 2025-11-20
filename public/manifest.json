@@ -5,11 +5,14 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0ea5e9",
-  "theme_color": "#0ea5e9",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
   "orientation": "portrait-primary",
   "categories": ["business", "productivity"],
   "prefer_related_applications": false,
+  "dir": "ltr",
+  "lang": "en",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "icons": [
     {
       "src": "/icon-192x192.png",

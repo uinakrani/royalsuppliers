@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import PWARegister from '@/components/PWARegister'
+import PWAInstallPrompt from '@/components/PWAInstallPrompt'
 import FirebaseSetupAlert from '@/components/FirebaseSetupAlert'
 import FirestoreRulesAlert from '@/components/FirestoreRulesAlert'
 import ToastContainer from '@/components/Toast'
@@ -63,6 +64,7 @@ export default function RootLayout({
       <body className="bg-gray-50">
         <SweetAlertLoader />
         <PWARegister />
+        <PWAInstallPrompt />
         <FirebaseSetupAlert />
         <FirestoreRulesAlert />
         <ToastContainer />

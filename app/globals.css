@@ -19,6 +19,19 @@ body {
   overscroll-behavior-y: contain;
   /* Better touch scrolling */
   -webkit-overflow-scrolling: touch;
+  /* PWA: Prevent text selection on long press (improves app feel) */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection in input fields and content areas */
+input,
+textarea,
+[contenteditable],
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Mobile-first responsive - hide on tablets/desktop */
@@ -48,18 +61,35 @@ html {
   --header-height: 60px;
 }
 
-/* Custom scrollbar for mobile */
+/* Hide scrollbars completely - native app feel */
 ::-webkit-scrollbar {
-  width: 4px;
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
+  display: none;
   background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 2px;
+  display: none;
+  background: transparent;
+}
+
+/* Hide scrollbars for Firefox and IE/Edge */
+html, body, * {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Ensure scrolling still works */
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Touch-friendly buttons */
@@ -102,368 +132,25 @@ button, a {
 }
 
 /* SweetAlert2 Backdrop - Force visibility */
-.swal2-backdrop,
-.swal2-backdrop-show,
-.swal2-backdrop-custom {
-  background-color: rgba(0, 0, 0, 0.5) !important;
-  opacity: 1 !important;
-  z-index: 1059 !important;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
+.swal2-backdrop-show {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+.swal2-container {
   width: 100% !important;
   height: 100% !important;
   display: block !important;
   visibility: visible !important;
 }
 
-.swal2-container {
-  z-index: 1060 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-.swal2-container.swal2-backdrop-show,
-.swal2-container.swal2-shown {
-  background-color: transparent !important;
-}
-
-.swal2-title-mobile {
-  font-size: 1.25rem !important;
-  font-weight: 600 !important;
-  margin-bottom: 0.75rem !important;
-}
-
-.swal2-html-container-mobile {
-  font-size: 0.9375rem !important;
-  line-height: 1.5 !important;
-}
-
+/* SweetAlert2 Mobile Button Styles */
 .swal2-confirm-mobile,
 .swal2-cancel-mobile {
-  font-size: 0.9375rem !important;
-  padding: 0.75rem 1.5rem !important;
+  padding: 0.5rem 1rem !important;
+  font-size: 14px !important;
   border-radius: 0.5rem !important;
-  font-weight: 500 !important;
+  margin: 0.25rem !important;
   min-width: 100px !important;
-}
-
-.swal2-confirm-mobile {
-  background-color: #0ea5e9 !important;
-}
-
-.swal2-cancel-mobile {
-  background-color: #6b7280 !important;
-}
-
-/* SweetAlert2 Animations */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes fade-out {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
-}
-
-.animate-fade-out {
-  animation: fade-out 0.2s ease-in;
-}
-
-/* Drawer animations for native app feel */
-@keyframes slide-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes slide-down {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100%);
-  }
-}
-
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes slide-out-right {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes backdrop-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes backdrop-fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-.animate-drawer-enter {
-  animation: slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.animate-drawer-exit {
-  animation: slide-down 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-side-drawer-enter {
-  animation: slide-in-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.animate-side-drawer-exit {
-  animation: slide-out-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-backdrop-enter {
-  animation: backdrop-fade-in 0.3s ease-out;
-}
-
-.animate-backdrop-exit {
-  animation: backdrop-fade-out 0.25s ease-in;
-}
-
-/* Highlight animation for newly added orders */
-@keyframes highlight-blink {
-  0% {
-    background-color: #fef3c7; /* yellow-100 */
-  }
-  50% {
-    background-color: #fde68a; /* yellow-200 */
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-
-.highlight-row {
-  animation: highlight-blink 1s ease-out;
-}
-
-/* iOS form field styling improvements */
-input[type="date"],
-input[type="datetime-local"],
-input[type="time"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background-color: white;
-  color: #111827;
-  font-size: 12px !important; /* 12px font size */
-  line-height: 1.5;
-  box-sizing: border-box;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 0.6;
-  padding: 4px;
-  margin-left: 4px;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator:hover,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
-input[type="time"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
-}
-
-input[type="date"]:focus,
-input[type="datetime-local"]:focus,
-input[type="time"]:focus {
-  outline: none;
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
-}
-
-/* iOS select dropdown styling */
-select {
-  -webkit-appearance: none;
-  appearance: none;
-  background-color: white;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 12px;
-  color: #111827;
-  font-size: 12px !important; /* 12px font size */
-  line-height: 1.5;
-  padding-right: 36px !important; /* Make room for custom arrow */
-  box-sizing: border-box;
-  cursor: pointer;
-}
-
-select:focus {
-  outline: none;
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
-}
-
-select:disabled {
-  background-color: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-
-/* Force white backgrounds for all form fields */
-input[type="date"],
-input[type="datetime-local"],
-input[type="time"],
-input[type="text"],
-input[type="number"],
-input[type="email"],
-input[type="tel"],
-input[type="password"],
-textarea,
-select {
-  background-color: white !important;
-  color: #111827 !important;
-  font-size: 12px !important; /* 12px font size for all inputs */
-}
-
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E") !important;
-  background-color: white !important;
-}
-
-/* Custom Checkbox Styling */
-input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  border: 2px solid #9ca3af;
-  border-radius: 0.375rem;
-  background-color: white;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-input[type="checkbox"]:hover {
-  border-color: #0ea5e9;
-  background-color: #f0f9ff;
-}
-
-input[type="checkbox"]:focus {
-  outline: none;
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-}
-
-input[type="checkbox"]:checked {
-  background-color: #0ea5e9;
-  border-color: #0ea5e9;
-}
-
-input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) rotate(45deg);
-  width: 5px;
-  height: 10px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  border-radius: 1px;
-}
-
-input[type="checkbox"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background-color: #f3f4f6;
-}
-
-/* Hide scrollbar for horizontal tag list */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* PWA and Mobile Optimizations */
-
-/* Better touch interactions */
-button, a, [role="button"] {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  touch-action: manipulation;
-}
-
-/* All button text size 12px */
-button {
-  font-size: 12px !important;
-}
-
-/* Improve input focus on mobile */
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
-}
-
-/* Prevent zoom on input focus (iOS) - use 16px font size on mobile */
-@media screen and (max-width: 768px) {
-  input[type="text"],
-  input[type="number"],
-  input[type="email"],
-  input[type="tel"],
-  input[type="date"],
-  input[type="time"],
-  input[type="datetime-local"],
-  select,
-  textarea {
-    font-size: 16px !important; /* Prevents zoom on iOS */
-  }
 }
 
 /* Compact SweetAlert2 styling */
@@ -517,3 +204,325 @@ input:focus, select:focus, textarea:focus {
   margin: 0.5rem 0 !important;
 }
 
+/* PWA: Standalone mode styles */
+@media (display-mode: standalone) {
+  body {
+    /* Add any specific styles for standalone PWA mode */
+  }
+  
+  /* Hide browser UI elements in standalone mode */
+  .browser-only {
+    display: none;
+  }
+}
+
+/* PWA: Splash screen background */
+@media (display-mode: standalone) {
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease-out;
+  }
+}
+
+/* Custom checkbox styling */
+.custom-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #9ca3af;
+  border-radius: 0.375rem;
+  background-color: white;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.custom-checkbox:checked {
+  background-color: #0d9488;
+  border-color: #0d9488;
+}
+
+.custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.custom-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+/* Prevent zoom on input focus (iOS) - use 16px font size on mobile */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+}
+
+/* Select dropdown styling */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 2.5rem;
+}
+
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+select:disabled {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E") !important;
+  background-color: white !important;
+}
+
+/* Loading spinner */
+.spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid #9ca3af;
+  border-radius: 0.375rem;
+  border-top-color: #0d9488;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Scrollbar hide utility (already handled globally, but kept for compatibility) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth expand/collapse animation */
+@keyframes expand {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 500px;
+    opacity: 1;
+  }
+}
+
+@keyframes collapse {
+  from {
+    max-height: 500px;
+    opacity: 1;
+  }
+  to {
+    max-height: 0;
+    opacity: 0;
+  }
+}
+
+.animate-expand {
+  animation: expand 0.3s ease-out forwards;
+  overflow: hidden;
+}
+
+.animate-collapse {
+  animation: collapse 0.3s ease-out forwards;
+  overflow: hidden;
+}
+
+/* Native app modal animations - spring-like effect */
+@keyframes modal-enter {
+  from {
+    transform: scale3d(0.9, 0.9, 1) translate3d(0, -20px, 0);
+    opacity: 0;
+  }
+  to {
+    transform: scale3d(1, 1, 1) translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes modal-exit {
+  from {
+    transform: scale3d(1, 1, 1) translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: scale3d(0.9, 0.9, 1) translate3d(0, -20px, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
+
+@keyframes backdrop-exit {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Native app drawer animations - smooth slide */
+@keyframes drawer-enter {
+  from {
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes drawer-exit {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+/* Native app bottom sheet animations - spring effect */
+@keyframes bottom-sheet-enter {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes bottom-sheet-exit {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
+/* Native-like easing curves */
+.native-modal-enter {
+  animation: modal-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.native-modal-exit {
+  animation: modal-exit 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.native-backdrop-enter {
+  animation: backdrop-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: opacity;
+}
+
+.native-backdrop-exit {
+  animation: backdrop-exit 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: opacity;
+}
+
+.native-drawer-enter {
+  animation: drawer-enter 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  will-change: transform;
+}
+
+.native-drawer-exit {
+  animation: drawer-exit 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform;
+}
+
+.native-bottom-sheet-enter {
+  animation: bottom-sheet-enter 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  will-change: transform;
+}
+
+.native-bottom-sheet-exit {
+  animation: bottom-sheet-exit 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform;
+}
+
+/* Mobile-specific input styling */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+}
+
+/* PWA: Offline indicator */
+.offline-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #ef4444;
+  color: white;
+  text-align: center;
+  padding: 0.5rem;
+  z-index: 10000;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease-out;
+}
+
+.offline-indicator.show {
+  transform: translateY(0);
+}
+
+/* PWA: App-like transitions */
+@media (display-mode: standalone) {
+  * {
+    /* Smooth transitions for app-like feel */
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

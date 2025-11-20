@@ -1,0 +1,195 @@
+{
+  "exportDate": "2025-11-19T05:44:46.240Z",
+  "projectId": "orders-38fca",
+  "orders": [
+    {
+      "id": "COirmlFDoI7uxoONuaon",
+      "paid": false,
+      "paymentDue": true,
+      "originalRate": 1100,
+      "truckNo": "9639",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "rate": 1100,
+      "updatedAt": "2025-11-17T17:37:12.760Z",
+      "date": "2025-11-17",
+      "partyName": "DINESH BHAI ",
+      "additionalCost": 0,
+      "total": 39611,
+      "truckOwner": "MITUL BALAR",
+      "siteName": "SHIV CITY INDUSTRY 1&2",
+      "createdAt": "2025-11-17T17:35:45.079Z",
+      "profit": 0,
+      "originalTotal": 39611,
+      "weight": 36.01,
+      "originalWeight": 36.01
+    },
+    {
+      "id": "QVg1GoykKif4K7azyBo3",
+      "additionalCost": 0,
+      "rate": 825,
+      "originalWeight": 47.87,
+      "truckNo": "3585",
+      "weight": 47.87,
+      "date": "2025-11-13",
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "createdAt": "2025-11-17T04:05:23.310Z",
+      "material": [
+        "Panetha"
+      ],
+      "originalRate": 735,
+      "total": 39492.75,
+      "paid": false,
+      "paymentDue": true,
+      "profit": 4308.300000000003,
+      "originalTotal": 35184.45,
+      "updatedAt": "2025-11-17T04:05:23.310Z"
+    },
+    {
+      "id": "TgZxwR6pTW5EKHVADIox",
+      "updatedAt": "2025-11-17T04:09:24.789Z",
+      "material": [
+        "Panetha"
+      ],
+      "date": "2025-11-16",
+      "siteName": "AYODHYA 1&2(JAYESH BHAI)",
+      "rate": 825,
+      "weight": 44.835,
+      "total": 36988.875,
+      "originalRate": 735,
+      "originalWeight": 44.835,
+      "createdAt": "2025-11-17T04:09:24.789Z",
+      "profit": 768.1500000000015,
+      "paymentDue": true,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "originalTotal": 32953.725,
+      "truckNo": "5104",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "additionalCost": 3267,
+      "paid": false
+    },
+    {
+      "id": "fO3Evjp0l3Rt8aMtksZO",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "paymentDue": true,
+      "weight": 32.68,
+      "originalTotal": 35948,
+      "total": 37582,
+      "truckOwner": "BHIKHU BHAI",
+      "date": "2025-11-13",
+      "additionalCost": 150,
+      "createdAt": "2025-11-17T04:07:12.823Z",
+      "paid": false,
+      "originalWeight": 32.68,
+      "rate": 1150,
+      "updatedAt": "2025-11-17T04:07:12.823Z",
+      "profit": 1484,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "truckNo": "2697",
+      "originalRate": 1100
+    },
+    {
+      "id": "tQNyFSL8fn58FxEJ8b5U",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "truckOwner": "MITUL BALAR",
+      "additionalCost": 1060,
+      "originalWeight": 36.3,
+      "total": 41745,
+      "date": "2025-11-17",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "paymentDue": true,
+      "createdAt": "2025-11-17T17:36:53.748Z",
+      "profit": 755,
+      "originalTotal": 39930,
+      "updatedAt": "2025-11-17T17:36:53.748Z",
+      "truckNo": "9099",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "weight": 36.3,
+      "paid": false,
+      "originalRate": 1100,
+      "rate": 1150
+    }
+  ],
+  "ledgerEntries": [
+    {
+      "id": "60wvzuxNEF4lGd3eVEIo",
+      "date": "2025-11-17T04:09:26.277Z",
+      "createdAtTs": "2025-11-17T04:09:26.521Z",
+      "type": "debit",
+      "note": "Order expense - BHARAT BHAI VAGHASIYA (AYODHYA 1&2(JAYESH BHAI))",
+      "source": "orderExpense",
+      "amount": 36220.725,
+      "createdAt": "2025-11-17T04:09:26.277Z"
+    },
+    {
+      "id": "Em8kNfoOuuxMR7QyZtsK",
+      "amount": 30000,
+      "type": "credit",
+      "source": "manual",
+      "createdAtTs": "2025-11-17T19:05:54.558Z",
+      "note": "Ashish apya Rokda(18/11/2025)",
+      "createdAt": "2025-11-17T19:05:53.485Z",
+      "date": "2025-11-17T19:05:53.485Z"
+    },
+    {
+      "id": "ZZK3fHJKsq18Tags0jzQ",
+      "type": "debit",
+      "source": "orderExpense",
+      "note": "Order expense - DINESH BHAI  (SHIV CITY INDUSTRY 1&2)",
+      "createdAtTs": "2025-11-17T17:35:49.496Z",
+      "date": "2025-11-17T17:35:49.162Z",
+      "createdAt": "2025-11-17T17:35:49.162Z",
+      "amount": 39611
+    },
+    {
+      "id": "dJb0ITDUJh2wSe5gbPfO",
+      "note": "Order expense - BHARAT BHAI VAGHASIYA (V-21,GOPIN OM UBHEL)",
+      "type": "debit",
+      "amount": 36098,
+      "createdAtTs": "2025-11-17T04:07:14.218Z",
+      "date": "2025-11-17T04:07:13.975Z",
+      "createdAt": "2025-11-17T04:07:13.975Z",
+      "source": "orderExpense"
+    },
+    {
+      "id": "ogvpJi357gJetIwWxFJh",
+      "date": "2025-11-17T17:36:55.067Z",
+      "type": "debit",
+      "amount": 40990,
+      "note": "Order expense - BHARAT BHAI VAGHASIYA (V-21,GOPIN OM UBHEL)",
+      "source": "orderExpense",
+      "createdAt": "2025-11-17T17:36:55.067Z",
+      "createdAtTs": "2025-11-17T17:36:55.530Z"
+    },
+    {
+      "id": "r8LbOYtwMTqWydHY8Xpt",
+      "source": "manual",
+      "note": "Ashish Gadi Vala ne online apta e(35100/6400/150/32900/3267)",
+      "createdAtTs": "2025-11-17T19:00:53.933Z",
+      "type": "credit",
+      "amount": 77954,
+      "createdAt": "2025-11-17T19:00:51.993Z",
+      "date": "2025-11-17T19:00:51.993Z"
+    },
+    {
+      "id": "re9iNrrmIALHv5Dg9sjp",
+      "type": "debit",
+      "createdAt": "2025-11-17T04:05:25.312Z",
+      "amount": 35184.45,
+      "note": "Order expense - BHARAT BHAI VAGHASIYA (V-21,GOPIN OM UBHEL)",
+      "date": "2025-11-17T04:05:25.312Z",
+      "createdAtTs": "2025-11-17T04:05:25.602Z",
+      "source": "orderExpense"
+    }
+  ],
+  "invoices": [],
+  "partyPayments": []
+}

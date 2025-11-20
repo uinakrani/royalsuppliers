@@ -10,11 +10,12 @@ import {
   query,
   serverTimestamp,
   Timestamp,
+  updateDoc,
 } from 'firebase/firestore'
 import { getDb } from './firebase'
 
 export type LedgerType = 'credit' | 'debit'
-export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense'
+export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit'
 
 export interface LedgerEntry {
   id?: string
@@ -29,14 +30,21 @@ export interface LedgerEntry {
 const LEDGER_COLLECTION = 'ledgerEntries'
 
 export const ledgerService = {
-  async addEntry(type: LedgerType, amount: number, note?: string, source: LedgerSource = 'manual'): Promise<string> {
+  async addEntry(type: LedgerType, amount: number, note?: string, source: LedgerSource = 'manual', date?: string): Promise<string> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     const now = new Date().toISOString()
+    // Use provided date or default to now
+    // If date is provided, convert it to ISO string with time component
+    let dateValue = date || now
+    if (date && !date.includes('T')) {
+      // If date is just YYYY-MM-DD, add time component
+      dateValue = new Date(date + 'T00:00:00').toISOString()
+    }
     const payload: any = {
       type,
       amount,
-      date: now,
+      date: dateValue,
       createdAt: now,
       source,
     }
@@ -137,6 +145,36 @@ export const ledgerService = {
       throw new Error('Last entry does not have an ID')
     }
     await this.remove(lastEntry.id)
+  },
+
+  async update(id: string, updates: { amount?: number; note?: string; date?: string }): Promise<void> {
+    const db = getDb()
+    if (!db) throw new Error('Firebase is not configured.')
+    const entryRef = doc(db, LEDGER_COLLECTION, id)
+    const updateData: any = {}
+    
+    if (updates.amount !== undefined) {
+      updateData.amount = updates.amount
+    }
+    
+    if (updates.note !== undefined) {
+      if (updates.note && updates.note.trim()) {
+        updateData.note = updates.note.trim()
+      } else {
+        updateData.note = null // Remove note if empty
+      }
+    }
+    
+    if (updates.date !== undefined) {
+      let dateValue = updates.date
+      if (dateValue && !dateValue.includes('T')) {
+        // If date is just YYYY-MM-DD, add time component
+        dateValue = new Date(dateValue + 'T00:00:00').toISOString()
+      }
+      updateData.date = dateValue
+    }
+    
+    await updateDoc(entryRef, updateData)
   },
 }
 

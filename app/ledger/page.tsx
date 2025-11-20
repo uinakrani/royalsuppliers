@@ -3,39 +3,61 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { format } from 'date-fns'
-import { PlusCircle, MinusCircle, Wallet, Trash2 } from 'lucide-react'
-import { sweetAlert } from '@/lib/sweetalert'
+import { PlusCircle, MinusCircle, Wallet, Plus } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import NavBar from '@/components/NavBar'
+import LedgerEntryDrawer from '@/components/LedgerEntryDrawer'
+import BottomSheet from '@/components/BottomSheet'
+import LedgerEntryModal from '@/components/LedgerEntryModal'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
+  
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerType, setDrawerType] = useState<'credit' | 'debit'>('credit')
+  const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add')
+  const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null)
+  
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null)
+  
+  // Bottom sheet state
+  const [deleteSheetOpen, setDeleteSheetOpen] = useState(false)
+  const [entryToDelete, setEntryToDelete] = useState<string | null>(null)
 
   const balance = useMemo(() => {
     return entries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
   }, [entries])
 
-  // Balance at the time of each entry (running balance after that entry), keyed by id
-  const balanceAtMap = useMemo(() => {
-    const sorted = [...entries].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
-    let acc = 0
-    const map = new Map<string, number>()
-    for (const e of sorted) {
-      acc += e.type === 'credit' ? e.amount : -e.amount
-      if (e.id) map.set(e.id, acc)
-    }
-    return map
+  // Separate income (credit) and expenses (debit)
+  const incomeEntries = useMemo(() => {
+    return entries.filter(e => e.type === 'credit').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [entries])
+
+  const expenseEntries = useMemo(() => {
+    return entries.filter(e => e.type === 'debit').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }, [entries])
+
+  // Calculate totals
+  const totalIncome = useMemo(() => {
+    return incomeEntries.reduce((acc, e) => acc + e.amount, 0)
+  }, [incomeEntries])
+
+  const totalExpenses = useMemo(() => {
+    return expenseEntries.reduce((acc, e) => acc + e.amount, 0)
+  }, [expenseEntries])
 
   const load = async () => {
     setLoading(true)
     try {
       const items = await ledgerService.list()
       setEntries(items)
+    } catch (error) {
+      console.error('Failed to load ledger entries:', error)
+      setEntries([])
     } finally {
       setLoading(false)
     }
@@ -50,164 +72,208 @@ export default function LedgerPage() {
     return () => unsub()
   }, [])
 
-  const addEntry = async (type: 'credit' | 'debit') => {
-    if (adding) return
-    setAdding(true)
+  const handleEntryClick = (entry: LedgerEntry) => {
+    setSelectedEntry(entry)
+    setModalOpen(true)
+  }
+
+  const handleAddEntry = (type: 'credit' | 'debit') => {
+    setDrawerType(type)
+    setDrawerMode('add')
+    setEditingEntry(null)
+    setDrawerOpen(true)
+  }
+
+  const handleEditEntry = (entry: LedgerEntry) => {
+    setEditingEntry(entry)
+    setDrawerType(entry.type)
+    setDrawerMode('edit')
+    setDrawerOpen(true)
+    setModalOpen(false)
+  }
+
+  const handleSaveEntry = async (data: { amount: number; date: string; note?: string }) => {
+    if (drawerMode === 'edit' && editingEntry?.id) {
+      await ledgerService.update(editingEntry.id, {
+        amount: data.amount,
+        date: data.date,
+        note: data.note,
+      })
+    } else {
+      await ledgerService.addEntry(drawerType, data.amount, data.note, 'manual', data.date)
+    }
+    // Drawer will close automatically on success
+  }
+
+  const handleDeleteClick = (entryId: string) => {
+    setEntryToDelete(entryId)
+    setDeleteSheetOpen(true)
+    setModalOpen(false)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!entryToDelete) return
     try {
-      const label = type === 'credit' ? 'Credit amount (₹ +)' : 'Debit amount (₹ -)'
-      const amountStr = await sweetAlert.prompt({
-        title: type === 'credit' ? 'Add Credit' : 'Add Debit',
-        inputLabel: label,
-        inputPlaceholder: 'Enter amount',
-        inputType: 'text',
-        formatCurrencyInr: true,
-        confirmText: 'Save',
-        cancelText: 'Cancel',
-      })
-      if (!amountStr) {
-        setAdding(false)
-        return
-      }
-      const amount = Math.abs(parseFloat(String(amountStr)))
-      if (!amount || Number.isNaN(amount) || amount <= 0) {
-        setAdding(false)
-        return
-      }
-
-      const note = await sweetAlert.prompt({
-        title: 'Add Note (optional)',
-        inputLabel: 'Note',
-        inputPlaceholder: 'e.g. Cash deposit / Vendor payout',
-        inputType: 'text',
-        required: false,
-        confirmText: 'Save',
-        cancelText: 'Skip',
-      })
-
-      await ledgerService.addEntry(type, amount, note || undefined)
-      // realtime will update UI automatically
-    } finally {
-      setAdding(false)
+      await ledgerService.remove(entryToDelete)
+      // Entry will be removed from list automatically via realtime subscription
+      setDeleteSheetOpen(false)
+      setEntryToDelete(null)
+    } catch (error: any) {
+      // Error handling - could show error in bottom sheet or just log
+      console.error('Failed to delete entry:', error)
+      setDeleteSheetOpen(false)
+      setEntryToDelete(null)
     }
   }
 
-  const removeEntry = async (id: string) => {
-    try {
-      const ok = await sweetAlert.confirm({
-        title: 'Delete transaction?',
-        text: 'This cannot be undone.',
-        icon: 'warning',
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-      })
-      if (!ok) return
-      await ledgerService.remove(id)
-      // realtime will update UI automatically
-    } catch {}
+  const renderEntry = (e: LedgerEntry) => {
+    if (!e.id) return null
+    return (
+      <button
+        key={e.id}
+        onClick={() => handleEntryClick(e)}
+        className="w-full bg-white rounded-lg border border-gray-200 mb-1 p-2 flex items-center justify-between active:bg-gray-50 transition-all duration-150 touch-manipulation shadow-sm"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <div className="flex items-center justify-between flex-1 min-w-0">
+          <span className={`font-bold ${e.type === 'credit' ? 'text-green-700' : 'text-red-700'}`} style={{ fontSize: '12px' }}>
+            {formatIndianCurrency(e.amount)}
+          </span>
+          <span className="text-gray-500 ml-2 flex-shrink-0" style={{ fontSize: '10px' }}>
+            {format(new Date(e.date), 'dd MMM')}
+          </span>
+        </div>
+      </button>
+    )
   }
 
   return (
     <div className="bg-gray-50" style={{ minHeight: '100dvh', paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <Wallet size={20} />
-            <h1 className="text-xl font-bold truncate">Ledger</h1>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              onClick={() => addEntry('credit')}
-              disabled={adding}
-              className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center justify-center"
-              title="Add Credit"
-              aria-label="Add Credit"
-            >
-              <PlusCircle size={16} />
-            </button>
-            <button
-              onClick={() => addEntry('debit')}
-              disabled={adding}
-              className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center justify-center"
-              title="Add Debit"
-              aria-label="Add Debit"
-            >
-              <MinusCircle size={16} />
-            </button>
+      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40 shadow-sm">
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Wallet size={18} />
+            <h1 className="text-lg font-bold truncate">Ledger</h1>
           </div>
         </div>
-        <div className="mt-2 bg-white rounded-lg p-3 text-gray-800 flex items-center justify-between">
-          <span className="text-sm">Current Balance</span>
-          <span className={`text-base font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+        <div className="bg-white rounded-lg p-2 text-gray-800 flex items-center justify-between">
+          <span className="font-medium" style={{ fontSize: '12px' }}>Balance</span>
+          <span className={`font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`} style={{ fontSize: '12px' }}>
             {formatIndianCurrency(Math.abs(balance))} {balance >= 0 ? '' : '(Dr)'}
           </span>
         </div>
       </div>
 
-      <div className="p-2">
+      <div className="p-1.5">
         {loading ? (
-          <div className="text-center text-gray-500 text-sm py-6">Loading...</div>
-        ) : entries.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm py-6">No transactions yet</div>
+          <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>
         ) : (
-          <div className="space-y-2 pb-2">
-            {entries.map((e) => {
-              const after = e.id ? balanceAtMap.get(e.id) ?? 0 : undefined
-              const delta = e.type === 'credit' ? e.amount : -e.amount
-              const before = after !== undefined ? after - delta : undefined
-              const beforeAbs = before !== undefined ? Math.abs(before) : undefined
-              const afterAbs = after !== undefined ? Math.abs(after) : undefined
-              const beforeSign = before !== undefined && before < 0 ? ' (Dr)' : ''
-              const afterSign = after !== undefined && after < 0 ? ' (Dr)' : ''
-              const removable = (e.source ?? 'manual') === 'manual'
-              return (
-                <div key={e.id} className="bg-white rounded-lg border border-gray-200 p-2 flex items-start justify-between">
-                  <div className="flex items-start gap-2">
-                    {e.type === 'credit' ? (
-                      <div className="text-green-600 mt-0.5"><PlusCircle size={14} /></div>
-                    ) : (
-                      <div className="text-red-600 mt-0.5"><MinusCircle size={14} /></div>
-                    )}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-sm">{formatIndianCurrency(e.amount)}</span>
-                        <span className={`text-[10px] px-1 py-0.5 rounded ${e.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {e.type.toUpperCase()}
-                        </span>
-                        <span className="text-[10px] text-gray-500">{format(new Date(e.date), 'dd MMM, HH:mm')}</span>
-                        {e.source && e.source !== 'manual' && (
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">{e.source}</span>
-                        )}
-                      </div>
-                      {e.note && (
-                        <div className="text-[11px] text-gray-600 mt-0.5 truncate" title={e.note}>{e.note}</div>
-                      )}
-                      {(beforeAbs !== undefined && afterAbs !== undefined) && (
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          Bal: {formatIndianCurrency(beforeAbs)}{beforeSign}
-                          <span className="mx-1 text-gray-400">→</span>
-                          {formatIndianCurrency(afterAbs)}{afterSign}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {e.id && removable && (
-                    <button
-                      onClick={() => removeEntry(e.id!)}
-                      className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+          <div className="grid grid-cols-2 gap-1.5">
+            {/* Income Column */}
+            <div className="bg-green-50 rounded-lg p-1.5 border border-green-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                  <PlusCircle size={14} />
+                  Income
+                </h2>
+                <button
+                  onClick={() => handleAddEntry('credit')}
+                  className="p-1 bg-green-600 text-white rounded-lg active:bg-green-700 transition-colors flex items-center justify-center touch-manipulation shadow-sm"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  title="Add Income"
+                  aria-label="Add Income"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300">
+                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
+              </div>
+              <div className="space-y-1" style={{ maxHeight: 'calc(100dvh - 260px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {incomeEntries.length === 0 ? (
+                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                ) : (
+                  incomeEntries.map(renderEntry)
+                )}
+              </div>
+            </div>
+
+            {/* Expenses Column */}
+            <div className="bg-red-50 rounded-lg p-1.5 border border-red-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                  <MinusCircle size={14} />
+                  Expenses
+                </h2>
+                <button
+                  onClick={() => handleAddEntry('debit')}
+                  className="p-1 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors flex items-center justify-center touch-manipulation shadow-sm"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  title="Add Expense"
+                  aria-label="Add Expense"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300">
+                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
+              </div>
+              <div className="space-y-1" style={{ maxHeight: 'calc(100dvh - 260px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {expenseEntries.length === 0 ? (
+                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                ) : (
+                  expenseEntries.map(renderEntry)
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Entry Drawer */}
+      <LedgerEntryDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onSave={handleSaveEntry}
+        type={drawerType}
+        mode={drawerMode}
+        initialData={editingEntry ? {
+          amount: editingEntry.amount,
+          date: editingEntry.date,
+          note: editingEntry.note,
+        } : undefined}
+      />
+
+      {/* Entry Details Modal */}
+      <LedgerEntryModal
+        entry={selectedEntry}
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          setSelectedEntry(null)
+        }}
+        onEdit={handleEditEntry}
+        onDelete={handleDeleteClick}
+      />
+
+      {/* Delete Confirmation Bottom Sheet */}
+      <BottomSheet
+        isOpen={deleteSheetOpen}
+        onClose={() => {
+          setDeleteSheetOpen(false)
+          setEntryToDelete(null)
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Entry?"
+        message="This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="red"
+      />
 
       <NavBar />
     </div>
   )
 }
-

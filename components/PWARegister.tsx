@@ -4,58 +4,35 @@ import { useEffect } from 'react'
 
 export default function PWARegister() {
   useEffect(() => {
+    // next-pwa handles service worker registration automatically
+    // This component now only handles update notifications and refresh logic
+    
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      const activateUpdate = (registration: ServiceWorkerRegistration) => {
-        if (registration.waiting) {
-          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
-        }
-      }
-
-      const registerSW = async () => {
-        try {
-          const registration = await navigator.serviceWorker.register('/sw.js', {
-            scope: '/',
-          })
-          console.log('Service Worker registered:', registration)
-
-          // Check for updates periodically
-          setInterval(() => {
-            registration.update()
-          }, 60000)
-
-          // If there's already an updated worker waiting, activate it
-          if (registration.waiting) {
-            activateUpdate(registration)
-          }
-
-          // When a new service worker is found, activate it as soon as it's installed
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing
-            if (!newWorker) return
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed') {
-                activateUpdate(registration)
-              }
-            })
-          })
-        } catch (error) {
-          console.error('Service Worker registration failed:', error)
-        }
-      }
-
-      if (document.readyState === 'complete') {
-        registerSW()
-      } else {
-        window.addEventListener('load', registerSW)
-      }
-
-      let refreshing = false
+      // Listen for service worker updates
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true
-          window.location.reload()
-        }
+        // Reload when new service worker takes control
+        window.location.reload()
       })
+
+      // Check for updates periodically (every 5 minutes)
+      const checkForUpdates = async () => {
+        try {
+          const registration = await navigator.serviceWorker.ready
+          await registration.update()
+        } catch (error) {
+          console.error('Service Worker update check failed:', error)
+        }
+      }
+
+      // Check for updates every 5 minutes
+      const updateInterval = setInterval(checkForUpdates, 5 * 60 * 1000)
+
+      // Initial check after 30 seconds
+      setTimeout(checkForUpdates, 30000)
+
+      return () => {
+        clearInterval(updateInterval)
+      }
     }
   }, [])
 

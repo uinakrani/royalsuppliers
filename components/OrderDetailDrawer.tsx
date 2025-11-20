@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { orderService } from '@/lib/orderService'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
+import PaymentEditDrawer from '@/components/PaymentEditDrawer'
 
 interface OrderDetailDrawerProps {
   order: Order | null
@@ -23,6 +24,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
   const backdropRef = useRef<HTMLDivElement>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [addingPayment, setAddingPayment] = useState(false)
+  const [editingPayment, setEditingPayment] = useState<{ order: Order; paymentId: string } | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -319,19 +321,71 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                 </span>
               </div>
               
-              {order.partialPayments && order.partialPayments.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <span className="text-xs font-medium text-gray-500 block mb-2">Payment History</span>
-                  <div className="space-y-2">
-                    {order.partialPayments.map((payment) => (
-                      <div key={payment.id} className="flex justify-between items-center text-xs">
-                        <span className="text-gray-600">{format(new Date(payment.date), 'dd MMM yyyy')}</span>
-                        <span className="font-semibold text-gray-900">{formatIndianCurrency(payment.amount)}</span>
-                      </div>
-                    ))}
+              {order.partialPayments && order.partialPayments.length > 0 && (() => {
+                const { expenseAmount } = getExpenseInfo(order)
+                return (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <span className="text-xs font-medium text-gray-500 block mb-2">Payment History</span>
+                    <div className="space-y-2">
+                      {order.partialPayments.map((payment) => {
+                        // Calculate max amount for this payment (original total - other payments)
+                        const otherPaymentsTotal = order.partialPayments!
+                          .filter(p => p.id !== payment.id)
+                          .reduce((sum, p) => sum + p.amount, 0)
+                        const maxAmount = expenseAmount - otherPaymentsTotal
+                        
+                        return (
+                          <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 p-2 rounded">
+                            <div className="flex-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">{format(new Date(payment.date), 'dd MMM yyyy')}</span>
+                                <span className="font-semibold text-gray-900">{formatIndianCurrency(payment.amount)}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2">
+                              <button
+                                onClick={() => setEditingPayment({ order, paymentId: payment.id })}
+                                className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                                title="Edit payment"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!order.id) return
+                                  try {
+                                    const confirmed = await sweetAlert.confirm({
+                                      title: 'Remove Payment?',
+                                      text: 'Are you sure you want to remove this payment?',
+                                      icon: 'warning',
+                                      confirmText: 'Remove',
+                                      cancelText: 'Cancel'
+                                    })
+                                    if (!confirmed) return
+                                    
+                                    await orderService.removePartialPayment(order.id, payment.id)
+                                    if (onOrderUpdated) {
+                                      onOrderUpdated()
+                                    }
+                                  } catch (error: any) {
+                                    console.error('Failed to remove payment:', error)
+                                  }
+                                }}
+                                className="p-1 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                                title="Remove payment"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
               
               {!order.paid && remainingAmount > 0 && (
                 <button
@@ -400,6 +454,41 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
           </div>
         </div>
       </div>
+
+      {/* Payment Edit Drawer */}
+      {editingPayment && editingPayment.order.partialPayments && (() => {
+        const payment = editingPayment.order.partialPayments!.find(p => p.id === editingPayment.paymentId)
+        if (!payment) return null
+        
+        // Calculate max amount (original total - other payments)
+        const otherPaymentsTotal = editingPayment.order.partialPayments!
+          .filter(p => p.id !== editingPayment.paymentId)
+          .reduce((sum, p) => sum + p.amount, 0)
+        const { expenseAmount } = getExpenseInfo(editingPayment.order)
+        const maxAmount = expenseAmount - otherPaymentsTotal
+        
+        return (
+          <PaymentEditDrawer
+            isOpen={!!editingPayment}
+            onClose={() => setEditingPayment(null)}
+            onSave={async (data) => {
+              if (!editingPayment.order.id) return
+              try {
+                await orderService.updatePartialPayment(editingPayment.order.id, editingPayment.paymentId, data)
+                setEditingPayment(null)
+                if (onOrderUpdated) {
+                  onOrderUpdated()
+                }
+              } catch (error: any) {
+                console.error('Failed to update payment:', error)
+                setEditingPayment(null)
+              }
+            }}
+            initialData={{ amount: payment.amount, date: payment.date }}
+            maxAmount={maxAmount}
+          />
+        )
+      })()}
     </>
   )
 }

@@ -19,7 +19,7 @@ const ORDERS_COLLECTION = 'orders'
 
 export const orderService = {
   // Create order
-  async createOrder(order: Omit<Order, 'id'>): Promise<string> {
+  async createOrder(order: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number }): Promise<string> {
     const db = getDb()
     
     if (!db) {
@@ -35,11 +35,29 @@ export const orderService = {
     }
     
     try {
-      const orderData = {
-        ...order,
+      // Extract paidAmountForRawMaterials if provided (temporary field from form)
+      const paidAmountForRawMaterials = (order as any).paidAmountForRawMaterials
+      const expenseAmount = Number(order.originalTotal || 0)
+      
+      // Prepare order data without the temporary field
+      const { paidAmountForRawMaterials: _, ...orderDataWithoutTemp } = order as any
+      const orderData: Omit<Order, 'id'> = {
+        ...orderDataWithoutTemp,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
+
+      // If order is paid and paidAmountForRawMaterials is provided, create partial payment record
+      if (!order.paymentDue && order.paid && paidAmountForRawMaterials && paidAmountForRawMaterials > 0) {
+        const paymentRecord: PaymentRecord = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          amount: paidAmountForRawMaterials,
+          date: new Date().toISOString(),
+        }
+        orderData.partialPayments = [paymentRecord]
+        orderData.paidAmount = paidAmountForRawMaterials
+      }
+
       console.log('Creating order in Firestore:', {
         collection: ORDERS_COLLECTION,
         data: orderData,
@@ -60,14 +78,25 @@ export const orderService = {
       
       console.log('✅ Order created successfully with ID:', docRef.id)
 
-      // Mirror order raw material expense to ledger: originalTotal only
+      // Create ledger entry for the actual paid amount (not the full originalTotal)
       // Only add ledger entry if order is paid (not paymentDue)
       if (!order.paymentDue && order.paid) {
         try {
-          const expense = Number(order.originalTotal || 0)
-          if (expense > 0) {
+          // Use the paid amount if provided, otherwise use full originalTotal
+          const ledgerAmount = paidAmountForRawMaterials && paidAmountForRawMaterials > 0 
+            ? paidAmountForRawMaterials 
+            : expenseAmount
+          
+          if (ledgerAmount > 0) {
             const note = `Order expense - ${order.partyName} (${order.siteName})`
-            await ledgerService.addEntry('debit', expense, note, 'orderExpense')
+            await ledgerService.addEntry('debit', ledgerAmount, note, 'orderExpense')
+          }
+          
+          // If paid less than originalTotal, add the difference as additional profit (credit)
+          if (paidAmountForRawMaterials && paidAmountForRawMaterials > 0 && paidAmountForRawMaterials < expenseAmount) {
+            const additionalProfit = expenseAmount - paidAmountForRawMaterials
+            const profitNote = `Order additional profit (saved on raw materials) - ${order.partyName} (${order.siteName})`
+            await ledgerService.addEntry('credit', additionalProfit, profitNote, 'orderProfit')
           }
         } catch (e) {
           console.warn('Ledger entry for order expense failed (non-fatal):', e)
@@ -143,9 +172,9 @@ export const orderService = {
             ? nextOriginal
             : Number(existingOrder.originalTotal || 0)
           
-          // Check if there are existing payments - if so, only create ledger entry for remaining amount
-          const existingPayments = existingOrder.partialPayments || []
-          const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+          // Get the final total paid amount (from update data if provided, otherwise from existing)
+          const finalPayments = order.partialPayments || existingOrder.partialPayments || []
+          const totalPaid = finalPayments.reduce((sum, p) => sum + p.amount, 0)
           const remainingAmount = expenseAmount - totalPaid
           
           if (remainingAmount > 0) {
@@ -153,8 +182,32 @@ export const orderService = {
             await ledgerService.addEntry('debit', remainingAmount, note, 'orderExpense')
           }
           
+          // If total paid is less than expense amount, add the difference as additional profit (credit)
+          if (totalPaid > 0 && totalPaid < expenseAmount) {
+            const additionalProfit = expenseAmount - totalPaid
+            try {
+              const profitNote = `Order additional profit (saved on raw materials) - ${existingOrder.partyName} (${existingOrder.siteName})`
+              await ledgerService.addEntry('credit', additionalProfit, profitNote, 'orderProfit')
+            } catch (e) {
+              console.warn('Ledger entry for additional profit failed (non-fatal):', e)
+            }
+          }
+          
+          // Add order's profit as income (credit) when marking a due order as paid
+          const orderProfit = Number(existingOrder.profit || 0)
+          if (orderProfit > 0) {
+            try {
+              const profitNote = `Order profit - ${existingOrder.partyName} (${existingOrder.siteName})`
+              await ledgerService.addEntry('credit', orderProfit, profitNote, 'orderProfit')
+            } catch (e) {
+              console.warn('Ledger entry for order profit income failed (non-fatal):', e)
+            }
+          }
+          
           // Clear partial payments when marking as paid directly (not through payment flow)
-          if (isMarkingAsPaid) {
+          // BUT only if partialPayments is not explicitly provided in the update data
+          // (if it's provided, it means we're updating through addPaymentToOrder and want to keep the payments)
+          if (isMarkingAsPaid && !Object.prototype.hasOwnProperty.call(order, 'partialPayments')) {
             updateData.partialPayments = []
             updateData.paidAmount = deleteField()
           }
@@ -374,7 +427,7 @@ export const orderService = {
     const currentProfit = Number(order.profit || 0)
     const newProfit = currentProfit + profitAdjustment
     
-    // Create ledger entry for this payment
+    // Create ledger entry for this payment (debit - expense)
     try {
       const ledgerNote = note && note.trim() 
         ? `Order expense payment - ${order.partyName} (${order.siteName}): ${note.trim()}`
@@ -384,12 +437,28 @@ export const orderService = {
       console.warn('Ledger entry for order payment failed (non-fatal):', e)
     }
     
+    // If marked as paid with less than full payment, add the difference as additional profit (credit)
+    if (profitAdjustment > 0) {
+      try {
+        const profitNote = `Order additional profit (saved on raw materials) - ${order.partyName} (${order.siteName})`
+        await ledgerService.addEntry('credit', profitAdjustment, profitNote, 'orderProfit')
+      } catch (e) {
+        console.warn('Ledger entry for additional profit failed (non-fatal):', e)
+      }
+    }
+    
     // Prepare update data
     const updateData: any = {
       paid: isFullyPaid,
-      paidAmount: isFullyPaid ? undefined : totalPaid,
       partialPayments: updatedPayments,
       paymentDue: !isFullyPaid,
+    }
+    
+    // Set paidAmount only if not fully paid, otherwise delete it
+    if (isFullyPaid) {
+      updateData.paidAmount = deleteField()
+    } else {
+      updateData.paidAmount = totalPaid
     }
     
     // Update profit if there's an adjustment (when marked as paid with less than full payment)
@@ -457,6 +526,102 @@ export const orderService = {
       partialPayments: updatedPayments,
       paymentDue: !isFullyPaid,
     })
+  },
+
+  // Update a specific partial payment record
+  async updatePartialPayment(id: string, paymentId: string, updates: { amount?: number; date?: string }): Promise<void> {
+    const db = getDb()
+    if (!db) {
+      throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
+    }
+    
+    const order = await this.getOrderById(id)
+    if (!order) {
+      throw new Error('Order not found')
+    }
+    
+    const existingPayments = order.partialPayments || []
+    const paymentIndex = existingPayments.findIndex(p => p.id === paymentId)
+    
+    if (paymentIndex === -1) {
+      throw new Error('Payment record not found')
+    }
+    
+    const paymentToUpdate = existingPayments[paymentIndex]
+    const oldAmount = paymentToUpdate.amount
+    
+    // Validate amount doesn't exceed original total
+    const expenseAmount = Number(order.originalTotal || 0)
+    const newAmount = updates.amount !== undefined ? updates.amount : paymentToUpdate.amount
+    
+    // Calculate total from other payments (excluding the one being updated)
+    const otherPaymentsTotal = existingPayments
+      .filter((_, idx) => idx !== paymentIndex)
+      .reduce((sum, p) => sum + p.amount, 0)
+    
+    if (otherPaymentsTotal + newAmount > expenseAmount) {
+      const { formatIndianCurrency } = await import('./currencyUtils')
+      throw new Error(`Total payments cannot exceed original total of ${formatIndianCurrency(expenseAmount)}`)
+    }
+    
+    // Update the payment record
+    const updatedPayment: PaymentRecord = {
+      ...paymentToUpdate,
+      amount: newAmount,
+      date: updates.date || paymentToUpdate.date,
+    }
+    
+    const updatedPayments = [...existingPayments]
+    updatedPayments[paymentIndex] = updatedPayment
+    
+    // Calculate total paid amount from all payments
+    const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
+    
+    // Calculate expense amount to check if still fully paid
+    const isFullyPaid = totalPaid >= expenseAmount
+    
+    try {
+      const orderRef = doc(db, ORDERS_COLLECTION, id)
+      const updateData: any = {
+        paid: isFullyPaid,
+        paymentDue: !isFullyPaid,
+        updatedAt: new Date().toISOString(),
+        partialPayments: updatedPayments,
+      }
+      
+      if (isFullyPaid) {
+        updateData.paidAmount = deleteField()
+      } else {
+        updateData.paidAmount = totalPaid
+      }
+      
+      await updateDoc(orderRef, updateData)
+      
+      // Update ledger entries: credit old amount, debit new amount
+      try {
+        const amountDelta = newAmount - oldAmount
+        if (amountDelta !== 0) {
+          const note = `Payment updated - Order ${order.partyName} (${order.siteName})`
+          if (amountDelta > 0) {
+            // Payment increased, add debit entry
+            await ledgerService.addEntry('debit', amountDelta, note, 'orderPaymentUpdate')
+          } else {
+            // Payment decreased, add credit entry
+            await ledgerService.addEntry('credit', Math.abs(amountDelta), note, 'orderPaymentUpdate')
+          }
+        }
+      } catch (e) {
+        console.warn('Ledger entry for payment update failed (non-fatal):', e)
+      }
+      
+      console.log('Payment updated successfully:', paymentId)
+    } catch (error: any) {
+      console.error('Firestore error updating payment:', error)
+      if (error.code === 'permission-denied') {
+        throw new Error('Permission denied. Please check your Firestore security rules.')
+      }
+      throw new Error(`Failed to update payment: ${error.message || 'Unknown error'}`)
+    }
   },
 
   // Remove a specific partial payment record

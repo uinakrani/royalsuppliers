@@ -10,6 +10,7 @@ import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
 import { Plus, Edit, Trash2, Filter, FileText, X } from 'lucide-react'
+import PaymentEditDrawer from '@/components/PaymentEditDrawer'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterDrawer from '@/components/FilterDrawer'
@@ -27,6 +28,21 @@ interface PartyGroup {
   lastPaymentAmount: number | null
   orders: Order[]
   payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }>
+}
+
+// Helper function to safely parse dates
+const safeParseDate = (dateString: string | null | undefined): Date | null => {
+  if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
+    return null
+  }
+  const date = new Date(dateString)
+  return isNaN(date.getTime()) ? null : date
+}
+
+// Helper function to safely get time for sorting
+const safeGetTime = (dateString: string | null | undefined): number => {
+  const date = safeParseDate(dateString)
+  return date ? date.getTime() : 0
 }
 
 export default function OrdersPage() {
@@ -48,6 +64,7 @@ export default function OrdersPage() {
   const [showPartyDetailDrawer, setShowPartyDetailDrawer] = useState(false)
   const [selectedOrderForPayments, setSelectedOrderForPayments] = useState<Order | null>(null)
   const [showPaymentHistory, setShowPaymentHistory] = useState(false)
+  const [editingPayment, setEditingPayment] = useState<{ order: Order; paymentId: string } | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
 
@@ -169,14 +186,26 @@ export default function OrdersPage() {
       })
     }
     if (filters.startDate) {
-      filtered = filtered.filter((o) => new Date(o.date) >= new Date(filters.startDate!))
+      const startDate = safeParseDate(filters.startDate)
+      if (startDate) {
+        filtered = filtered.filter((o) => {
+          const orderDate = safeParseDate(o.date)
+          return orderDate && orderDate >= startDate
+        })
+      }
     }
     if (filters.endDate) {
-      filtered = filtered.filter((o) => new Date(o.date) <= new Date(filters.endDate!))
+      const endDate = safeParseDate(filters.endDate)
+      if (endDate) {
+        filtered = filtered.filter((o) => {
+          const orderDate = safeParseDate(o.date)
+          return orderDate && orderDate <= endDate
+        })
+      }
     }
 
     // Sort by createdAt (desc), fallback to updatedAt, then date
-    const getTime = (o: Order) => new Date(o.createdAt || o.updatedAt || o.date).getTime()
+    const getTime = (o: Order) => safeGetTime(o.createdAt || o.updatedAt || o.date)
     filtered.sort((a, b) => getTime(b) - getTime(a))
 
     setFilteredOrders(filtered)
@@ -198,16 +227,11 @@ export default function OrdersPage() {
       } else {
         console.log('➕ Creating new order')
         const orderId = await orderService.createOrder(orderData)
-        console.log('✅ Order created')
-        showToast('Order created successfully!', 'success')
         
-        console.log('🔄 Reloading orders...')
         await loadOrders()
-        console.log('✅ Orders reloaded')
         
         setEditingOrder(null)
         setShowForm(false)
-        console.log('✅ Form closed')
         
         // Highlight the newly created order
         setHighlightedOrderId(orderId)
@@ -219,24 +243,14 @@ export default function OrdersPage() {
         return // Exit early to avoid duplicate reload
       }
       
-      console.log('🔄 Reloading orders...')
       await loadOrders()
       await loadInvoices()
       await loadPartyPayments()
-      console.log('✅ Orders reloaded')
       
       setEditingOrder(null)
       setShowForm(false)
-      console.log('✅ Form closed')
     } catch (error: any) {
-      console.error('❌ Error in handleSaveOrder:', error)
-      console.error('Error details:', {
-        message: error?.message,
-        code: error?.code,
-        stack: error?.stack
-      })
-      const errorMessage = error?.message || 'Failed to save order'
-      showToast(errorMessage, 'error')
+      console.error('Error in handleSaveOrder:', error)
       throw error // Re-throw so OrderForm can handle it
     }
   }
@@ -368,6 +382,42 @@ export default function OrdersPage() {
     } catch (error: any) {
       console.error('Error adding payment:', error)
       showToast(error.message || 'Failed to add payment', 'error')
+    }
+  }
+
+  const handleEditPayment = (order: Order, paymentId: string) => {
+    setEditingPayment({ order, paymentId })
+  }
+
+  const handleSavePaymentEdit = async (data: { amount: number; date: string }) => {
+    if (!editingPayment || !editingPayment.order.id) return
+    
+    try {
+      await orderService.updatePartialPayment(editingPayment.order.id, editingPayment.paymentId, data)
+      
+      // Reload orders
+      await loadOrders()
+      
+      // Update selected order if it's the same
+      if (selectedOrderForPayments?.id === editingPayment.order.id && editingPayment.order.id) {
+        const updated = await orderService.getOrderById(editingPayment.order.id)
+        if (updated) {
+          setSelectedOrderForPayments(updated)
+        }
+      }
+      
+      // Update order detail drawer if it's open
+      if (selectedOrderDetail?.id === editingPayment.order.id && editingPayment.order.id) {
+        const updated = await orderService.getOrderById(editingPayment.order.id)
+        if (updated) {
+          setSelectedOrderDetail(updated)
+        }
+      }
+      
+      setEditingPayment(null)
+    } catch (error: any) {
+      console.error('Failed to update payment:', error)
+      setEditingPayment(null)
     }
   }
 
@@ -643,15 +693,18 @@ export default function OrdersPage() {
         totalPaid += payment.amount
         
         // Track last payment date and amount
-        const paymentDate = new Date(payment.date)
-        if (!lastPaymentDate || paymentDate > new Date(lastPaymentDate)) {
-          lastPaymentDate = payment.date
-          lastPaymentAmount = payment.amount
+        const paymentDate = safeParseDate(payment.date)
+        if (paymentDate) {
+          const currentLastDate = safeParseDate(lastPaymentDate)
+          if (!currentLastDate || paymentDate > currentLastDate) {
+            lastPaymentDate = payment.date
+            lastPaymentAmount = payment.amount
+          }
         }
       })
 
       // Sort payments by date (newest first)
-      allPayments.sort((a, b) => new Date(b.payment.date).getTime() - new Date(a.payment.date).getTime())
+      allPayments.sort((a, b) => safeGetTime(b.payment.date) - safeGetTime(a.payment.date))
 
       groups.push({
         partyName,
@@ -660,8 +713,8 @@ export default function OrdersPage() {
         lastPaymentDate,
         lastPaymentAmount,
         orders: partyOrders.sort((a, b) => {
-          const ta = new Date(a.createdAt || a.updatedAt || a.date).getTime()
-          const tb = new Date(b.createdAt || b.updatedAt || b.date).getTime()
+          const ta = safeGetTime(a.createdAt || a.updatedAt || a.date)
+          const tb = safeGetTime(b.createdAt || b.updatedAt || b.date)
           return tb - ta
         }),
         payments: allPayments
@@ -926,7 +979,7 @@ export default function OrdersPage() {
                             
                             if (!amountStr) return
 
-                            const amount = parseFloat(amountStr)
+                            const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
                             if (isNaN(amount) || amount <= 0) {
                               showToast('Invalid amount', 'error')
                               return
@@ -971,14 +1024,17 @@ export default function OrdersPage() {
                           {formatIndianCurrency(Math.abs(balance))}
                         </span>
                       </div>
-                      {group.lastPaymentDate && group.lastPaymentAmount !== null && (
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200" style={{ width: '100%', boxSizing: 'border-box' }}>
-                          <span className="text-gray-600">Last paid at</span>
-                          <span className="font-medium text-gray-900 text-right">
-                            {format(new Date(group.lastPaymentDate), 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
-                          </span>
-                        </div>
-                      )}
+                      {group.lastPaymentDate && group.lastPaymentAmount !== null && (() => {
+                        const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+                        return lastPaymentDateObj ? (
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-200" style={{ width: '100%', boxSizing: 'border-box' }}>
+                            <span className="text-gray-600">Last paid at</span>
+                            <span className="font-medium text-gray-900 text-right">
+                              {format(lastPaymentDateObj, 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
+                            </span>
+                          </div>
+                        ) : null
+                      })()}
                     </div>
                   </button>
                 </div>
@@ -1046,7 +1102,10 @@ export default function OrdersPage() {
                     />
                   </td>
                   <td className="px-1.5 py-0.5 whitespace-nowrap text-xs text-gray-900">
-                    {format(new Date(order.date), 'dd MMM yyyy')}
+                    {(() => {
+                      const orderDate = safeParseDate(order.date)
+                      return orderDate ? format(orderDate, 'dd MMM yyyy') : 'Invalid Date'
+                    })()}
                   </td>
                   <td className="px-1.5 py-0.5 whitespace-nowrap text-center">
                     {order.invoiced ? (
@@ -1294,30 +1353,52 @@ export default function OrdersPage() {
                         <p className="text-sm text-gray-500 text-center py-4">No payment records found</p>
                       ) : (
                         <div className="space-y-2">
-                          {payments.map((payment) => (
-                            <div
-                              key={payment.id}
-                              className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-semibold text-gray-900">
-                                    {formatIndianCurrency(payment.amount)}
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    {format(new Date(payment.date), 'dd MMM yyyy, hh:mm a')}
-                                  </span>
+                          {payments.map((payment) => {
+                            // Calculate max amount for this payment (original total - other payments)
+                            const otherPaymentsTotal = payments
+                              .filter(p => p.id !== payment.id)
+                              .reduce((sum, p) => sum + p.amount, 0)
+                            const maxAmount = expenseAmount - otherPaymentsTotal
+                            
+                            return (
+                              <div
+                                key={payment.id}
+                                className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm font-semibold text-gray-900">
+                                      {formatIndianCurrency(payment.amount)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {(() => {
+                                        const paymentDate = safeParseDate(payment.date)
+                                        return paymentDate ? format(paymentDate, 'dd MMM yyyy, hh:mm a') : 'Invalid Date'
+                                      })()}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 ml-3">
+                                  <button
+                                    onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
+                                    className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                                    title="Edit payment"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
+                                    className="p-1.5 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
+                                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                                    title="Remove payment"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
                                 </div>
                               </div>
-                              <button
-                                onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
-                                className="ml-3 p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                                title="Remove payment"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -1341,6 +1422,29 @@ export default function OrdersPage() {
           </div>
         </>
       )}
+
+      {/* Payment Edit Drawer */}
+      {editingPayment && editingPayment.order.partialPayments && (() => {
+        const payment = editingPayment.order.partialPayments!.find(p => p.id === editingPayment.paymentId)
+        if (!payment) return null
+        
+        // Calculate max amount (original total - other payments)
+        const otherPaymentsTotal = editingPayment.order.partialPayments!
+          .filter(p => p.id !== editingPayment.paymentId)
+          .reduce((sum, p) => sum + p.amount, 0)
+        const expenseAmount = Number(editingPayment.order.originalTotal || 0)
+        const maxAmount = expenseAmount - otherPaymentsTotal
+        
+        return (
+          <PaymentEditDrawer
+            isOpen={!!editingPayment}
+            onClose={() => setEditingPayment(null)}
+            onSave={handleSavePaymentEdit}
+            initialData={{ amount: payment.amount, date: payment.date }}
+            maxAmount={maxAmount}
+          />
+        )
+      })()}
 
       <NavBar />
     </div>

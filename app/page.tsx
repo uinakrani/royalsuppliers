@@ -13,7 +13,6 @@ import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt,
 import FilterDrawer from '@/components/FilterDrawer'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderForm from '@/components/OrderForm'
-import { showToast } from '@/components/Toast'
 import { useRouter } from 'next/navigation'
 import { partyPaymentService } from '@/lib/partyPaymentService'
 
@@ -481,16 +480,10 @@ export default function Dashboard() {
           order={null}
           onClose={() => setShowForm(false)}
           onSave={async (orderData) => {
-            try {
-              const orderId = await orderService.createOrder(orderData)
-              showToast('Order created successfully!', 'success')
-              setShowForm(false)
-              // Navigate to orders page and highlight the new order
-              router.push(`/orders?highlight=${orderId}`)
-            } catch (error: any) {
-              showToast(error?.message || 'Failed to create order', 'error')
-              throw error
-            }
+            const orderId = await orderService.createOrder(orderData)
+            setShowForm(false)
+            // Navigate to orders page and highlight the new order
+            router.push(`/orders?highlight=${orderId}`)
           }}
         />
       )}
