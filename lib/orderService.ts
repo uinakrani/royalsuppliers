@@ -157,11 +157,16 @@ export const orderService = {
       
       // Handle ledger entries and payment status
       try {
+        // Skip ledger entry creation if partialPayments is being updated
+        // This means we're coming from addPaymentToOrder which already created the ledger entry
+        const isUpdatingPayments = Object.prototype.hasOwnProperty.call(order, 'partialPayments')
+        
         // If order changed from "due" to "paid", create ledger entry for full expense
         // This happens when:
         // 1. Order was due and is now being marked as paid
         // 2. Order was due and paymentDue is being set to false with paid being true
-        if (wasDue && (willBePaid || isMarkingAsPaid)) {
+        // BUT skip if we're updating payments (addPaymentToOrder already handled it)
+        if (wasDue && (willBePaid || isMarkingAsPaid) && !isUpdatingPayments) {
           // Use updated value if provided, otherwise use existing value
           // Expense amount is just originalTotal (raw material cost)
           const expenseAmount = Object.prototype.hasOwnProperty.call(order, 'originalTotal')

@@ -61,6 +61,7 @@ export const ledgerService = {
   async list(): Promise<LedgerEntry[]> {
     const db = getDb()
     if (!db) return []
+    // Query by date (has index), then sort by creation time in JavaScript
     const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
     const snap = await getDocs(q)
     const items: LedgerEntry[] = []
@@ -87,12 +88,26 @@ export const ledgerService = {
         ...(createdAt ? { createdAt } : {}),
       })
     })
+    
+    // Sort by creation time (most recent first) - use createdAt, then date as fallback
+    // This ensures the latest added entries appear at the top
+    items.sort((a, b) => {
+      const aTime = a.createdAt 
+        ? new Date(a.createdAt).getTime()
+        : (a.date ? new Date(a.date).getTime() : 0)
+      const bTime = b.createdAt 
+        ? new Date(b.createdAt).getTime()
+        : (b.date ? new Date(b.date).getTime() : 0)
+      return bTime - aTime // Descending order (newest first)
+    })
+    
     return items
   },
 
   subscribe(callback: (entries: LedgerEntry[]) => void): () => void {
     const db = getDb()
     if (!db) return () => {}
+    // Query by date (has index), then sort by creation time in JavaScript
     const qRef = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
     return onSnapshot(qRef, (snap) => {
       const items: LedgerEntry[] = []
@@ -119,6 +134,19 @@ export const ledgerService = {
           ...(createdAt ? { createdAt } : {}),
         })
       })
+      
+      // Sort by creation time (most recent first) - use createdAt, then date as fallback
+      // This ensures the latest added entries appear at the top
+      items.sort((a, b) => {
+        const aTime = a.createdAt 
+          ? new Date(a.createdAt).getTime()
+          : (a.date ? new Date(a.date).getTime() : 0)
+        const bTime = b.createdAt 
+          ? new Date(b.createdAt).getTime()
+          : (b.date ? new Date(b.date).getTime() : 0)
+        return bTime - aTime // Descending order (newest first)
+      })
+      
       callback(items)
     })
   },

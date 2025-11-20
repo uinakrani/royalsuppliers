@@ -33,12 +33,29 @@ export default function LedgerPage() {
   }, [entries])
 
   // Separate income (credit) and expenses (debit)
+  // Sort by creation time (most recent first) - use createdAt, then date as fallback
   const incomeEntries = useMemo(() => {
-    return entries.filter(e => e.type === 'credit').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return entries.filter(e => e.type === 'credit').sort((a, b) => {
+      const aTime = a.createdAt 
+        ? new Date(a.createdAt).getTime()
+        : (a.date ? new Date(a.date).getTime() : 0)
+      const bTime = b.createdAt 
+        ? new Date(b.createdAt).getTime()
+        : (b.date ? new Date(b.date).getTime() : 0)
+      return bTime - aTime // Descending order (newest first)
+    })
   }, [entries])
 
   const expenseEntries = useMemo(() => {
-    return entries.filter(e => e.type === 'debit').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return entries.filter(e => e.type === 'debit').sort((a, b) => {
+      const aTime = a.createdAt 
+        ? new Date(a.createdAt).getTime()
+        : (a.date ? new Date(a.date).getTime() : 0)
+      const bTime = b.createdAt 
+        ? new Date(b.createdAt).getTime()
+        : (b.date ? new Date(b.date).getTime() : 0)
+      return bTime - aTime // Descending order (newest first)
+    })
   }, [entries])
 
   // Calculate totals
