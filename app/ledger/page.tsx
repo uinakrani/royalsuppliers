@@ -194,7 +194,7 @@ export default function LedgerPage() {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        paddingBottom: '9rem'
+        paddingBottom: 'calc(4rem + 5rem)' // NavBar (4rem) + Buttons bar (~5rem)
       }}>
         {loading ? (
           <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>
@@ -247,11 +247,14 @@ export default function LedgerPage() {
 
       {/* Add Buttons Bar - Fixed at bottom, above NavBar */}
       <div 
-        className="bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-30 shadow-lg"
+        className="bg-white border-t border-gray-200 fixed left-0 right-0 z-30 shadow-lg"
         style={{ 
           bottom: '4rem',
           padding: '0.75rem',
-          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         <div className="flex gap-2">
