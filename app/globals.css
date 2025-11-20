@@ -131,6 +131,8 @@ html, body, * {
   padding-bottom: 0;
   position: relative;
   box-sizing: border-box;
+  /* Ensure status bar area shows blue background */
+  background-color: transparent;
 }
 
 /* iOS PWA specific: Simple full device height configuration */
@@ -159,6 +161,11 @@ html, body, * {
     overflow: hidden; /* Prevent body scroll - #__next handles scrolling */
   }
   
+  html.standalone {
+    /* Blue background for status bar area */
+    background-color: #2e31fb !important;
+  }
+  
   html.standalone #__next {
     /* Full device height with safe area padding */
     height: 100%;
@@ -172,14 +179,29 @@ html, body, * {
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: 0; /* NavBar handles bottom */
+    /* Blue background visible through status bar area */
+    background-color: transparent;
   }
   
-  /* NavBar - flush to bottom with safe area */
+  /* Create blue overlay for status bar area */
+  html.standalone #__next::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 44px);
+    background-color: #2e31fb;
+    z-index: 9998;
+    pointer-events: none;
+  }
+  
+  /* NavBar - flush to bottom without safe area padding */
   html.standalone nav[class*="fixed"][class*="bottom-0"] {
     bottom: 0 !important;
     margin: 0 !important;
     position: fixed !important;
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-bottom: 0 !important;
   }
 }
 
@@ -323,6 +345,14 @@ img, video, iframe {
 /* Ensure headers with pt-safe account for safe area */
 .sticky.top-0.pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Make headers extend to cover status bar area for blue background */
+.bg-primary-600.sticky.top-0 {
+  margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.625rem);
+  /* Ensure blue background extends to top */
+  background-color: #2e31fb !important;
 }
 
 /* Ensure modals and drawers account for safe areas */
@@ -482,7 +512,7 @@ table tbody button {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    background: linear-gradient(135deg, #2e31fb 0%, #6366ff 100%);
     z-index: 9999;
     opacity: 0;
     pointer-events: none;
@@ -505,8 +535,8 @@ table tbody button {
 }
 
 .custom-checkbox:checked {
-  background-color: #0d9488;
-  border-color: #0d9488;
+  background-color: #2e31fb;
+  border-color: #2e31fb;
 }
 
 .custom-checkbox:checked::after {
@@ -569,7 +599,7 @@ select:disabled {
   height: 1.5rem;
   border: 2px solid #9ca3af;
   border-radius: 0.375rem;
-  border-top-color: #0d9488;
+  border-top-color: #2e31fb;
   animation: spin 0.6s linear infinite;
 }
 

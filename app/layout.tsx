@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: 'Royal Suppliers - Order Management',
   description: 'Order and invoice management system',
   manifest: '/manifest.json',
-  themeColor: '#0ea5e9',
+  themeColor: '#2e31fb',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent', // Translucent allows content behind, background color shows through
@@ -51,22 +51,51 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="theme-color" content="#0ea5e9" />
-        <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#2e31fb" />
+        <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-title" content="Royal Suppliers" />
         <style dangerouslySetInnerHTML={{__html: `
-          /* iOS Status Bar Color - Match header color (#0ea5e9) */
+          /* iOS Status Bar Color - Match header color (#2e31fb) */
           @supports (-webkit-touch-callout: none) {
             html {
-              background-color: #0ea5e9;
+              background-color: #2e31fb;
             }
             body {
               background-color: #f9fafb;
             }
             /* Ensure header background matches status bar */
             .bg-primary-600 {
-              background-color: #0ea5e9 !important;
+              background-color: #2e31fb !important;
+            }
+            /* Make status bar area blue - extend header color to top */
+            #__next {
+              background: linear-gradient(to bottom, #2e31fb 0%, #2e31fb env(safe-area-inset-top, 0px), transparent env(safe-area-inset-top, 0px));
+            }
+            /* Ensure status bar area is blue in standalone mode */
+            html.standalone {
+              background-color: #2e31fb !important;
+            }
+            html.standalone #__next::before {
+              content: '';
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: env(safe-area-inset-top, 0px);
+              background-color: #2e31fb;
+              z-index: 9999;
+            }
+          }
+          /* Android status bar color */
+          @media (prefers-color-scheme: dark) {
+            html {
+              background-color: #2e31fb;
+            }
+          }
+          @media (prefers-color-scheme: light) {
+            html {
+              background-color: #2e31fb;
             }
           }
         `}} />
@@ -74,7 +103,7 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="application-name" content="Royal Suppliers" />
-        <meta name="msapplication-TileColor" content="#0ea5e9" />
+        <meta name="msapplication-TileColor" content="#2e31fb" />
         <meta name="msapplication-tap-highlight" content="no" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
         <script

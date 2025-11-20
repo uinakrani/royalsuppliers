@@ -738,14 +738,14 @@ export default function OrdersPage() {
                   setEditingOrder(null)
                   setShowForm(true)
                 }}
-                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+                className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
                 title="Add Order"
               >
                 <Plus size={18} />
               </button>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+                className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
               >
                 <Filter size={18} />
               </button>
