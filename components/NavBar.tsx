@@ -18,15 +18,22 @@ export default function NavBar() {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         paddingLeft: 'env(safe-area-inset-left, 0px)',
         paddingRight: 'env(safe-area-inset-right, 0px)',
+        minHeight: '4rem',
         height: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
         width: '100%',
         maxWidth: '100vw',
         boxSizing: 'border-box',
         margin: 0,
-        paddingTop: 0
+        paddingTop: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        /* Ensure it goes all the way to the bottom */
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)'
       }}
     >
-      <div className="flex justify-around items-center h-16">
+      <div className="flex justify-around items-center" style={{ height: '4rem', minHeight: '4rem' }}>
         <Link
           href="/"
           className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${

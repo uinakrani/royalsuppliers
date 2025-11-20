@@ -29,6 +29,7 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+  padding-bottom: 0 !important; /* Ensure no extra space at bottom */
   /* Prevent content overflow */
   position: relative;
   box-sizing: border-box;
@@ -67,6 +68,7 @@ html {
   height: -webkit-fill-available;
   margin: 0;
   padding: 0;
+  padding-bottom: 0 !important; /* Ensure no extra space at bottom */
   /* Prevent horizontal scroll */
   overflow-x: hidden;
   box-sizing: border-box;
@@ -166,15 +168,33 @@ html, body, * {
     bottom: 0 !important;
     margin-bottom: 0 !important;
     position: fixed !important;
+    /* Ensure it extends to the very bottom including safe area */
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    /* Force hardware acceleration for smooth positioning */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
   }
   
   /* Ensure no extra space below viewport in PWA mode */
   html.standalone {
     overflow: hidden;
+    /* Prevent any extra spacing */
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
   }
   
   html.standalone body {
     overflow: hidden;
+    /* Prevent any extra spacing */
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  
+  html.standalone #__next {
+    /* Prevent any extra spacing at bottom */
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
   }
 }
 

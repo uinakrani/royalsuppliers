@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'apple-mobile-web-app-status-bar-style': 'default',
     'apple-mobile-web-app-title': 'Royal Suppliers',
   },
 }
@@ -51,7 +51,21 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="theme-color" content="#0ea5e9" />
+        <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-title" content="Royal Suppliers" />
+        <style dangerouslySetInnerHTML={{__html: `
+          /* iOS Status Bar Color Fix - Match theme color */
+          @supports (-webkit-touch-callout: none) {
+            html {
+              background-color: #0ea5e9;
+            }
+            body {
+              background-color: #f9fafb;
+            }
+          }
+        `}} />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="apple-touch-fullscreen" content="yes" />
