@@ -1,0 +1,411 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { Order, PaymentRecord } from '@/types/order'
+import { formatIndianCurrency } from '@/lib/currencyUtils'
+import { format } from 'date-fns'
+import { X, Edit, Trash2, Plus, Calendar, User, Truck, Package, DollarSign, TrendingUp, FileText } from 'lucide-react'
+import { sweetAlert } from '@/lib/sweetalert'
+import { showToast } from '@/components/Toast'
+
+interface OrderDetailPopupProps {
+  order: Order | null
+  isOpen: boolean
+  onClose: () => void
+  onEdit: (order: Order) => void
+  onDelete: (orderId: string) => void
+  onAddPayment: (order: Order) => void
+  onEditPayment: (order: Order, paymentId: string) => void
+  onRemovePayment: (order: Order, paymentId: string) => void
+  onOrderUpdated?: () => Promise<void>
+}
+
+const safeParseDate = (dateString: string | null | undefined): Date | null => {
+  if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
+    return null
+  }
+  const date = new Date(dateString)
+  return isNaN(date.getTime()) ? null : date
+}
+
+export default function OrderDetailPopup({
+  order,
+  isOpen,
+  onClose,
+  onEdit,
+  onDelete,
+  onAddPayment,
+  onEditPayment,
+  onRemovePayment,
+  onOrderUpdated,
+}: OrderDetailPopupProps) {
+  const [isClosing, setIsClosing] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false)
+      setIsMounted(false)
+      requestAnimationFrame(() => {
+        setIsMounted(true)
+      })
+      document.body.style.overflow = 'hidden'
+    } else {
+      setIsMounted(false)
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
+  const handleClose = () => {
+    setIsClosing(true)
+    setIsMounted(false)
+    setTimeout(() => {
+      onClose()
+      setIsClosing(false)
+    }, 250)
+  }
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === backdropRef.current) {
+      handleClose()
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!order?.id) return
+    
+    const confirmed = await sweetAlert.confirm({
+      title: 'Delete Order?',
+      message: 'Are you sure you want to delete this order? This action cannot be undone.',
+      icon: 'warning',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+    })
+
+    if (confirmed) {
+      onDelete(order.id)
+      handleClose()
+    }
+  }
+
+  if (!isOpen || !order) return null
+
+  const orderDate = safeParseDate(order.date)
+  const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
+  const partialPayments = order.partialPayments || []
+  const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        ref={backdropRef}
+        onClick={handleBackdropClick}
+        className={`fixed inset-0 bg-black/50 z-[9998] ${
+          isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
+        }`}
+        style={{
+          willChange: 'opacity',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'none',
+        }}
+      />
+
+      {/* Popup */}
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <div
+          ref={popupRef}
+          className={`bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] pointer-events-auto flex flex-col ${
+            isClosing
+              ? 'native-modal-exit'
+              : isMounted
+              ? 'native-modal-enter'
+              : 'opacity-0 scale-95 translate-y-4'
+          }`}
+          style={{
+            willChange: 'transform, opacity',
+            backfaceVisibility: 'hidden',
+            WebkitFontSmoothing: 'antialiased',
+          }}
+        >
+          {/* Header */}
+          <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 className="text-lg font-bold text-gray-900">Order Details</h2>
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-lg active:bg-gray-100 transition-colors touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+              aria-label="Close"
+            >
+              <X size={20} className="text-gray-500" />
+            </button>
+          </div>
+
+          {/* Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* Party Name & Total */}
+            <div className="bg-primary-50 rounded-lg p-3 border border-primary-200">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-primary-600" />
+                  <span className="font-semibold text-gray-900">{order.partyName}</span>
+                </div>
+                <span className="text-lg font-bold text-primary-600">
+                  {formatIndianCurrency(order.total)}
+                </span>
+              </div>
+              <div className="text-xs text-gray-600 mt-1">{order.siteName}</div>
+            </div>
+
+            {/* Key Info Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* Profit */}
+              <div className="bg-green-50 rounded-lg p-2.5 border border-green-200">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingUp size={14} className="text-green-600" />
+                  <span className="text-xs text-gray-600">Profit</span>
+                </div>
+                <div className={`font-bold ${order.profit >= 0 ? 'text-green-700' : 'text-red-600'}`} style={{ fontSize: '14px' }}>
+                  {formatIndianCurrency(order.profit)}
+                </div>
+              </div>
+
+              {/* Raw Payments */}
+              <div className="bg-blue-50 rounded-lg p-2.5 border border-blue-200">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <DollarSign size={14} className="text-blue-600" />
+                  <span className="text-xs text-gray-600">Raw Payments</span>
+                </div>
+                <div className="font-bold text-blue-700" style={{ fontSize: '14px' }}>
+                  {formatIndianCurrency(totalRawPayments)}
+                </div>
+              </div>
+
+              {/* Date */}
+              <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Calendar size={14} className="text-gray-600" />
+                  <span className="text-xs text-gray-600">Date</span>
+                </div>
+                <div className="font-semibold text-gray-900" style={{ fontSize: '12px' }}>
+                  {orderDate ? format(orderDate, 'dd MMM yyyy') : 'Invalid Date'}
+                </div>
+                {orderDate && (
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {format(orderDate, 'hh:mm a')}
+                  </div>
+                )}
+              </div>
+
+              {/* Truck Owner */}
+              <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Truck size={14} className="text-gray-600" />
+                  <span className="text-xs text-gray-600">Truck Owner</span>
+                </div>
+                <div className="font-semibold text-gray-900" style={{ fontSize: '12px' }}>
+                  {order.truckOwner}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">{order.truckNo}</div>
+              </div>
+            </div>
+
+            {/* Material */}
+            <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Package size={14} className="text-gray-600" />
+                <span className="text-xs font-medium text-gray-700">Material</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {materials.map((mat, idx) => (
+                  <span
+                    key={idx}
+                    className="bg-white px-2 py-1 rounded text-xs font-medium text-gray-700 border border-gray-300"
+                  >
+                    {mat}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Raw Material Payments */}
+            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5">
+                  <DollarSign size={16} className="text-blue-600" />
+                  <span className="font-semibold text-gray-900">Raw Material Payments</span>
+                </div>
+                <button
+                  onClick={() => {
+                    handleClose()
+                    setTimeout(() => {
+                      onAddPayment(order)
+                    }, 300)
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium active:bg-blue-700 transition-colors touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <Plus size={14} />
+                  Add Payment
+                </button>
+              </div>
+
+              {partialPayments.length === 0 ? (
+                <div className="text-center text-gray-500 py-4 text-xs">
+                  No payments added yet
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {partialPayments.map((payment) => {
+                    const paymentDate = safeParseDate(payment.date)
+                    return (
+                      <div
+                        key={payment.id}
+                        className="bg-white rounded-lg p-2.5 border border-blue-300 flex items-center justify-between"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold text-gray-900" style={{ fontSize: '13px' }}>
+                              {formatIndianCurrency(payment.amount)}
+                            </span>
+                            {paymentDate && (
+                              <span className="text-xs text-gray-500">
+                                {format(paymentDate, 'dd MMM yyyy')}
+                              </span>
+                            )}
+                          </div>
+                          {paymentDate && (
+                            <div className="text-xs text-gray-500">
+                              {format(paymentDate, 'hh:mm a')}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1 ml-2">
+                          <button
+                            onClick={() => {
+                              handleClose()
+                              setTimeout(() => {
+                                onEditPayment(order, payment.id)
+                              }, 300)
+                            }}
+                            className="p-1.5 bg-blue-100 text-blue-700 rounded active:bg-blue-200 transition-colors touch-manipulation"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
+                            title="Edit Payment"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const confirmed = await sweetAlert.confirm({
+                                title: 'Remove Payment?',
+                                message: 'Are you sure you want to remove this payment?',
+                                icon: 'warning',
+                              })
+                              if (confirmed) {
+                                onRemovePayment(order, payment.id)
+                                if (onOrderUpdated) {
+                                  await onOrderUpdated()
+                                }
+                              }
+                            }}
+                            className="p-1.5 bg-red-100 text-red-700 rounded active:bg-red-200 transition-colors touch-manipulation"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
+                            title="Remove Payment"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Additional Details */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-2">
+              <div className="text-xs font-medium text-gray-700 mb-2">Additional Details</div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-gray-600">Weight:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{order.weight.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Rate:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{formatIndianCurrency(order.rate)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Original Weight:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{order.originalWeight.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Original Rate:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{formatIndianCurrency(order.originalRate)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Original Total:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{formatIndianCurrency(order.originalTotal)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Additional Cost:</span>
+                  <span className="font-semibold text-gray-900 ml-1">{formatIndianCurrency(order.additionalCost)}</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-gray-300 flex items-center gap-2">
+                {order.invoiced ? (
+                  <span className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                    <FileText size={12} />
+                    Invoiced
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500">Not Invoiced</span>
+                )}
+                {order.paid ? (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                    Paid
+                  </span>
+                ) : order.paymentDue ? (
+                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
+                    Payment Due
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex-shrink-0 flex gap-2 p-4 border-t border-gray-200">
+            <button
+              onClick={handleDelete}
+              className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-medium active:bg-red-700 transition-colors touch-manipulation flex items-center justify-center gap-2"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Trash2 size={18} />
+              <span>Delete</span>
+            </button>
+            <button
+              onClick={() => {
+                handleClose()
+                setTimeout(() => onEdit(order), 300)
+              }}
+              className="flex-1 px-4 py-3 bg-primary-600 text-white rounded-lg font-medium active:bg-primary-700 transition-colors touch-manipulation flex items-center justify-center gap-2"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Edit size={18} />
+              <span>Edit</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
