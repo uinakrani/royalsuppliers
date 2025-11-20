@@ -115,10 +115,10 @@ export const nativePopup = {
       // Auto close after 2 seconds
       setTimeout(() => {
         if (popupStateRef) {
-          popupStateRef.setState({ isOpen: false })
+          popupStateRef.setState({ isOpen: false, inputValue: '' })
           setTimeout(() => {
             if (popupStateRef?.resolve) {
-              popupStateRef.resolve()
+              popupStateRef.resolve(undefined)
               popupStateRef.resolve = () => {}
             }
           }, 300)
@@ -180,6 +180,35 @@ export const nativePopup = {
         inputValue: '',
       })
       popupStateRef.resolve = () => resolve()
+      popupStateRef.reject = reject
+    })
+  },
+
+  // Generic fire method for custom dialogs
+  fire: async (options: {
+    title?: string
+    message?: string
+    icon?: 'success' | 'error' | 'warning' | 'info'
+    confirmText?: string
+    showCancelButton?: boolean
+    cancelText?: string
+  }): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!popupStateRef) {
+        reject(new Error('NativePopup not initialized'))
+        return
+      }
+      const isConfirm = options.showCancelButton !== false
+      popupStateRef.setState({
+        isOpen: true,
+        type: isConfirm ? 'confirm' : (options.icon || 'info') as PopupType,
+        title: options.title || '',
+        message: options.message || '',
+        confirmText: options.confirmText || 'OK',
+        cancelText: options.cancelText || 'Cancel',
+        inputValue: '',
+      })
+      popupStateRef.resolve = (value: any) => resolve({ isConfirmed: value === true || value !== null })
       popupStateRef.reject = reject
     })
   },
@@ -245,7 +274,7 @@ export default function NativePopup() {
         } else if (state.type === 'confirm') {
           popupStateRef.resolve(false)
         } else {
-          popupStateRef.resolve()
+          popupStateRef.resolve(undefined)
         }
       }
     }, 250)

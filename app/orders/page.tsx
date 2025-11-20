@@ -291,7 +291,7 @@ export default function OrdersPage() {
     try {
       const amountStr = await sweetAlert.prompt({
         title: 'Add Payment',
-        text: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
+        message: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
         inputType: 'text',
@@ -328,7 +328,7 @@ export default function OrdersPage() {
       // Ask user what they want to do: Add Payment or Add and Mark as Paid
       const actionChoice = await sweetAlert.confirm({
         title: 'Add Payment',
-        text: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
+        message: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
         icon: 'question',
         confirmText: 'Add and Mark as Paid',
         cancelText: 'Just Add Payment',
@@ -427,7 +427,7 @@ export default function OrdersPage() {
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Remove Payment?',
-        text: 'Are you sure you want to remove this payment? This action cannot be undone.',
+        message: 'Are you sure you want to remove this payment? This action cannot be undone.',
         icon: 'warning',
         confirmText: 'Remove',
         cancelText: 'Cancel'
@@ -468,7 +468,7 @@ export default function OrdersPage() {
       console.log('Delete button clicked for order:', id)
       const confirmed = await sweetAlert.confirm({
         title: 'Delete Order?',
-        text: 'Are you sure you want to delete this order? This action cannot be undone.',
+        message: 'Are you sure you want to delete this order? This action cannot be undone.',
         icon: 'warning',
         confirmText: 'Delete',
         cancelText: 'Cancel'
@@ -492,7 +492,7 @@ export default function OrdersPage() {
       // Fallback to SweetAlert confirm
       const confirmed = await sweetAlert.confirm({
         title: 'Delete Order?',
-        text: 'Are you sure you want to delete this order? This action cannot be undone.',
+        message: 'Are you sure you want to delete this order? This action cannot be undone.',
         icon: 'warning',
         confirmText: 'Delete',
         cancelText: 'Cancel'
@@ -542,7 +542,7 @@ export default function OrdersPage() {
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Delete Selected Orders?',
-        text: `Are you sure you want to delete ${selectedOrders.size} order(s)? This action cannot be undone.`,
+        message: `Are you sure you want to delete ${selectedOrders.size} order(s)? This action cannot be undone.`,
         icon: 'warning',
         confirmText: 'Delete',
         cancelText: 'Cancel'
@@ -597,7 +597,7 @@ export default function OrdersPage() {
       try {
         const confirmed = await sweetAlert.confirm({
           title: 'Some Orders Already Invoiced',
-          text: `${alreadyInvoiced} order(s) already have invoices. Create invoice for ${ordersToInvoice.length} order(s) only?`,
+          message: `${alreadyInvoiced} order(s) already have invoices. Create invoice for ${ordersToInvoice.length} order(s) only?`,
           icon: 'info',
           confirmText: 'Create Invoice',
           cancelText: 'Cancel'
@@ -994,7 +994,7 @@ export default function OrdersPage() {
                           try {
                             const amountStr = await sweetAlert.prompt({
                               title: 'Add Payment',
-                              text: `Remaining balance: ${formatIndianCurrency(balance)}`,
+                              message: `Remaining balance: ${formatIndianCurrency(balance)}`,
                               inputLabel: 'Payment Amount',
                               inputPlaceholder: 'Enter amount',
                               inputType: 'text',

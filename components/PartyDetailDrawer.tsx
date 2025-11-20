@@ -71,7 +71,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
     try {
       const amountStr = await sweetAlert.prompt({
         title: 'Add Payment',
-        text: `Remaining balance: ${formatIndianCurrency(balance)}`,
+        message: `Remaining balance: ${formatIndianCurrency(balance)}`,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
         inputType: 'text',
@@ -120,7 +120,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Remove Payment?',
-        text: 'Are you sure you want to remove this payment? This action cannot be undone.',
+        message: 'Are you sure you want to remove this payment? This action cannot be undone.',
         icon: 'warning',
         confirmText: 'Remove',
         cancelText: 'Cancel'

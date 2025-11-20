@@ -80,7 +80,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
     try {
       const amountStr = await sweetAlert.prompt({
         title: 'Add Payment',
-        text: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
+        message: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
         inputType: 'text',
@@ -121,7 +121,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
       // Ask user what they want to do: Add Payment or Add and Mark as Paid
       const actionChoice = await sweetAlert.confirm({
         title: 'Add Payment',
-        text: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
+        message: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
         icon: 'question',
         confirmText: 'Add and Mark as Paid',
         cancelText: 'Just Add Payment',
@@ -357,7 +357,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                   try {
                                     const confirmed = await sweetAlert.confirm({
                                       title: 'Remove Payment?',
-                                      text: 'Are you sure you want to remove this payment?',
+                                      message: 'Are you sure you want to remove this payment?',
                                       icon: 'warning',
                                       confirmText: 'Remove',
                                       cancelText: 'Cancel'

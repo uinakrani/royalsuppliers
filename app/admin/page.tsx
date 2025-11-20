@@ -17,7 +17,7 @@ export default function AdminPage() {
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Generate Dummy Orders?',
-        text: 'This will create multiple dummy orders with various party names, sites, and dates. Continue?',
+        message: 'This will create multiple dummy orders with various party names, sites, and dates. Continue?',
         icon: 'question',
         confirmText: 'Generate',
         cancelText: 'Cancel'

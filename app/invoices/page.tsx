@@ -136,7 +136,7 @@ export default function InvoicesPage() {
     try {
       const amountStr = await sweetAlert.prompt({
         title: 'Add Payment',
-        text: `Remaining balance: ${formatIndianCurrency(remaining)}`,
+        message: `Remaining balance: ${formatIndianCurrency(remaining)}`,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
         inputType: 'text',
@@ -182,7 +182,7 @@ export default function InvoicesPage() {
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Remove Payment?',
-        text: 'Are you sure you want to remove this payment?',
+        message: 'Are you sure you want to remove this payment?',
         icon: 'warning',
         confirmText: 'Remove',
         cancelText: 'Cancel'
@@ -204,7 +204,7 @@ export default function InvoicesPage() {
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Delete Invoice?',
-        text: 'Are you sure you want to delete this invoice? This will unmark the orders as invoiced.',
+        message: 'Are you sure you want to delete this invoice? This will unmark the orders as invoiced.',
         icon: 'warning',
         confirmText: 'Delete',
         cancelText: 'Cancel'

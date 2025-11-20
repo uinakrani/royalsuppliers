@@ -64,30 +64,11 @@ export default function PWAInstallPrompt() {
     try {
       const result = await sweetAlert.fire({
         title: 'Install Royal Suppliers',
-        html: `
-          <div style="text-align: left; padding: 1rem 0;">
-            <p style="margin-bottom: 1rem;">Install our app for a better experience:</p>
-            <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
-              <li style="margin-bottom: 0.5rem;">⚡ Faster loading</li>
-              <li style="margin-bottom: 0.5rem;">📱 Works offline</li>
-              <li style="margin-bottom: 0.5rem;">🔔 Push notifications</li>
-              <li style="margin-bottom: 0.5rem;">📲 Easy access from home screen</li>
-            </ul>
-          </div>
-        `,
+        message: 'Install our app for a better experience:\n\n• ⚡ Faster loading\n• 📱 Works offline\n• 🔔 Push notifications\n• 📲 Easy access from home screen',
         icon: 'info',
         showCancelButton: true,
-        confirmButtonText: 'Install Now',
-        cancelButtonText: 'Maybe Later',
-        confirmButtonColor: '#0d9488',
-        cancelButtonColor: '#6b7280',
-        customClass: {
-          popup: 'swal2-popup-mobile',
-          title: 'swal2-title-mobile',
-          htmlContainer: 'swal2-html-container-mobile',
-          confirmButton: 'swal2-confirm-mobile',
-          cancelButton: 'swal2-cancel-mobile',
-        },
+        confirmText: 'Install Now',
+        cancelText: 'Maybe Later',
       })
 
       if (result.isConfirmed) {
