@@ -1465,7 +1465,9 @@ export default function OrdersPage() {
           />
         )
       })()}
+      </div>
 
+      {/* Bottom Navigation - Fixed at bottom */}
       <NavBar />
     </div>
   )

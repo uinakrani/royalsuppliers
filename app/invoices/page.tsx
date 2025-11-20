@@ -617,7 +617,6 @@ export default function InvoicesPage() {
             })
           )}
         </div>
-        </div>
       </div>
 
       {/* Order Form */}
