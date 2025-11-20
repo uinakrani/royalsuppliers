@@ -313,6 +313,9 @@ export default function InvoicesPage() {
         </div>
       </div>
       
+      {/* Content spacing for sticky header */}
+      <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))' }}></div>
+      
       <div className="max-w-7xl mx-auto px-4 py-4">
 
         {/* Filters Drawer */}

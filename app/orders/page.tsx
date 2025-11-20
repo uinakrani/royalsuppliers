@@ -1044,7 +1044,7 @@ export default function OrdersPage() {
         </div>
       ) : (
         // All Orders View (existing table view)
-        <div className="px-2 pb-1 overflow-x-auto">
+        <div className="px-2 pb-1 overflow-x-auto" style={{ paddingTop: headerHeight ? `calc(${headerHeight}px + env(safe-area-inset-top, 0px) + 0.5rem)` : 'calc(70px + env(safe-area-inset-top, 0px) + 0.5rem)' }}>
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full bg-white rounded-lg shadow-sm border border-gray-200" style={{ borderSpacing: 0, borderCollapse: 'separate' }}>
             <thead className="bg-gray-50 sticky top-0 z-10">

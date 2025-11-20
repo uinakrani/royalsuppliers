@@ -79,6 +79,8 @@ html {
   --safe-area-inset-left: env(safe-area-inset-left);
   --safe-area-inset-right: env(safe-area-inset-right);
   --header-height: 60px;
+  /* Header height including safe area - approximate, will be adjusted per page */
+  --header-total-height: calc(70px + env(safe-area-inset-top, 0px));
 }
 
 /* Hide scrollbars completely - native app feel */
@@ -117,9 +119,9 @@ html, body, * {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  /* Add safe area padding: content starts below status bar, extends to bottom including safe area */
+  /* Add safe area padding: content starts below status bar */
+  /* Note: Don't add bottom padding here - NavBar handles it and pages account for NavBar height */
   padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
   /* Ensure content doesn't overflow */
@@ -141,6 +143,9 @@ html, body, * {
   html.standalone body {
     height: 100%;
     width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent body scroll - #__next handles scrolling */
   }
   
   html.standalone #__next {
@@ -149,11 +154,27 @@ html, body, * {
     height: -webkit-fill-available;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    /* Content starts below status bar, extends to bottom including safe area */
+    /* Content starts below status bar */
+    /* Note: Don't add bottom padding here - NavBar handles it and pages account for NavBar height */
     padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
+  }
+  
+  /* Ensure NavBar sits flush at bottom in PWA mode with no gap */
+  html.standalone nav[class*="fixed"][class*="bottom-0"] {
+    bottom: 0 !important;
+    margin-bottom: 0 !important;
+    position: fixed !important;
+  }
+  
+  /* Ensure no extra space below viewport in PWA mode */
+  html.standalone {
+    overflow: hidden;
+  }
+  
+  html.standalone body {
+    overflow: hidden;
   }
 }
 
@@ -170,6 +191,16 @@ button, a {
 
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Content spacing below sticky header */
+.content-below-header {
+  padding-top: calc(70px + env(safe-area-inset-top, 0px));
+}
+
+/* For pages with dynamic header height (like orders page) */
+.content-below-header-dynamic {
+  /* Will be set inline based on measured header height */
 }
 
 .pl-safe {

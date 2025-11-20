@@ -181,6 +181,9 @@ export default function LedgerPage() {
         </div>
       </div>
 
+      {/* Content spacing for sticky header */}
+      <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))' }}></div>
+
       <div className="p-1.5">
         {loading ? (
           <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>

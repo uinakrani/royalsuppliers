@@ -336,6 +336,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Content spacing for sticky header */}
+      <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))' }}></div>
+
       {/* Filters Drawer */}
       <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
         <div className="space-y-3">
