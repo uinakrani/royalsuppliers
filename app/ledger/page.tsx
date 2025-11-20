@@ -181,8 +181,40 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* Content spacing for sticky header */}
-      <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top, 0px))' }}></div>
+      {/* Sticky Add Buttons Bar - Positioned at thumb depth */}
+      <div 
+        className="bg-white border-b border-gray-200 sticky z-30 shadow-sm"
+        style={{ 
+          top: 'calc(70px + env(safe-area-inset-top, 0px))',
+          padding: '0.75rem',
+        }}
+      >
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleAddEntry('credit')}
+            className="flex-1 bg-green-600 text-white rounded-lg active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation shadow-md font-medium"
+            style={{ WebkitTapHighlightColor: 'transparent', fontSize: '14px' }}
+            title="Add Income"
+            aria-label="Add Income"
+          >
+            <Plus size={18} />
+            <span>Add Income</span>
+          </button>
+          <button
+            onClick={() => handleAddEntry('debit')}
+            className="flex-1 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation shadow-md font-medium"
+            style={{ WebkitTapHighlightColor: 'transparent', fontSize: '14px' }}
+            title="Add Expense"
+            aria-label="Add Expense"
+          >
+            <Plus size={18} />
+            <span>Add Expense</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content spacing for sticky header and add buttons bar */}
+      <div style={{ paddingTop: '0.75rem' }}></div>
 
       <div className="p-1.5">
         {loading ? (
@@ -196,15 +228,6 @@ export default function LedgerPage() {
                   <PlusCircle size={14} />
                   Income
                 </h2>
-                <button
-                  onClick={() => handleAddEntry('credit')}
-                  className="p-1 bg-green-600 text-white rounded-lg active:bg-green-700 transition-colors flex items-center justify-center touch-manipulation shadow-sm"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                  title="Add Income"
-                  aria-label="Add Income"
-                >
-                  <Plus size={14} />
-                </button>
               </div>
               <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300">
                 <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
@@ -226,15 +249,6 @@ export default function LedgerPage() {
                   <MinusCircle size={14} />
                   Expenses
                 </h2>
-                <button
-                  onClick={() => handleAddEntry('debit')}
-                  className="p-1 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors flex items-center justify-center touch-manipulation shadow-sm"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                  title="Add Expense"
-                  aria-label="Add Expense"
-                >
-                  <Plus size={14} />
-                </button>
               </div>
               <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300">
                 <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
