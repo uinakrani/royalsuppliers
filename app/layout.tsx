@@ -6,6 +6,7 @@ import FirebaseSetupAlert from '@/components/FirebaseSetupAlert'
 import FirestoreRulesAlert from '@/components/FirestoreRulesAlert'
 import ToastContainer from '@/components/Toast'
 import NativePopup from '@/components/NativePopup'
+import { PopupStackProvider } from '@/contexts/PopupStackContext'
 import '@/lib/firebaseTest' // Load test utility
 
 export const metadata: Metadata = {
@@ -127,13 +128,15 @@ export default function RootLayout({
             `,
           }}
         />
-        <NativePopup />
-        <PWARegister />
-        <PWAInstallPrompt />
-        <FirebaseSetupAlert />
-        <FirestoreRulesAlert />
-        <ToastContainer />
-        {children}
+        <PopupStackProvider>
+          <NativePopup />
+          <PWARegister />
+          <PWAInstallPrompt />
+          <FirebaseSetupAlert />
+          <FirestoreRulesAlert />
+          <ToastContainer />
+          {children}
+        </PopupStackProvider>
       </body>
     </html>
   )

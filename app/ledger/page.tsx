@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { PlusCircle, MinusCircle, Wallet, Plus } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import NavBar from '@/components/NavBar'
-import LedgerEntryDrawer from '@/components/LedgerEntryDrawer'
+import LedgerEntryPopup from '@/components/LedgerEntryPopup'
 import BottomSheet from '@/components/BottomSheet'
 import LedgerEntryModal from '@/components/LedgerEntryModal'
 import { createRipple } from '@/lib/rippleEffect'
@@ -290,7 +290,7 @@ export default function LedgerPage() {
       </div>
 
       {/* Entry Drawer */}
-      <LedgerEntryDrawer
+      <LedgerEntryPopup
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSave={handleSaveEntry}

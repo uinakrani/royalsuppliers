@@ -10,10 +10,10 @@ import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
 import { Plus, Edit, Trash2, Filter, FileText, X } from 'lucide-react'
-import PaymentEditDrawer from '@/components/PaymentEditDrawer'
+import PaymentEditPopup from '@/components/PaymentEditPopup'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
-import FilterDrawer from '@/components/FilterDrawer'
+import FilterPopup from '@/components/FilterPopup'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderDetailDrawer from '@/components/OrderDetailDrawer'
 import PartyDetailPopup from '@/components/PartyDetailPopup'
@@ -129,10 +129,6 @@ export default function OrdersPage() {
     }
   }
 
-  useEffect(() => {
-    applyFilters()
-  }, [orders, filters, selectedPartyTags])
-
   const loadOrders = async () => {
     setLoading(true)
     try {
@@ -163,14 +159,17 @@ export default function OrdersPage() {
     }
   }
 
-  const applyFilters = () => {
+  // Apply filters whenever orders, filters, or selectedPartyTags change
+  useEffect(() => {
     let filtered = [...orders]
 
     // Apply party tag filters (takes priority over filter drawer party name)
     if (selectedPartyTags.size > 0) {
-      filtered = filtered.filter((o) =>
-        selectedPartyTags.has(o.partyName)
-      )
+      filtered = filtered.filter((o) => {
+        // Ensure exact match by trimming whitespace
+        const orderPartyName = o.partyName?.trim() || ''
+        return selectedPartyTags.has(orderPartyName)
+      })
     } else if (filters.partyName) {
       // Only apply filter drawer party name if no tags are selected
       const filterPartyNames = filters.partyName.split(',').map(p => p.trim().toLowerCase())
@@ -211,7 +210,7 @@ export default function OrdersPage() {
     filtered.sort((a, b) => getTime(b) - getTime(a))
 
     setFilteredOrders(filtered)
-  }
+  }, [orders, filters, selectedPartyTags])
 
   const handleSaveOrder = async (orderData: Omit<Order, 'id'>) => {
     console.log('📝 handleSaveOrder called', { 
@@ -516,15 +515,19 @@ export default function OrdersPage() {
 
   const togglePartyTag = (partyName: string) => {
     const newSelected = new Set(selectedPartyTags)
-    if (newSelected.has(partyName)) {
-      newSelected.delete(partyName)
+    // Ensure we're working with trimmed party names
+    const trimmedPartyName = partyName.trim()
+    if (newSelected.has(trimmedPartyName)) {
+      newSelected.delete(trimmedPartyName)
     } else {
-      newSelected.add(partyName)
+      newSelected.add(trimmedPartyName)
     }
     setSelectedPartyTags(newSelected)
     // Clear filter drawer party name when using tags
     if (newSelected.size > 0) {
       setFilterPartyName('')
+      // Also clear the filters.partyName to avoid conflicts
+      setFilters(prev => ({ ...prev, partyName: undefined }))
     }
   }
 
@@ -819,7 +822,7 @@ export default function OrdersPage() {
       )}
 
       {/* Filters Drawer */}
-      <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+      <FilterPopup isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -919,7 +922,7 @@ export default function OrdersPage() {
             </button>
           </div>
         </div>
-      </FilterDrawer>
+      </FilterPopup>
 
       {/* Action Buttons - Fixed at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
@@ -1449,7 +1452,7 @@ export default function OrdersPage() {
         const maxAmount = expenseAmount - otherPaymentsTotal
         
         return (
-          <PaymentEditDrawer
+          <PaymentEditPopup
             isOpen={!!editingPayment}
             onClose={() => setEditingPayment(null)}
             onSave={handleSavePaymentEdit}

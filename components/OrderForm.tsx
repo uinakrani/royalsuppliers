@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Order } from '@/types/order'
 import { X } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
@@ -13,11 +14,12 @@ interface OrderFormProps {
 }
 
 export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
-  const drawerRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
 
   const [formData, setFormData] = useState({
     date: order?.date || new Date().toISOString().split('T')[0],
@@ -44,6 +46,24 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   const [showCustomSiteName, setShowCustomSiteName] = useState(false)
   const [truckOwners, setTruckOwners] = useState<string[]>([])
   const [showCustomTruckOwner, setShowCustomTruckOwner] = useState(false)
+
+  useEffect(() => {
+    // Check if app is in standalone mode
+    const checkStandalone = () => {
+      const isStandaloneMode = 
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.documentElement.classList.contains('standalone')
+      setIsStandalone(isStandaloneMode)
+    }
+    checkStandalone()
+    const observer = new MutationObserver(checkStandalone)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -234,33 +254,57 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     }
   }
 
-  return (
+  const formContent = (
     <>
       {/* Backdrop */}
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black/50 z-[9990] ${
+        className={`fixed inset-0 bg-black/50 z-[99999] popup-backdrop ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
-        style={{ WebkitTapHighlightColor: 'transparent', backdropFilter: 'blur(2px)' }}
+        style={{ 
+          WebkitTapHighlightColor: 'transparent', 
+          backdropFilter: 'blur(2px)',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: isStandalone ? 99999 : 99999,
+        }}
       />
       
-      {/* Drawer */}
+      {/* Popup */}
       <div
-        ref={drawerRef}
-        className={`fixed right-0 top-0 bottom-0 w-full max-w-md bg-white z-[9991] shadow-2xl flex flex-col ${
-          isClosing ? 'native-drawer-exit' : isMounted ? 'native-drawer-enter' : 'translate-x-full'
-        }`}
-        style={{ 
-          WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-y',
-          backfaceVisibility: 'hidden',
-          willChange: 'transform',
-          maxHeight: '100dvh',
+        className="fixed inset-0 z-[99999] flex items-center justify-center pointer-events-none popup-container"
+        style={{
+          WebkitTapHighlightColor: 'transparent',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: isStandalone ? 99999 : 99999,
+          padding: '1rem',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
+        <div
+          ref={popupRef}
+          className={`bg-white rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto flex flex-col ${
+            isClosing ? 'native-modal-exit' : isMounted ? 'native-modal-enter' : 'opacity-0 scale-95 translate-y-4'
+          }`}
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+            backfaceVisibility: 'hidden',
+            willChange: 'transform, opacity',
+            maxHeight: 'calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
         <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
           <h2 className="text-lg font-bold text-gray-900">
@@ -753,6 +797,11 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </div>
         </div>
       </div>
+      </div>
     </>
   )
+
+  // Use portal to render at document body level
+  if (typeof window === 'undefined') return null
+  return createPortal(formContent, document.body)
 }

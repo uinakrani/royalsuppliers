@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { FileText, Plus, Trash2, Filter, X, AlertCircle, CheckCircle, Download } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
-import FilterDrawer from '@/components/FilterDrawer'
+import FilterPopup from '@/components/FilterPopup'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
@@ -331,7 +331,7 @@ export default function InvoicesPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
 
         {/* Filters Drawer */}
-        <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+        <FilterPopup isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Party Name</label>
@@ -411,7 +411,7 @@ export default function InvoicesPage() {
               </button>
             </div>
           </div>
-        </FilterDrawer>
+        </FilterPopup>
 
         {/* Invoices List */}
         <div className="space-y-2">

@@ -9,8 +9,9 @@ import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import { Invoice } from '@/types/invoice'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
-import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus } from 'lucide-react'
-import FilterDrawer from '@/components/FilterDrawer'
+import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus, ArrowRight, Activity } from 'lucide-react'
+import { createRipple } from '@/lib/rippleEffect'
+import FilterPopup from '@/components/FilterPopup'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
@@ -313,25 +314,41 @@ export default function Dashboard() {
           <h1 className="text-xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowForm(true)}
-              className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+              onClick={(e) => {
+                createRipple(e)
+                setShowForm(true)
+              }}
+              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center shadow-sm"
+              style={{
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
             >
               <Plus size={18} />
             </button>
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+              onClick={(e) => {
+                createRipple(e)
+                setShowFilters(!showFilters)
+              }}
+              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center shadow-sm"
+              style={{
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
             >
               <Filter size={18} />
             </button>
           </div>
         </div>
-        {/* Duration Filter - Visible on Screen */}
-        <div>
+        {/* Duration Filter - Enhanced */}
+        <div className="mt-2">
           <select
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-900"
+            className="w-full px-3 py-2 bg-white/95 backdrop-blur-sm border border-white/30 rounded-xl text-sm font-medium text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
           >
             <option value="currentMonth">Current Month</option>
             <option value="7days">Last 7 Days</option>
@@ -351,7 +368,7 @@ export default function Dashboard() {
         paddingBottom: '4rem'
       }}>
         {/* Filters Drawer */}
-      <FilterDrawer isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+      <FilterPopup isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
         <div className="space-y-3">
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-2">
@@ -451,7 +468,7 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
-      </FilterDrawer>
+      </FilterPopup>
 
       {/* Statistics Cards */}
       {loading ? (
@@ -488,75 +505,252 @@ export default function Dashboard() {
           </div>
         </div>
       ) : (
-        <div className="p-2.5 space-y-2.5">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-1">
-                <CreditCard className="text-purple-600" size={16} />
-                <span className="text-[10px] text-gray-500">Balance</span>
+        <div className="p-3 space-y-3">
+          {/* Main Stats Grid - Enhanced Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Balance Card */}
+            <div 
+              className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              style={{
+                animation: 'fadeInUp 0.4s ease-out 0.1s both',
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onClick={(e) => {
+                createRipple(e)
+                router.push('/orders?filter=paid')
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <CreditCard size={20} className="text-white" />
+                </div>
+                <ArrowRight size={16} className="opacity-70" />
               </div>
-              <p className="text-sm font-bold text-gray-900">
+              <p className="text-2xl font-bold mb-0.5">
                 {formatIndianCurrency(stats.currentBalance)}
               </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Paid orders</p>
+              <p className="text-xs opacity-90 font-medium">Current Balance</p>
             </div>
 
-            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-1">
-                <DollarSign className="text-green-600" size={16} />
-                <span className="text-[10px] text-gray-500">Cost</span>
+            {/* Profit Card */}
+            <div 
+              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              style={{
+                animation: 'fadeInUp 0.4s ease-out 0.2s both',
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onClick={(e) => {
+                createRipple(e)
+                router.push('/orders')
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <TrendingUp size={20} className="text-white" />
+                </div>
+                <ArrowRight size={16} className="opacity-70" />
               </div>
-              <p className="text-sm font-bold text-gray-900">
-                {formatIndianCurrency(stats.costAmount)}
-              </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Total cost</p>
-            </div>
-
-            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-1">
-                <TrendingUp className="text-blue-600" size={16} />
-                <span className="text-[10px] text-gray-500">Profit</span>
-              </div>
-              <p className="text-sm font-bold text-gray-900">
+              <p className="text-2xl font-bold mb-0.5">
                 {formatIndianCurrency(stats.estimatedProfit)}
               </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Estimated profit</p>
+              <p className="text-xs opacity-90 font-medium">Total Profit</p>
             </div>
 
-            <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-1">
-                <Receipt className="text-orange-600" size={16} />
-                <span className="text-[10px] text-gray-500">Received</span>
+            {/* Cost Card */}
+            <div 
+              className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              style={{
+                animation: 'fadeInUp 0.4s ease-out 0.3s both',
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onClick={(e) => {
+                createRipple(e)
+                router.push('/ledger')
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <DollarSign size={20} className="text-white" />
+                </div>
+                <ArrowRight size={16} className="opacity-70" />
               </div>
-              <p className="text-sm font-bold text-gray-900">
+              <p className="text-2xl font-bold mb-0.5">
+                {formatIndianCurrency(stats.costAmount)}
+              </p>
+              <p className="text-xs opacity-90 font-medium">Total Cost</p>
+            </div>
+
+            {/* Payment Received Card */}
+            <div 
+              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              style={{
+                animation: 'fadeInUp 0.4s ease-out 0.4s both',
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              onClick={(e) => {
+                createRipple(e)
+                router.push('/invoices')
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                  <Receipt size={20} className="text-white" />
+                </div>
+                <ArrowRight size={16} className="opacity-70" />
+              </div>
+              <p className="text-2xl font-bold mb-0.5">
                 {formatIndianCurrency(stats.paymentReceived)}
               </p>
-              <p className="text-[10px] text-gray-500 mt-0.5">Payment received</p>
+              <p className="text-xs opacity-90 font-medium">Payment Received</p>
             </div>
           </div>
 
-          {/* Additional Stats */}
-          <div className="bg-white rounded-lg p-2.5 shadow-sm border border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Order Summary</h3>
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-600">Total Orders</span>
-                <span className="text-xs font-semibold">{stats.totalOrders}</span>
+          {/* Order Summary Card - Enhanced */}
+          <div 
+            className="bg-white rounded-2xl p-4 shadow-md border border-gray-100"
+            style={{
+              animation: 'fadeInUp 0.4s ease-out 0.5s both',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-primary-100 rounded-xl">
+                <Activity size={18} className="text-primary-600" />
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-600">Paid Orders</span>
-                <span className="text-xs font-semibold text-green-600">{stats.paidOrders}</span>
+              <h3 className="text-base font-bold text-gray-900">Order Summary</h3>
+            </div>
+            <div className="space-y-2.5">
+              <div 
+                className="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl native-press"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => {
+                  createRipple(e)
+                  router.push('/orders')
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Package size={16} className="text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Total Orders</span>
+                </div>
+                <span className="text-base font-bold text-gray-900">{stats.totalOrders}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-600">Unpaid Orders</span>
-                <span className="text-xs font-semibold text-red-600">{stats.unpaidOrders}</span>
+              
+              <div 
+                className="flex justify-between items-center p-2.5 bg-green-50 rounded-xl native-press"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => {
+                  createRipple(e)
+                  router.push('/orders?filter=paid')
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700">Paid Orders</span>
+                </div>
+                <span className="text-base font-bold text-green-600">{stats.paidOrders}</span>
               </div>
+              
+              <div 
+                className="flex justify-between items-center p-2.5 bg-red-50 rounded-xl native-press"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => {
+                  createRipple(e)
+                  router.push('/orders?filter=unpaid')
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700">Unpaid Orders</span>
+                </div>
+                <span className="text-base font-bold text-red-600">{stats.unpaidOrders}</span>
+              </div>
+              
               {stats.partialOrders > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-600">Partial Payments</span>
-                  <span className="text-xs font-semibold text-yellow-600">{stats.partialOrders}</span>
+                <div 
+                  className="flex justify-between items-center p-2.5 bg-yellow-50 rounded-xl native-press"
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                  onClick={(e) => {
+                    createRipple(e)
+                    router.push('/orders?filter=partial')
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-700">Partial Payments</span>
+                  </div>
+                  <span className="text-base font-bold text-yellow-600">{stats.partialOrders}</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div 
+            className="bg-white rounded-2xl p-4 shadow-md border border-gray-100"
+            style={{
+              animation: 'fadeInUp 0.4s ease-out 0.6s both',
+            }}
+          >
+            <h3 className="text-base font-bold text-gray-900 mb-3">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  setShowForm(true)
+                }}
+                className="flex flex-col items-center justify-center gap-2 p-4 bg-primary-50 rounded-xl border-2 border-primary-200 native-press hover:bg-primary-100 transition-colors"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className="p-2.5 bg-primary-600 rounded-xl">
+                  <Plus size={20} className="text-white" />
+                </div>
+                <span className="text-sm font-semibold text-primary-700">New Order</span>
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  router.push('/orders')
+                }}
+                className="flex flex-col items-center justify-center gap-2 p-4 bg-blue-50 rounded-xl border-2 border-blue-200 native-press hover:bg-blue-100 transition-colors"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <div className="p-2.5 bg-blue-600 rounded-xl">
+                  <Package size={20} className="text-white" />
+                </div>
+                <span className="text-sm font-semibold text-blue-700">View Orders</span>
+              </button>
             </div>
           </div>
         </div>
