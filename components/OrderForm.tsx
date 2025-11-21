@@ -46,6 +46,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   const [showCustomSiteName, setShowCustomSiteName] = useState(false)
   const [truckOwners, setTruckOwners] = useState<string[]>([])
   const [showCustomTruckOwner, setShowCustomTruckOwner] = useState(false)
+  const firstInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Check if app is in standalone mode
@@ -70,6 +71,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     // Trigger animation after mount
     requestAnimationFrame(() => {
       setIsMounted(true)
+      // Auto-focus first input after animation
+      setTimeout(() => {
+        if (firstInputRef.current) {
+          firstInputRef.current.focus()
+        }
+      }, 300)
     })
     loadPartyNames()
     loadSiteNames()
@@ -220,8 +227,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       // Calculate adjusted profit if paid amount is less than original total
       let adjustedProfit = profit
       if (formData.paid && formData.paidAmountForRawMaterials < originalTotal) {
-        // If paid less than original total, add the difference to profit
-        adjustedProfit = profit + (originalTotal - formData.paidAmountForRawMaterials)
+        const remainingAmount = originalTotal - formData.paidAmountForRawMaterials
+        // Only add to profit if remaining amount is less than 300
+        if (remainingAmount < 300) {
+          adjustedProfit = profit + remainingAmount
+        }
+        // If remaining amount >= 300, don't add to profit (leave it as unpaid)
       }
 
       const orderData: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number } = {
@@ -324,27 +335,29 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         <form 
           ref={formRef}
           onSubmit={handleSubmit} 
-          className="flex-1 overflow-y-auto p-4 space-y-3"
+          className="flex-1 overflow-y-auto p-4 space-y-2.5"
           style={{ 
             WebkitOverflowScrolling: 'touch',
+            scrollBehavior: 'smooth',
           }}
         >
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
               Date *
             </label>
             <input
+              ref={firstInputRef}
               type="date"
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               required
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              style={{ fontSize: '16px' }}
+              className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 touch-manipulation"
+              style={{ fontSize: '16px', WebkitTapHighlightColor: 'transparent' }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
               Party Name *
             </label>
             {!showCustomPartyName ? (
@@ -359,8 +372,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                     }
                   }}
                   required={!showCustomPartyName}
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 touch-manipulation active:bg-gray-50"
+                  style={{ fontSize: '16px', WebkitTapHighlightColor: 'transparent' }}
                 >
                   <option value="">Select a party name</option>
                   {partyNames.map((name) => (
@@ -379,8 +392,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onChange={(e) => setFormData({ ...formData, partyName: e.target.value })}
                   placeholder="Enter party name"
                   required
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 touch-manipulation"
+                  style={{ fontSize: '16px', WebkitTapHighlightColor: 'transparent' }}
                 />
                 <button
                   type="button"
@@ -398,7 +411,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
               Site Name *
             </label>
             {!showCustomSiteName ? (
@@ -413,8 +426,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                     }
                   }}
                   required={!showCustomSiteName}
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 touch-manipulation active:bg-gray-50"
+                  style={{ fontSize: '16px', WebkitTapHighlightColor: 'transparent' }}
                 >
                   <option value="">Select a site name</option>
                   {siteNames.map((name) => (
@@ -433,8 +446,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   onChange={(e) => setFormData({ ...formData, siteName: e.target.value })}
                   placeholder="Enter site name"
                   required
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 touch-manipulation"
+                  style={{ fontSize: '16px', WebkitTapHighlightColor: 'transparent' }}
                 />
                 <button
                   type="button"
@@ -761,11 +774,22 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
                   Amount cannot exceed original total
                 </p>
               )}
-              {formData.paidAmountForRawMaterials > 0 && formData.paidAmountForRawMaterials < originalTotal && (
-                <p className="mt-1 text-[11px] text-gray-600">
-                  Remaining {formatIndianCurrency(originalTotal - formData.paidAmountForRawMaterials)} will be added to profit
-                </p>
-              )}
+              {formData.paidAmountForRawMaterials > 0 && formData.paidAmountForRawMaterials < originalTotal && (() => {
+                const remainingAmount = originalTotal - formData.paidAmountForRawMaterials
+                if (remainingAmount < 300) {
+                  return (
+                    <p className="mt-1 text-[11px] text-gray-600">
+                      Remaining {formatIndianCurrency(remainingAmount)} will be added to profit
+                    </p>
+                  )
+                } else {
+                  return (
+                    <p className="mt-1 text-[11px] text-orange-600">
+                      Remaining {formatIndianCurrency(remainingAmount)} will not be added to profit (≥ ₹300)
+                    </p>
+                  )
+                }
+              })()}
             </div>
           )}
         </form>
