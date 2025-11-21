@@ -763,29 +763,6 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
-          {/* View Toggle */}
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => setViewMode('byParty')}
-              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                viewMode === 'byParty'
-                  ? 'bg-white text-primary-600'
-                  : 'bg-primary-500 text-white hover:bg-primary-400'
-              }`}
-            >
-              By Party
-            </button>
-            <button
-              onClick={() => setViewMode('allOrders')}
-              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                viewMode === 'allOrders'
-                  ? 'bg-white text-primary-600'
-                  : 'bg-primary-500 text-white hover:bg-primary-400'
-              }`}
-            >
-              All Orders
-            </button>
-          </div>
         </div>
       </div>
 
@@ -924,6 +901,58 @@ export default function OrdersPage() {
         </div>
       </FilterPopup>
 
+      {/* View Mode Tabs - Fixed at Bottom (Thumb-Friendly) */}
+      <div 
+        className="fixed left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-lg"
+        style={{ 
+          bottom: selectedOrders.size > 0 ? '9rem' : '4rem',
+          padding: '0.75rem',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+          transition: 'bottom 0.3s ease-out',
+        }}
+      >
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              createRipple(e)
+              setViewMode('byParty')
+            }}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all native-press ${
+              viewMode === 'byParty'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+            }`}
+            style={{
+              WebkitTapHighlightColor: 'transparent',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            By Party
+          </button>
+          <button
+            onClick={(e) => {
+              createRipple(e)
+              setViewMode('allOrders')
+            }}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all native-press ${
+              viewMode === 'allOrders'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+            }`}
+            style={{
+              WebkitTapHighlightColor: 'transparent',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            All Orders
+          </button>
+        </div>
+      </div>
+
       {/* Action Buttons - Fixed at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
         <div 
@@ -931,30 +960,53 @@ export default function OrdersPage() {
           style={{ 
             bottom: '4rem',
             padding: '0.75rem',
-            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))'
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
           }}
         >
           <div className="flex gap-2">
             <button
-              onClick={handleBulkCreateInvoice}
-              className="flex-1 bg-green-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation shadow-md"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                createRipple(e)
+                handleBulkCreateInvoice()
+              }}
+              className="flex-1 bg-green-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation shadow-md native-press"
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
             >
               <FileText size={18} />
               <span>Create Invoice ({selectedOrders.size})</span>
             </button>
             <button
-              onClick={handleBulkDelete}
-              className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation shadow-md"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                createRipple(e)
+                handleBulkDelete()
+              }}
+              className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation shadow-md native-press"
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
             >
               <Trash2 size={18} />
               <span>Delete ({selectedOrders.size})</span>
             </button>
             <button
-              onClick={() => setSelectedOrders(new Set())}
-              className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium active:bg-gray-300 transition-colors touch-manipulation"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              onClick={(e) => {
+                createRipple(e)
+                setSelectedOrders(new Set())
+              }}
+              className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium active:bg-gray-300 transition-colors touch-manipulation native-press"
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
             >
               Clear
             </button>
@@ -967,7 +1019,7 @@ export default function OrdersPage() {
         flex: 1,
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        paddingBottom: selectedOrders.size > 0 ? '9rem' : '4rem'
+        paddingBottom: selectedOrders.size > 0 ? '13rem' : '8rem'
       }}>
       {/* Orders List */}
       {loading ? (
