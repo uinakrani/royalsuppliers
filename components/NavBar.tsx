@@ -26,12 +26,12 @@ export default function NavBar() {
       }}
     >
       <div 
-        className="bg-white/95 backdrop-blur-xl border-t border-gray-200/60 flex justify-around items-center w-full"
+        className="bg-white/95 backdrop-blur-xl border border-gray-200/60 flex justify-around items-center w-full"
         style={{ 
           height: '4rem',
           minHeight: '4rem',
-          borderRadius: '2rem 2rem 0 0',
-          boxShadow: '0 -2px 16px rgba(0, 0, 0, 0.06), 0 -1px 4px rgba(0, 0, 0, 0.03)',
+          borderRadius: '1.5rem',
+          boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
           pointerEvents: 'auto',
         }}
       >
