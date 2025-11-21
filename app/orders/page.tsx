@@ -903,9 +903,9 @@ export default function OrdersPage() {
 
       {/* View Mode Tabs - Fixed at Bottom (Thumb-Friendly) */}
       <div 
-        className="fixed left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-lg"
+        className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[45] shadow-lg"
         style={{ 
-          bottom: selectedOrders.size > 0 ? '9rem' : '4rem',
+          bottom: selectedOrders.size > 0 ? '8.5rem' : '4rem',
           padding: '0.75rem',
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
@@ -956,7 +956,7 @@ export default function OrdersPage() {
       {/* Action Buttons - Fixed at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
         <div 
-          className="fixed left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-lg"
+          className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[44] shadow-lg"
           style={{ 
             bottom: '4rem',
             padding: '0.75rem',
