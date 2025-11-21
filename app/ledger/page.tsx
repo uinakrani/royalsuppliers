@@ -153,7 +153,7 @@ export default function LedgerPage() {
           createRipple(event)
           handleEntryClick(e)
         }}
-        className="w-full bg-white rounded-lg border border-gray-200 mb-1 p-2 flex items-center justify-between active:bg-gray-50 transition-all duration-150 touch-manipulation shadow-sm native-press"
+        className="w-full bg-white rounded-lg border border-gray-100 mb-1 p-2 flex items-center justify-between active:bg-gray-50 transition-all duration-150 touch-manipulation native-press"
         style={{ 
           WebkitTapHighlightColor: 'transparent',
           position: 'relative',
@@ -181,7 +181,7 @@ export default function LedgerPage() {
       overflow: 'hidden'
     }}>
       {/* Header - Fixed at top */}
-      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40 shadow-sm" style={{ flexShrink: 0 }}>
+      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40" style={{ flexShrink: 0 }}>
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
             <Wallet size={18} />
@@ -255,7 +255,7 @@ export default function LedgerPage() {
 
       {/* Add Buttons Bar - Fixed at bottom, above NavBar */}
       <div 
-        className="bg-white border-t border-gray-200 fixed left-0 right-0 z-30 shadow-lg"
+        className="bg-white border-t border-gray-200 fixed left-0 right-0 z-30"
         style={{ 
           bottom: '4rem',
           padding: '0.75rem',
@@ -268,7 +268,7 @@ export default function LedgerPage() {
         <div className="flex gap-2">
           <button
             onClick={() => handleAddEntry('credit')}
-            className="flex-1 bg-green-600 text-white rounded-lg active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation shadow-md font-medium"
+            className="flex-1 bg-green-600 text-white rounded-lg active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium"
             style={{ WebkitTapHighlightColor: 'transparent', fontSize: '14px' }}
             title="Add Income"
             aria-label="Add Income"
@@ -278,7 +278,7 @@ export default function LedgerPage() {
           </button>
           <button
             onClick={() => handleAddEntry('debit')}
-            className="flex-1 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation shadow-md font-medium"
+            className="flex-1 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium"
             style={{ WebkitTapHighlightColor: 'transparent', fontSize: '14px' }}
             title="Add Expense"
             aria-label="Add Expense"

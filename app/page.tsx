@@ -309,7 +309,7 @@ export default function Dashboard() {
       overflow: 'hidden'
     }}>
       {/* Header - Fixed at top */}
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ flexShrink: 0 }}>
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40" style={{ flexShrink: 0 }}>
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-2">
@@ -318,7 +318,7 @@ export default function Dashboard() {
                 createRipple(e)
                 setShowForm(true)
               }}
-              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center shadow-sm"
+              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center"
               style={{
                 WebkitTapHighlightColor: 'transparent',
                 position: 'relative',
@@ -332,7 +332,7 @@ export default function Dashboard() {
                 createRipple(e)
                 setShowFilters(!showFilters)
               }}
-              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center shadow-sm"
+              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center"
               style={{
                 WebkitTapHighlightColor: 'transparent',
                 position: 'relative',
@@ -348,7 +348,7 @@ export default function Dashboard() {
           <select
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="w-full px-3 py-2 bg-white/95 backdrop-blur-sm border border-white/30 rounded-xl text-sm font-medium text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
+            className="w-full px-3 py-2 bg-white/95 backdrop-blur-sm border border-white/30 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
           >
             <option value="currentMonth">Current Month</option>
             <option value="7days">Last 7 Days</option>
@@ -510,7 +510,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-3">
             {/* Balance Card */}
             <div 
-              className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white native-press"
               style={{
                 animation: 'fadeInUp 0.4s ease-out 0.1s both',
                 WebkitTapHighlightColor: 'transparent',
@@ -536,7 +536,7 @@ export default function Dashboard() {
 
             {/* Profit Card */}
             <div 
-              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white native-press"
               style={{
                 animation: 'fadeInUp 0.4s ease-out 0.2s both',
                 WebkitTapHighlightColor: 'transparent',
@@ -562,7 +562,7 @@ export default function Dashboard() {
 
             {/* Cost Card */}
             <div 
-              className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 text-white native-press"
               style={{
                 animation: 'fadeInUp 0.4s ease-out 0.3s both',
                 WebkitTapHighlightColor: 'transparent',
@@ -588,7 +588,7 @@ export default function Dashboard() {
 
             {/* Payment Received Card */}
             <div 
-              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 shadow-lg text-white native-press"
+              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white native-press"
               style={{
                 animation: 'fadeInUp 0.4s ease-out 0.4s both',
                 WebkitTapHighlightColor: 'transparent',
@@ -615,7 +615,7 @@ export default function Dashboard() {
 
           {/* Order Summary Card - Enhanced */}
           <div 
-            className="bg-white rounded-2xl p-4 shadow-md border border-gray-100"
+            className="bg-white rounded-2xl p-4 border border-gray-100"
             style={{
               animation: 'fadeInUp 0.4s ease-out 0.5s both',
             }}
@@ -709,7 +709,7 @@ export default function Dashboard() {
 
           {/* Quick Actions */}
           <div 
-            className="bg-white rounded-2xl p-4 shadow-md border border-gray-100"
+            className="bg-white rounded-2xl p-4 border border-gray-100"
             style={{
               animation: 'fadeInUp 0.4s ease-out 0.6s both',
             }}

@@ -47,7 +47,7 @@ function ToastItem({ toast, onClose }: ToastProps) {
 
   return (
     <div
-      className={`${bgColor} border-l-4 p-2 rounded-lg shadow-lg mb-2 flex items-center animate-slide-in`}
+      className={`${bgColor} border-l-4 p-2 rounded-lg border border-gray-200 mb-2 flex items-center animate-slide-in`}
     >
       <Icon className={`${iconColor} mr-2 flex-shrink-0`} size={16} />
       <div className="flex-1">

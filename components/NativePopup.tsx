@@ -410,7 +410,7 @@ export default function NativePopup() {
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl shadow-2xl max-w-sm w-full pointer-events-auto ${
+          className={`bg-white rounded-2xl border border-gray-100 max-w-sm w-full pointer-events-auto ${
             isClosing
               ? 'native-modal-exit'
               : isMounted

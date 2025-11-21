@@ -231,7 +231,7 @@ export default function PartyDetailPopup({
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl shadow-2xl max-w-lg w-full pointer-events-auto flex flex-col ${
+          className={`bg-white rounded-2xl border border-gray-100 max-w-lg w-full pointer-events-auto flex flex-col ${
             isClosing
               ? 'native-modal-exit'
               : isMounted
@@ -328,7 +328,7 @@ export default function PartyDetailPopup({
                   return (
                     <div
                       key={order.id}
-                      className="bg-white rounded-lg p-2.5 border border-blue-300 transition-all duration-200 hover:shadow-md native-press"
+                      className="bg-white rounded-lg p-2.5 border border-blue-300 transition-all duration-200 active:bg-blue-50 native-press"
                       style={{
                         WebkitTapHighlightColor: 'transparent',
                         position: 'relative',
@@ -463,7 +463,7 @@ export default function PartyDetailPopup({
                     return (
                       <div
                         key={`${paymentItem.invoiceId}-${paymentItem.payment.id}-${idx}`}
-                        className="bg-white rounded-lg p-2.5 border border-green-300 transition-all duration-200 hover:shadow-md"
+                        className="bg-white rounded-lg p-2.5 border border-green-300 transition-all duration-200 active:bg-green-50"
                         style={{
                           animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both`,
                         }}

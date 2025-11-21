@@ -218,7 +218,7 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl shadow-2xl max-w-sm w-full pointer-events-auto flex flex-col ${
+          className={`bg-white rounded-2xl border border-gray-100 max-w-sm w-full pointer-events-auto flex flex-col ${
             isClosing
               ? 'native-modal-exit'
               : isMounted

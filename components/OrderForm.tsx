@@ -293,7 +293,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto flex flex-col ${
+          className={`bg-white rounded-2xl border border-gray-100 max-w-md w-full pointer-events-auto flex flex-col ${
             isClosing ? 'native-modal-exit' : isMounted ? 'native-modal-enter' : 'opacity-0 scale-95 translate-y-4'
           }`}
           style={{ 
@@ -306,7 +306,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
           onClick={(e) => e.stopPropagation()}
         >
         {/* Header */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">
             {order ? 'Edit Order' : 'Add New Order'}
           </h2>
@@ -771,7 +771,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         </form>
         
         {/* Fixed buttons at bottom */}
-        <div className="flex-shrink-0 bg-white border-t border-gray-200 p-4 shadow-lg">
+        <div className="flex-shrink-0 bg-white border-t border-gray-200 p-4">
           <div className="flex gap-2">
             <button
               type="button"

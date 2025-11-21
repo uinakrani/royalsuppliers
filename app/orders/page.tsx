@@ -9,7 +9,7 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
-import { Plus, Edit, Trash2, Filter, FileText, X } from 'lucide-react'
+import { Plus, Edit, Trash2, Filter, FileText, X, User, Calendar, ChevronRight, Package } from 'lucide-react'
 import PaymentEditPopup from '@/components/PaymentEditPopup'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
@@ -740,7 +740,7 @@ export default function OrdersPage() {
       overflow: 'hidden'
     }}>
       {/* Header - Fixed at top */}
-      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 shadow-sm pt-safe" style={{ flexShrink: 0 }}>
+      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 pt-safe" style={{ flexShrink: 0 }}>
         <div className="p-2.5">
           <div className="flex justify-between items-center gap-2">
             <h1 className="text-xl font-bold">Orders</h1>
@@ -768,7 +768,7 @@ export default function OrdersPage() {
 
       {/* Party Name Tags - Horizontal Scrollable */}
       {partyNames.length > 0 && (
-        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky z-30 shadow-sm" style={{ top: headerHeight ? `${headerHeight}px` : 'auto' }}>
+        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky z-30" style={{ top: headerHeight ? `${headerHeight}px` : 'auto' }}>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {partyNames.map((partyName) => {
               const isSelected = selectedPartyTags.has(partyName)
@@ -778,7 +778,7 @@ export default function OrdersPage() {
                   onClick={() => togglePartyTag(partyName)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
                     isSelected
-                      ? 'bg-primary-600 text-white shadow-sm'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -903,7 +903,7 @@ export default function OrdersPage() {
 
       {/* View Mode Tabs - Fixed at Bottom (Thumb-Friendly) */}
       <div 
-        className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[45] shadow-lg"
+        className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[45]"
         style={{ 
           bottom: selectedOrders.size > 0 ? '8.5rem' : '4rem',
           padding: '0.5rem',
@@ -922,7 +922,7 @@ export default function OrdersPage() {
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
               viewMode === 'byParty'
-                ? 'bg-primary-600 text-white shadow-md'
+                ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 text-gray-700 active:bg-gray-200'
             }`}
             style={{
@@ -940,7 +940,7 @@ export default function OrdersPage() {
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
               viewMode === 'allOrders'
-                ? 'bg-primary-600 text-white shadow-md'
+                ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 text-gray-700 active:bg-gray-200'
             }`}
             style={{
@@ -957,7 +957,7 @@ export default function OrdersPage() {
       {/* Action Buttons - Fixed at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
         <div 
-          className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[44] shadow-lg"
+          className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[44]"
           style={{ 
             bottom: '4rem',
             padding: '0.75rem',
@@ -972,7 +972,7 @@ export default function OrdersPage() {
                 createRipple(e)
                 handleBulkCreateInvoice()
               }}
-              className="flex-1 bg-green-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation shadow-md native-press"
+              className="flex-1 bg-green-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation native-press"
               style={{ 
                 WebkitTapHighlightColor: 'transparent',
                 position: 'relative',
@@ -987,7 +987,7 @@ export default function OrdersPage() {
                 createRipple(e)
                 handleBulkDelete()
               }}
-              className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation shadow-md native-press"
+              className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation native-press"
               style={{ 
                 WebkitTapHighlightColor: 'transparent',
                 position: 'relative',
@@ -1030,123 +1030,136 @@ export default function OrdersPage() {
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
       ) : viewMode === 'byParty' ? (
-        // By Party View
+        // By Party View - Compact Mobile Design
         <div className="p-2 space-y-2">
           {getPartyGroups().map((group, index) => {
             const balance = group.totalSelling - group.totalPaid
+            const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+            
             return (
               <div 
                 key={group.partyName} 
-                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-md"
+                className="bg-white rounded-xl border border-gray-100 overflow-hidden transition-all duration-200 active:bg-gray-50 native-press"
                 style={{
-                  animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both`,
+                  animation: `fadeInUp 0.3s ease-out ${index * 0.03}s both`,
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('button')) return
+                  createRipple(e)
+                  handlePartyGroupClick(group)
                 }}
               >
-                {/* Party Group Header */}
-                <div className="p-3">
-                  <button
-                    onClick={(e) => {
-                      createRipple(e)
-                      handlePartyGroupClick(group)
-                    }}
-                    className="w-full flex flex-col hover:bg-gray-50 active:bg-gray-100 transition-all duration-150 cursor-pointer rounded-lg text-left native-press"
-                    style={{ 
-                      width: '100%', 
-                      padding: 0, 
-                      margin: 0, 
-                      border: 'none', 
-                      background: 'transparent',
-                      WebkitTapHighlightColor: 'transparent',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    <div className="w-full flex items-center justify-between mb-1" style={{ width: '100%', boxSizing: 'border-box' }}>
-                      <h3 className="font-semibold text-xs text-gray-900">{group.partyName}</h3>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          const balance = group.totalSelling - group.totalPaid
-                          try {
-                            const amountStr = await sweetAlert.prompt({
-                              title: 'Add Payment',
-                              message: `Remaining balance: ${formatIndianCurrency(balance)}`,
-                              inputLabel: 'Payment Amount',
-                              inputPlaceholder: 'Enter amount',
-                              inputType: 'text',
-                              formatCurrencyInr: true,
-                              confirmText: 'Add Payment',
-                              cancelText: 'Cancel'
-                            })
-                            
-                            if (!amountStr) return
-
-                            const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
-                            if (isNaN(amount) || amount <= 0) {
-                              showToast('Invalid amount', 'error')
-                              return
-                            }
-
-                            const note = await sweetAlert.prompt({
-                              title: 'Payment Note (optional)',
-                              inputLabel: 'Note',
-                              inputPlaceholder: 'Add a note (optional)',
-                              inputType: 'text',
-                              required: false,
-                              confirmText: 'Save',
-                              cancelText: 'Skip',
-                            })
-
-                            await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
-                            showToast('Payment added successfully!', 'success')
-                            await loadPartyPayments()
-                          } catch (error: any) {
-                            if (error?.message && !error.message.includes('SweetAlert')) {
-                              showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-                            }
-                          }
-                        }}
-                        className="px-2 py-1 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 active:bg-primary-800 transition-all duration-150 touch-manipulation native-press flex items-center gap-1.5 flex-shrink-0"
-                        style={{
-                          WebkitTapHighlightColor: 'transparent',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}
-                        onMouseDown={(e) => {
-                          createRipple(e as any)
-                        }}
-                      >
-                        <Plus size={12} />
-                        Add Payment
-                      </button>
-                    </div>
-                    {group.orders.length > 0 && group.orders[0].siteName && (
-                      <p className="text-[10px] text-gray-500 mb-2 w-full">{group.orders[0].siteName}</p>
-                    )}
-                    <div className="w-full space-y-2 text-xs" style={{ width: '100%', boxSizing: 'border-box' }}>
-                      <div className="flex justify-between items-center" style={{ width: '100%', boxSizing: 'border-box' }}>
-                        <span className="text-gray-600">Received</span>
-                        <span className="font-medium text-gray-900">{formatIndianCurrency(group.totalPaid)}</span>
+                <div className="p-2.5">
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <User size={14} className="text-primary-600 flex-shrink-0" />
+                        <h3 className="font-bold text-sm text-gray-900 truncate">{group.partyName}</h3>
                       </div>
-                      <div className="flex justify-between items-center" style={{ width: '100%', boxSizing: 'border-box' }}>
-                        <span className="text-gray-600">Remaining</span>
-                        <span className={`font-medium ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {formatIndianCurrency(Math.abs(balance))}
+                      {group.orders.length > 0 && group.orders[0].siteName && (
+                        <p className="text-[10px] text-gray-500 truncate ml-5">{group.orders[0].siteName}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        createRipple(e)
+                        const balance = group.totalSelling - group.totalPaid
+                        try {
+                          const amountStr = await sweetAlert.prompt({
+                            title: 'Add Payment',
+                            message: `Remaining balance: ${formatIndianCurrency(balance)}`,
+                            inputLabel: 'Payment Amount',
+                            inputPlaceholder: 'Enter amount',
+                            inputType: 'text',
+                            formatCurrencyInr: true,
+                            confirmText: 'Add Payment',
+                            cancelText: 'Cancel'
+                          })
+                          
+                          if (!amountStr) return
+
+                          const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+                          if (isNaN(amount) || amount <= 0) {
+                            showToast('Invalid amount', 'error')
+                            return
+                          }
+
+                          const note = await sweetAlert.prompt({
+                            title: 'Payment Note (optional)',
+                            inputLabel: 'Note',
+                            inputPlaceholder: 'Add a note (optional)',
+                            inputType: 'text',
+                            required: false,
+                            confirmText: 'Save',
+                            cancelText: 'Skip',
+                          })
+
+                          await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
+                          showToast('Payment added successfully!', 'success')
+                          await loadPartyPayments()
+                        } catch (error: any) {
+                          if (error?.message && !error.message.includes('SweetAlert')) {
+                            showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+                          }
+                        }
+                      }}
+                      className="p-1.5 bg-primary-600 text-white rounded-lg text-[10px] font-semibold hover:bg-primary-700 active:bg-primary-800 transition-all native-press flex items-center gap-1 flex-shrink-0"
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+
+                  {/* Amount Info - Inline */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-600">Total:</span>
+                      <span className="text-sm font-bold text-primary-700">
+                        {formatIndianCurrency(group.totalSelling)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-600">Received:</span>
+                      <span className="text-xs font-semibold text-green-700">
+                        {formatIndianCurrency(group.totalPaid)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-600">Balance:</span>
+                      <span className={`text-xs font-semibold ${
+                        balance > 0 ? 'text-red-700' : 'text-green-700'
+                      }`}>
+                        {formatIndianCurrency(Math.abs(balance))}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Last Payment & Order Count - Compact Row */}
+                  <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
+                    {lastPaymentDateObj && group.lastPaymentAmount !== null ? (
+                      <div className="flex items-center gap-1">
+                        <Calendar size={10} className="text-gray-400" />
+                        <span className="text-[10px] text-gray-500">
+                          {format(lastPaymentDateObj, 'dd MMM')} • {formatIndianCurrency(group.lastPaymentAmount)}
                         </span>
                       </div>
-                      {group.lastPaymentDate && group.lastPaymentAmount !== null && (() => {
-                        const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
-                        return lastPaymentDateObj ? (
-                          <div className="flex justify-between items-center pt-2 border-t border-gray-200" style={{ width: '100%', boxSizing: 'border-box' }}>
-                            <span className="text-gray-600">Last paid at</span>
-                            <span className="font-medium text-gray-900 text-right">
-                              {format(lastPaymentDateObj, 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
-                            </span>
-                          </div>
-                        ) : null
-                      })()}
+                    ) : (
+                      <span className="text-[10px] text-gray-400">No payments yet</span>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <Package size={10} className="text-gray-400" />
+                      <span className="text-[10px] text-gray-500">{group.orders.length} order{group.orders.length !== 1 ? 's' : ''}</span>
                     </div>
-                  </button>
+                  </div>
                 </div>
               </div>
             )
@@ -1157,7 +1170,7 @@ export default function OrdersPage() {
         <div className="p-1.5 space-y-1.5" style={{ paddingTop: '0.5rem' }}>
           {/* Select All Checkbox */}
           {filteredOrders.length > 0 && (
-            <div className="bg-white rounded-lg p-1.5 border border-gray-200 mb-1.5 sticky top-0 z-10 shadow-sm">
+            <div className="bg-white rounded-lg p-1.5 border border-gray-100 mb-1.5 sticky top-0 z-10">
               <label className="flex items-center gap-2 cursor-pointer touch-manipulation" style={{ WebkitTapHighlightColor: 'transparent' }}>
                 <input
                   type="checkbox"
@@ -1195,8 +1208,8 @@ export default function OrdersPage() {
                 data-order-id={order.id}
                 className={`bg-white rounded-lg border transition-all duration-150 touch-manipulation native-press ${
                   selectedOrders.has(order.id!)
-                    ? 'border-primary-500 bg-primary-50 shadow-md'
-                    : 'border-gray-200 shadow-sm'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-100'
                 } ${
                   highlightedOrderId === order.id ? 'ring-2 ring-primary-400 border-primary-500' : ''
                 }`}
@@ -1379,7 +1392,7 @@ export default function OrdersPage() {
               setSelectedOrderForPayments(null)
             }}
           />
-          <div className="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-2xl z-50 max-h-[80vh] overflow-y-auto">
+          <div className="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl border-t border-gray-100 z-50 max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Payment History</h2>
               <button

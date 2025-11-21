@@ -110,7 +110,7 @@ export default function FilterPopup({ isOpen, onClose, title = 'Filters', childr
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl shadow-2xl max-w-md w-full pointer-events-auto flex flex-col ${
+          className={`bg-white rounded-2xl border border-gray-100 max-w-md w-full pointer-events-auto flex flex-col ${
             isClosing
               ? 'native-modal-exit'
               : isMounted

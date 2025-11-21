@@ -273,7 +273,7 @@ export default function InvoicesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-        <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40 shadow-sm">
+        <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40">
           <div className="flex justify-between items-center">
             <h1 className="text-xl font-bold">Invoices</h1>
             <div className="flex items-center gap-2">
@@ -309,7 +309,7 @@ export default function InvoicesPage() {
       overflow: 'hidden'
     }}>
       {/* Header - Fixed at top */}
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40 shadow-sm" style={{ flexShrink: 0 }}>
+      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40" style={{ flexShrink: 0 }}>
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Invoices</h1>
           <button
@@ -416,7 +416,7 @@ export default function InvoicesPage() {
         {/* Invoices List */}
         <div className="space-y-2">
           {filteredInvoices.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center border border-gray-200">
+            <div className="bg-white rounded-lg p-8 text-center border border-gray-100">
               <FileText size={48} className="mx-auto text-gray-400 mb-4" />
               <p className="text-gray-500">No invoices found</p>
             </div>
@@ -427,7 +427,7 @@ export default function InvoicesPage() {
               const isExpanded = expandedInvoice === invoice.id
 
               return (
-                <div key={invoice.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div key={invoice.id} className="bg-white rounded-lg border border-gray-100 overflow-hidden">
                   {/* Invoice Header - Compact */}
                   <div className="p-2 border-b border-gray-200">
                     {/* Top Row: Invoice Number and Status */}
