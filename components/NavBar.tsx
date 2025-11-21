@@ -19,7 +19,7 @@ export default function NavBar() {
     <nav 
       className="fixed left-0 right-0 z-50 flex items-end justify-center"
       style={{ 
-        bottom: 'max(env(safe-area-inset-bottom, 0px), 1.5rem)',
+        bottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)',
         paddingLeft: 'max(env(safe-area-inset-left, 0px), 0.75rem)',
         paddingRight: 'max(env(safe-area-inset-right, 0px), 0.75rem)',
         pointerEvents: 'none',
@@ -85,7 +85,7 @@ export default function NavBar() {
                 }}
               >
                 <Icon 
-                  size={20} 
+                  size={22} 
                   className={`transition-all duration-200 ${
                     isActive ? 'text-primary-600' : 'text-gray-500'
                   }`}
