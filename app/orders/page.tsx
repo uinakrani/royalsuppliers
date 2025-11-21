@@ -101,9 +101,9 @@ export default function OrdersPage() {
     return () => window.removeEventListener('resize', updateHeaderHeight)
   }, [])
 
-  // Scroll detection for hiding/showing bottom tabs (only in byParty view)
+  // Scroll detection for hiding/showing bottom tabs (works for both view modes)
   useEffect(() => {
-    if (viewMode !== 'byParty' || !contentRef.current) {
+    if (!contentRef.current) {
       setShowBottomTabs(true)
       return
     }
@@ -953,8 +953,8 @@ export default function OrdersPage() {
           paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
           pointerEvents: 'none',
           transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          transform: viewMode === 'byParty' && !showBottomTabs ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
-          opacity: viewMode === 'byParty' && !showBottomTabs ? 0 : 1,
+          transform: !showBottomTabs ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
+          opacity: !showBottomTabs ? 0 : 1,
         }}
       >
         <div 
@@ -962,7 +962,7 @@ export default function OrdersPage() {
           style={{ 
             padding: '0.5rem',
             boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
-            pointerEvents: viewMode === 'byParty' && !showBottomTabs ? 'none' : 'auto',
+            pointerEvents: !showBottomTabs ? 'none' : 'auto',
           }}
         >
           <button
