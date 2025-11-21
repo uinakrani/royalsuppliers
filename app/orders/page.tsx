@@ -1261,7 +1261,7 @@ export default function OrdersPage() {
         <div className="w-full" style={{ paddingTop: '0.5rem' }}>
           {/* Select All Checkbox */}
           {filteredOrders.length > 0 && (
-            <div className="bg-white border-b border-gray-100 px-2 py-1.5 sticky top-0 z-10">
+            <div className="bg-white border-b border-gray-100 px-2 py-2 sticky top-0 z-10">
               <label className="flex items-center gap-2 cursor-pointer touch-manipulation" style={{ WebkitTapHighlightColor: 'transparent' }}>
                 <input
                   type="checkbox"
@@ -1275,10 +1275,10 @@ export default function OrdersPage() {
                     }
                   }}
                   className="custom-checkbox"
-                  style={{ width: '18px', height: '18px' }}
+                  style={{ width: '22px', height: '22px' }}
                   onClick={(e) => e.stopPropagation()}
                 />
-                <span className="text-xs font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700">
                   Select All ({filteredOrders.length})
                 </span>
               </label>
@@ -1290,33 +1290,33 @@ export default function OrdersPage() {
             {/* Table Header - Sticky - Single Row - Compact */}
             <div className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 min-w-max">
               <div className="flex items-center">
-                <div className="w-9 px-0.5 py-1 flex-shrink-0"></div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Date</span>
+                <div className="w-12 px-1 py-1.5 flex-shrink-0"></div>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Date</span>
                 </div>
-                <div className="w-24 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
+                <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
                 </div>
-                <div className="w-24 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Material</span>
+                <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Material</span>
                 </div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Wt/Rate</span>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Wt/Rate</span>
                 </div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Total</span>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Total</span>
                 </div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Truck</span>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Truck</span>
                 </div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Orig Wt/Rate</span>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Orig Wt/Rate</span>
                 </div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Orig Total</span>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Orig Total</span>
                 </div>
-                <div className="w-20 px-0.5 py-1 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[8px] font-semibold text-gray-600 uppercase leading-tight">Add/Profit</span>
+                <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Add/Profit</span>
                 </div>
               </div>
             </div>
@@ -1333,11 +1333,11 @@ export default function OrdersPage() {
                   <div
                     key={order.id}
                     data-order-id={order.id}
-                    className={`flex items-center transition-all duration-150 touch-manipulation native-press ${
+                    className={`flex items-center touch-manipulation native-press ${
                       selectedOrders.has(order.id!)
                         ? 'bg-primary-50'
                         : pressedRowId === order.id
-                        ? 'bg-gray-100 scale-[0.98]'
+                        ? 'bg-primary-100'
                         : 'bg-white'
                     } ${
                       highlightedOrderId === order.id ? 'ring-2 ring-primary-400 bg-primary-100' : ''
@@ -1347,7 +1347,9 @@ export default function OrdersPage() {
                       animation: `fadeInUp 0.2s ease-out ${index * 0.02}s both`,
                       position: 'relative',
                       overflow: 'hidden',
-                      minHeight: '2.75rem',
+                      minHeight: '3rem',
+                      transition: 'background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                      transform: pressedRowId === order.id ? 'scale(0.99)' : 'scale(1)',
                     }}
                     onTouchStart={(e) => {
                       if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
@@ -1355,6 +1357,8 @@ export default function OrdersPage() {
                       }
                       // Immediate touch feedback
                       setPressedRowId(order.id!)
+                      // Highlight on touch - stays highlighted until another row is touched
+                      setHighlightedOrderId(order.id!)
                       
                       const touch = e.touches[0]
                       const startX = touch.clientX
@@ -1426,20 +1430,12 @@ export default function OrdersPage() {
                       if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
                         return
                       }
-                      // Just highlight on single click
-                      if (highlightedOrderId === order.id) {
-                        setHighlightedOrderId(null)
-                      } else {
-                        setHighlightedOrderId(order.id!)
-                        // Clear highlight after 2 seconds
-                        setTimeout(() => {
-                          setHighlightedOrderId((prev) => prev === order.id ? null : prev)
-                        }, 2000)
-                      }
+                      // Highlight on click - stays highlighted until another row is clicked
+                      setHighlightedOrderId(order.id!)
                     }}
                   >
                     {/* Checkbox Column */}
-                    <div className="w-9 px-0.5 py-1.5 flex-shrink-0 flex items-center justify-center border-r border-gray-100">
+                    <div className="w-12 px-1 py-2 flex-shrink-0 flex items-center justify-center border-r border-gray-100">
                       <input
                         type="checkbox"
                         checked={selectedOrders.has(order.id!)}
@@ -1448,40 +1444,40 @@ export default function OrdersPage() {
                           toggleOrderSelection(order.id!)
                         }}
                         className="custom-checkbox"
-                        style={{ width: '16px', height: '16px' }}
+                        style={{ width: '22px', height: '22px' }}
                         onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
                     {/* Date Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-600 text-[9px] leading-tight">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-600 text-[11px] leading-tight font-medium">
                         {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
                       </div>
-                      <div className="text-gray-500 text-[9px] leading-tight">
+                      <div className="text-gray-500 text-[10px] leading-tight mt-0.5">
                         {orderDate ? format(orderDate, 'hh:mm a') : ''}
                       </div>
                     </div>
 
                     {/* Party / Site Column */}
-                    <div className="w-24 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="font-semibold text-gray-900 truncate text-[11px] leading-tight">
+                    <div className="w-28 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="font-semibold text-gray-900 truncate text-[13px] leading-tight">
                         {order.partyName}
                       </div>
                       {order.siteName && (
-                        <div className="text-[9px] text-gray-500 truncate mt-0.5">
+                        <div className="text-[11px] text-gray-500 truncate mt-0.5">
                           {order.siteName}
                         </div>
                       )}
                     </div>
 
                     {/* Material Column */}
-                    <div className="w-24 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
+                    <div className="w-28 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
                       <div className="flex flex-wrap gap-0.5">
                         {materials.map((mat, idx) => (
                           <span
                             key={idx}
-                            className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[8px] font-medium whitespace-nowrap"
+                            className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
                             title={mat}
                           >
                             {mat}
@@ -1491,49 +1487,49 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Weight / Rate Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[9px] leading-tight">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-700 text-[11px] leading-tight">
                         Wt: {order.weight.toLocaleString('en-IN')}
                       </div>
-                      <div className="text-gray-700 text-[9px] leading-tight">
+                      <div className="text-gray-700 text-[11px] leading-tight">
                         R: {formatIndianCurrency(order.rate)}
                       </div>
                     </div>
 
                     {/* Total Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="font-bold text-primary-600 text-[11px] leading-tight">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="font-bold text-primary-600 text-[13px] leading-tight">
                         {formatIndianCurrency(order.total)}
                       </div>
                     </div>
 
                     {/* Truck Owner / No. Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[9px] leading-tight truncate">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-700 text-[11px] leading-tight truncate">
                         {order.truckOwner}
                       </div>
-                      <div className="text-gray-500 text-[9px] leading-tight">
+                      <div className="text-gray-500 text-[11px] leading-tight">
                         {order.truckNo}
                       </div>
                     </div>
 
                     {/* Original Weight / Rate Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[9px] leading-tight">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-700 text-[11px] leading-tight">
                         Wt: {order.originalWeight.toLocaleString('en-IN')}
                       </div>
-                      <div className="text-gray-700 text-[9px] leading-tight">
+                      <div className="text-gray-700 text-[11px] leading-tight">
                         R: {formatIndianCurrency(order.originalRate)}
                       </div>
                     </div>
 
                     {/* Original Total Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0 border-r border-gray-100">
-                      <div className="font-semibold text-gray-800 text-[11px] leading-tight">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                      <div className="font-semibold text-gray-800 text-[13px] leading-tight">
                         {formatIndianCurrency(order.originalTotal)}
                       </div>
                       {totalRawPayments > 0 && (
-                        <div className="text-[9px] leading-tight mt-0.5">
+                        <div className="text-[11px] leading-tight mt-0.5">
                           <div className="text-green-600 font-medium">
                             Paid: {formatIndianCurrency(totalRawPayments)}
                           </div>
@@ -1547,11 +1543,11 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Additional Cost / Profit Column */}
-                    <div className="w-20 px-0.5 py-1.5 flex-shrink-0">
-                      <div className="text-blue-600 text-[9px] leading-tight">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0">
+                      <div className="text-blue-600 text-[11px] leading-tight">
                         Add: {formatIndianCurrency(order.additionalCost)}
                       </div>
-                      <div className={`font-semibold text-[11px] leading-tight ${
+                      <div className={`font-semibold text-[13px] leading-tight ${
                         order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
                         P: {formatIndianCurrency(order.profit)}
@@ -1566,60 +1562,97 @@ export default function OrdersPage() {
       )}
 
       {/* Context Menu */}
-      {contextMenu && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/20 z-[60]"
-            style={{
-              animation: 'fadeIn 0.2s ease-out',
-            }}
-            onClick={() => setContextMenu(null)}
-            onTouchStart={() => setContextMenu(null)}
-          />
-          {/* Context Menu */}
-          <div
-            className="fixed z-[61] bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
-            style={{
-              left: `${Math.max(10, Math.min(contextMenu.x, window.innerWidth - 200))}px`,
-              top: `${Math.max(10, Math.min(contextMenu.y, window.innerHeight - 150))}px`,
-              minWidth: '180px',
-              maxWidth: '200px',
-              animation: 'scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              transformOrigin: 'top left',
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-          >
-            <div className="py-1">
-              <button
-                onClick={() => {
-                  setContextMenu(null)
-                  handleAddPaymentToOrder(contextMenu.order)
-                }}
-                className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation flex items-center gap-3"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                <span className="text-primary-600">💰</span>
-                <span>Pay for Raw Materials</span>
-              </button>
-              <div className="h-px bg-gray-200" />
-              <button
-                onClick={() => {
-                  setContextMenu(null)
-                  setSelectedOrderDetail(contextMenu.order)
-                  setShowOrderDetailDrawer(true)
-                }}
-                className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation flex items-center gap-3"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                <span className="text-primary-600">👁️</span>
-                <span>View Details</span>
-              </button>
+      {contextMenu && (() => {
+        // Calculate optimal position based on touch point
+        const menuWidth = 160
+        const menuHeight = 90
+        const padding = 8
+        
+        // Calculate horizontal position
+        let left = contextMenu.x
+        if (left + menuWidth > window.innerWidth - padding) {
+          left = window.innerWidth - menuWidth - padding
+        }
+        if (left < padding) {
+          left = padding
+        }
+        
+        // Calculate vertical position
+        let top = contextMenu.y
+        if (top + menuHeight > window.innerHeight - padding) {
+          // Position above touch point if menu would go off screen
+          top = contextMenu.y - menuHeight - 8
+        }
+        if (top < padding) {
+          top = padding
+        }
+        
+        // Determine transform origin based on position
+        const transformOriginX = left < window.innerWidth / 2 ? 'left' : 'right'
+        const transformOriginY = top < window.innerHeight / 2 ? 'top' : 'bottom'
+        
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/30 z-[60]"
+              style={{
+                animation: 'fadeIn 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                backdropFilter: 'blur(2px)',
+                WebkitBackdropFilter: 'blur(2px)',
+              }}
+              onClick={() => setContextMenu(null)}
+              onTouchStart={() => setContextMenu(null)}
+            />
+            {/* Context Menu */}
+            <div
+              className="fixed z-[61] bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200/80"
+              style={{
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${menuWidth}px`,
+                animation: 'contextMenuEnter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                transformOrigin: `${transformOriginY} ${transformOriginX}`,
+                willChange: 'transform, opacity',
+                backfaceVisibility: 'hidden',
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              <div className="py-0.5">
+                <button
+                  onClick={() => {
+                    setContextMenu(null)
+                    handleAddPaymentToOrder(contextMenu.order)
+                  }}
+                  className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-900 active:bg-gray-50 transition-colors touch-manipulation"
+                  style={{ 
+                    WebkitTapHighlightColor: 'transparent',
+                    fontSize: '13px',
+                  }}
+                >
+                  Pay for Raw Materials
+                </button>
+                <div className="h-[1px] bg-gray-200 mx-2" />
+                <button
+                  onClick={() => {
+                    setContextMenu(null)
+                    setSelectedOrderDetail(contextMenu.order)
+                    setShowOrderDetailDrawer(true)
+                  }}
+                  className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-900 active:bg-gray-50 transition-colors touch-manipulation"
+                  style={{ 
+                    WebkitTapHighlightColor: 'transparent',
+                    fontSize: '13px',
+                  }}
+                >
+                  View Details
+                </button>
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )
+      })()}
 
       {showForm && (
         <OrderForm

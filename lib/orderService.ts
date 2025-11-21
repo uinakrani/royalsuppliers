@@ -78,22 +78,27 @@ export const orderService = {
       
       console.log('✅ Order created successfully with ID:', docRef.id)
 
-      // Create ledger entry for the actual paid amount (not the full originalTotal)
+      // Create ledger entries for expenses
       // Only add ledger entry if order is paid (not paymentDue)
       if (!order.paymentDue && order.paid) {
         try {
-          // Use the paid amount if provided, otherwise use full originalTotal
+          // Add raw material payment expense
           const ledgerAmount = paidAmountForRawMaterials && paidAmountForRawMaterials > 0 
             ? paidAmountForRawMaterials 
             : expenseAmount
           
           if (ledgerAmount > 0) {
-            const note = `Order expense - ${order.partyName} (${order.siteName})`
+            const truckInfo = order.truckOwner ? ` - ${order.truckOwner}` : ''
+            const note = `Raw materials${truckInfo} - ${order.partyName} (${order.siteName})`
             await ledgerService.addEntry('debit', ledgerAmount, note, 'orderExpense')
           }
           
-          // Note: Only expense (debit) entries are created for raw material payments
-          // No income (credit) entries are created, even if paid less than full expense
+          // Add additional costs expense (always paid when order is created)
+          const additionalCost = Number(order.additionalCost || 0)
+          if (additionalCost > 0) {
+            const note = `Additional costs - ${order.partyName} (${order.siteName})`
+            await ledgerService.addEntry('debit', additionalCost, note, 'orderExpense')
+          }
         } catch (e) {
           console.warn('Ledger entry for order expense failed (non-fatal):', e)
         }
@@ -181,13 +186,23 @@ export const orderService = {
           const totalPaid = finalPayments.reduce((sum, p) => sum + p.amount, 0)
           const remainingAmount = expenseAmount - totalPaid
           
-          // Create expense entry for the remaining amount (if any)
+          // Create expense entry for the remaining raw material amount (if any)
           if (remainingAmount > 0) {
-            const note = `Order expense - ${existingOrder.partyName} (${existingOrder.siteName})`
+            const truckInfo = existingOrder.truckOwner ? ` - ${existingOrder.truckOwner}` : ''
+            const note = `Raw materials${truckInfo} - ${existingOrder.partyName} (${existingOrder.siteName})`
             await ledgerService.addEntry('debit', remainingAmount, note, 'orderExpense')
           }
           
-          // Note: Only expense (debit) entries are created for raw material payments
+          // Also add additional costs expense (always paid when order is marked as paid)
+          const additionalCost = Object.prototype.hasOwnProperty.call(order, 'additionalCost')
+            ? Number(order.additionalCost || 0)
+            : Number(existingOrder.additionalCost || 0)
+          if (additionalCost > 0) {
+            const note = `Additional costs - ${existingOrder.partyName} (${existingOrder.siteName})`
+            await ledgerService.addEntry('debit', additionalCost, note, 'orderExpense')
+          }
+          
+          // Note: Only expense (debit) entries are created for raw material payments and additional costs
           // No income (credit) entries are created, even if paid less than full expense or for order profit
           
           // When marking as paid directly (not through payment flow):
@@ -221,27 +236,54 @@ export const orderService = {
             }
           }
         }
-        // If expense amount changed and order is paid, post delta (only for originalTotal changes)
+        // If expense amount changed and order is paid, post delta
         else if (!existingOrder.paymentDue && existingOrder.paid) {
-          // Only track changes to originalTotal, not additionalCost
+          // Track changes to originalTotal
           if (Object.prototype.hasOwnProperty.call(order, 'originalTotal')) {
             const prevOriginal = Number(existingOrder.originalTotal || 0)
             const newOriginal = nextOriginal
             const expenseDelta = newOriginal - prevOriginal
             
             if (expenseDelta !== 0) {
+              const truckOwner = order.truckOwner || existingOrder.truckOwner
+              const truckInfo = truckOwner ? ` - ${truckOwner}` : ''
               if (expenseDelta > 0) {
                 await ledgerService.addEntry(
                   'debit',
                   expenseDelta,
-                  `Order expense updated - ${order.partyName || existingOrder.partyName}`.trim(),
+                  `Raw materials updated${truckInfo} - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
                   'orderExpense'
                 )
               } else {
                 await ledgerService.addEntry(
                   'credit',
                   Math.abs(expenseDelta),
-                  `Order expense reduced - ${order.partyName || existingOrder.partyName}`.trim(),
+                  `Raw materials reduced${truckInfo} - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
+                  'orderExpense'
+                )
+              }
+            }
+          }
+          
+          // Track changes to additionalCost
+          if (Object.prototype.hasOwnProperty.call(order, 'additionalCost')) {
+            const prevAdditional = Number(existingOrder.additionalCost || 0)
+            const newAdditional = Number(order.additionalCost || 0)
+            const additionalDelta = newAdditional - prevAdditional
+            
+            if (additionalDelta !== 0) {
+              if (additionalDelta > 0) {
+                await ledgerService.addEntry(
+                  'debit',
+                  additionalDelta,
+                  `Additional costs updated - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
+                  'orderExpense'
+                )
+              } else {
+                await ledgerService.addEntry(
+                  'credit',
+                  Math.abs(additionalDelta),
+                  `Additional costs reduced - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
                   'orderExpense'
                 )
               }
@@ -439,9 +481,10 @@ export const orderService = {
     
     // Create ledger entry for this payment (debit - expense for raw materials ONLY, no income entry)
     try {
+      const truckInfo = order.truckOwner ? ` - ${order.truckOwner}` : ''
       const ledgerNote = note && note.trim() 
-        ? `Raw materials payment - ${order.partyName} (${order.siteName}): ${note.trim()}`
-        : `Raw materials payment - ${order.partyName} (${order.siteName})`
+        ? `Raw materials payment${truckInfo} - ${order.partyName} (${order.siteName}): ${note.trim()}`
+        : `Raw materials payment${truckInfo} - ${order.partyName} (${order.siteName})`
       await ledgerService.addEntry('debit', paymentAmount, ledgerNote, 'orderExpense', paymentDate)
     } catch (e) {
       console.warn('Ledger entry for order payment failed (non-fatal):', e)

@@ -36,6 +36,7 @@ export default function Dashboard() {
     customerPaymentsReceived: 0,
     rawMaterialPaymentsReceived: 0,
     profitReceived: 0,
+    calculatedBalance: 0,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -314,6 +315,16 @@ export default function Dashboard() {
       calculatedStats.customerPaymentsReceived = customerPaymentsReceived
       calculatedStats.profitReceived = profitReceived
       
+      // Calculate current balance: Money received from customers - Money spent on raw materials and costs
+      // This represents the actual cash balance (money in hand)
+      // Formula: Customer Payments Received - (Raw Material Payments Made + Additional Costs)
+      // Note: We don't add profit because profit is already the difference between what we received and what we spent
+      calculatedStats.calculatedBalance = customerPaymentsReceived - calculatedStats.moneyOut
+      
+      // Also update currentBalance to show total customer payments received (for backward compatibility)
+      // This represents payments received from customers, not the actual balance
+      calculatedStats.currentBalance = customerPaymentsReceived
+      
       setOrders(filteredOrders)
       setStats(calculatedStats)
     } catch (error: any) {
@@ -345,6 +356,7 @@ export default function Dashboard() {
         customerPaymentsReceived: 0,
         rawMaterialPaymentsReceived: 0,
         profitReceived: 0,
+        calculatedBalance: 0,
       })
     } finally {
       setLoading(false)
@@ -703,9 +715,43 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Current Balance - Calculated */}
+          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-4 text-white">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                <Wallet size={20} className="text-white" />
+              </div>
+              <h3 className="text-base font-bold text-white">Current Balance</h3>
+            </div>
+            <p className="text-3xl font-bold mb-1">
+              {formatIndianCurrency(stats.calculatedBalance)}
+            </p>
+            <p className="text-xs opacity-90 mb-3">
+              Money Received - Money Spent
+            </p>
+            <div className="pt-3 border-t border-white/20 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="opacity-80">Received from Customers:</span>
+                <span className="font-semibold">{formatIndianCurrency(stats.customerPaymentsReceived)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="opacity-80">Spent (Raw Materials + Costs):</span>
+                <span className="font-semibold">-{formatIndianCurrency(stats.moneyOut)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">
+                <span className="opacity-80 font-medium">Net Balance:</span>
+                <span className={`font-bold ${
+                  stats.calculatedBalance >= 0 ? 'text-green-200' : 'text-red-200'
+                }`}>
+                  {formatIndianCurrency(stats.calculatedBalance)}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
-            {/* Balance Card */}
+            {/* Payment Balance Card */}
             <div 
               className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white native-press"
               style={{
@@ -728,7 +774,7 @@ export default function Dashboard() {
               <p className="text-2xl font-bold mb-0.5">
                 {formatIndianCurrency(stats.currentBalance)}
               </p>
-              <p className="text-xs opacity-90 font-medium">Current Balance</p>
+              <p className="text-xs opacity-90 font-medium">Payment Balance</p>
             </div>
 
             {/* Total Cost Card */}

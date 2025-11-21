@@ -21,6 +21,7 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     customerPaymentsReceived: 0,
     rawMaterialPaymentsReceived: 0,
     profitReceived: 0,
+    calculatedBalance: 0, // Will be calculated separately
   }
 
   orders.forEach((order) => {
@@ -31,26 +32,23 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     stats.totalProfit += order.profit
     stats.estimatedProfit += order.profit // Estimated profit from filtered orders
     
-    // Money going out (expenses)
-    stats.moneyOut += orderCost
-
-    // Raw material payments
+    // Raw material payments (payments MADE for raw materials - expenses)
     const rawMaterialPayments = order.partialPayments || []
     const totalRawMaterialPaid = rawMaterialPayments.reduce((sum, p) => sum + p.amount, 0)
     stats.rawMaterialPaymentsReceived += totalRawMaterialPaid
     
-    // Outstanding raw material payments
+    // Money going out (actual expenses paid): raw material payments + additional costs
+    // Note: additionalCost is always paid when order is created, so include it
+    stats.moneyOut += totalRawMaterialPaid + order.additionalCost
+    
+    // Outstanding raw material payments (what's still owed for raw materials)
     const rawMaterialOutstanding = Math.max(0, order.originalTotal - totalRawMaterialPaid)
     stats.rawMaterialPaymentsOutstanding += rawMaterialOutstanding
 
-    // Calculate profit received based on order payment status
-    // If order is fully paid, all profit is received
-    // If partially paid, calculate proportionally
+    // Note: currentBalance and profitReceived are calculated separately using invoice/party payment data
+    // because customer payments are tracked separately from orders
     if (order.paid) {
-      stats.currentBalance += order.total
       stats.paidOrders++
-      // If fully paid, all profit is received
-      stats.profitReceived += order.profit
     } else {
       // Calculate total from partialPayments array if available, otherwise use paidAmount
       const partialTotal = order.partialPayments && order.partialPayments.length > 0
@@ -58,14 +56,8 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
         : (order.paidAmount || 0)
       
       if (partialTotal > 0) {
-        // Include partial payments in balance
-        stats.currentBalance += partialTotal
         stats.partialOrders++
         stats.unpaidOrders++
-        
-        // Calculate profit received proportionally
-        // Note: This is for customer payments, not raw material payments
-        // We'll calculate this separately when we have invoice data
       } else {
         stats.unpaidOrders++
       }

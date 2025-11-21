@@ -210,46 +210,49 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   const timestamp = format(orderDate, 'yyMMddHHmm') // YYMMDDHHMM format
   const royalTimestamp = `ROYAL${timestamp}`
   
-  doc.setFontSize(9)
+  doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 100, 100)
   doc.text(royalTimestamp, pageWidth - margin, yPos, { align: 'right', charSpace: 0 })
-  yPos += 5
-  
+  yPos += 6
+
   // Date on left
+  doc.setFontSize(11)
   doc.text(`Date: ${format(orderDate, 'dd MMMM, yyyy')}`, contentX, yPos, { charSpace: 0 })
-  yPos += 10
-  
+  yPos += 12
+
   // Billed to and From sections side by side
   const leftColX = contentX
   const rightColX = contentX + (contentWidth / 2) + 20
   const colWidth = (contentWidth / 2) - 20
-  
+
   // Billed to (left column)
-  doc.setFontSize(10)
+  doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
   doc.text('Billed to:', leftColX, yPos, { charSpace: 0 })
-  yPos += 6
+  yPos += 7
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(12)
   doc.setTextColor(50, 50, 50)
   doc.text(order.partyName, leftColX, yPos, { charSpace: 0 })
-  yPos += 5
+  yPos += 6
   doc.text(order.siteName, leftColX, yPos, { charSpace: 0 })
-  
+
   // From (right column)
-  const fromY = yPos - 11
+  const fromY = yPos - 13
   doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
   doc.setTextColor(30, 30, 30)
   doc.text('From:', rightColX, fromY, { charSpace: 0 })
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(50, 50, 50)
-  doc.text('Royal Suppliers', rightColX, fromY + 6, { charSpace: 0 })
-  
-  yPos += 15
-  
+  doc.text('Royal Suppliers', rightColX, fromY + 7, { charSpace: 0 })
+
+  yPos += 18
+
   // Table header - calculate column positions to fit within page width
-  doc.setFontSize(9)
+  doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(100, 100, 100)
   
@@ -260,13 +263,15 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional)
-  const materialWidth = tableWidth * 0.40   // 40% for material
-  const weightWidth = tableWidth * 0.20     // 20% for weight
-  const rateWidth = tableWidth * 0.20       // 20% for rate
-  const totalWidth = tableWidth * 0.20      // 20% for total
-  
-  const materialX = tableStartX
+  // Column widths (proportional) - adjusted to include date
+  const dateWidth = tableWidth * 0.15      // 15% for date
+  const materialWidth = tableWidth * 0.30  // 30% for material
+  const weightWidth = tableWidth * 0.18    // 18% for weight
+  const rateWidth = tableWidth * 0.18      // 18% for rate
+  const totalWidth = tableWidth * 0.19     // 19% for total
+
+  const dateX = tableStartX
+  const materialX = dateX + dateWidth
   const weightX = materialX + materialWidth
   const rateX = weightX + weightWidth
   const totalX = rateX + rateWidth
@@ -287,42 +292,43 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   // Text baseline should be slightly below center to account for text metrics
   const headerCenterY = (headerTopY + headerBottomY) / 2 + 1.5
   
+  doc.text('Date', dateX, headerCenterY, { charSpace: 0 })
   doc.text('Material', materialX, headerCenterY, { charSpace: 0 })
   doc.text('Weight', weightX + weightWidth, headerCenterY, { charSpace: 0, align: 'right' })
   doc.text('Rate', rateX + rateWidth, headerCenterY, { charSpace: 0, align: 'right' })
   doc.text('Total', totalX + totalWidth, headerCenterY, { charSpace: 0, align: 'right' })
   
-  yPos = headerBottomY + 5
-  
+  yPos = headerBottomY + 6
+
   // Table content
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(11)
   doc.setTextColor(50, 50, 50)
   
   // Handle materials - combine all materials into one item
   const materials = Array.isArray(order.material) ? order.material : [order.material]
   const materialDisplay = materials.join(', ')
   
-  // Single row with all materials - wrap long material names if needed
-  const materialLines = doc.splitTextToSize(materialDisplay, materialWidth - 5)
-  
-  // Render text with explicit options to prevent letter spacing
-  const textOptions = { charSpace: 0 }
-  const rowStartY = yPos
-  if (Array.isArray(materialLines)) {
-    materialLines.forEach((line: string, index: number) => {
-      doc.text(line, materialX, yPos + (index * 6), textOptions)
-    })
-  } else {
-    doc.text(materialLines, materialX, yPos, textOptions)
-  }
-  doc.text(order.weight.toFixed(2), weightX + weightWidth, yPos, { charSpace: 0, align: 'right' })
-  doc.text(`Rs.${formatIndianCurrency(order.rate)}`, rateX + rateWidth, yPos, { charSpace: 0, align: 'right' })
-  doc.text(`Rs.${formatIndianCurrency(order.total)}`, totalX + totalWidth, yPos, { charSpace: 0, align: 'right' })
-  
-  // Adjust yPos if material name wrapped to multiple lines
-  const rowHeight = Math.max(6, materialLines.length * 6)
-  yPos += rowHeight
+    // Single row with all materials - wrap long material names if needed
+    const materialLines = doc.splitTextToSize(materialDisplay, materialWidth - 5)
+    
+    // Render text with explicit options to prevent letter spacing
+    const textOptions = { charSpace: 0 }
+    const rowStartY = yPos
+    if (Array.isArray(materialLines)) {
+      materialLines.forEach((line: string, index: number) => {
+        doc.text(line, materialX, yPos + (index * 7), textOptions)
+      })
+    } else {
+      doc.text(materialLines, materialX, yPos, textOptions)
+    }
+    doc.text(order.weight.toFixed(2), weightX + weightWidth, yPos, { charSpace: 0, align: 'right' })
+    doc.text(`Rs.${formatIndianCurrency(order.rate)}`, rateX + rateWidth, yPos, { charSpace: 0, align: 'right' })
+    doc.text(`Rs.${formatIndianCurrency(order.total)}`, totalX + totalWidth, yPos, { charSpace: 0, align: 'right' })
+    
+    // Adjust yPos if material name wrapped to multiple lines
+    const rowHeight = Math.max(7, materialLines.length * 7)
+    yPos += rowHeight
   
   yPos += 5
   
@@ -335,32 +341,33 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   let summaryY = totalsY
   
   // Subtotal
-  doc.setFontSize(10)
+  doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
   doc.text('Subtotal:', summaryX - 60, summaryY, { charSpace: 0 })
   doc.setFont('helvetica', 'normal')
   doc.text(`Rs.${formatIndianCurrency(order.total)}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
-  summaryY += 7
-  
+  summaryY += 8
+
   // Discount (if profit is negative, show as discount)
   if (order.profit < 0) {
     doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
     doc.text('Discount Applied:', summaryX - 60, summaryY, { charSpace: 0 })
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(220, 38, 38) // Red for discount
     doc.text(`- Rs.${formatIndianCurrency(Math.abs(order.profit))}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
     doc.setTextColor(50, 50, 50)
-    summaryY += 7
+    summaryY += 8
   }
-  
+
   // Grand Total
-  summaryY += 3
+  summaryY += 4
   doc.setDrawColor(200, 200, 200)
   doc.line(summaryX - 60, summaryY, summaryX, summaryY)
-  summaryY += 7
-  
-  doc.setFontSize(12)
+  summaryY += 8
+
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
   doc.text('Total:', summaryX - 60, summaryY, { charSpace: 0 })
@@ -406,46 +413,49 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   const timestamp = format(firstOrderDate, 'yyMMddHHmm') // YYMMDDHHMM format
   const royalTimestamp = `ROYAL${timestamp}`
   
-  doc.setFontSize(9)
+  doc.setFontSize(11)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 100, 100)
   doc.text(royalTimestamp, pageWidth - margin, yPos, { align: 'right', charSpace: 0 })
-  yPos += 5
-  
+  yPos += 6
+
   // Date on left
+  doc.setFontSize(11)
   doc.text(`Date: ${format(firstOrderDate, 'dd MMMM, yyyy')}`, contentX, yPos, { charSpace: 0 })
-  yPos += 10
-  
+  yPos += 12
+
   // Billed to and From sections side by side
   const leftColX = contentX
   const rightColX = contentX + (contentWidth / 2) + 20
   const partyName = orders[0].partyName
-  
+
   // Billed to (left column)
-  doc.setFontSize(10)
+  doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
   doc.text('Billed to:', leftColX, yPos, { charSpace: 0 })
-  yPos += 6
+  yPos += 7
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(12)
   doc.setTextColor(50, 50, 50)
   doc.text(partyName, leftColX, yPos, { charSpace: 0 })
-  yPos += 5
+  yPos += 6
   doc.text(orders[0].siteName, leftColX, yPos, { charSpace: 0 })
-  
+
   // From (right column)
-  const fromY = yPos - 11
+  const fromY = yPos - 13
   doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
   doc.setTextColor(30, 30, 30)
   doc.text('From:', rightColX, fromY, { charSpace: 0 })
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(50, 50, 50)
-  doc.text('Royal Suppliers', rightColX, fromY + 6, { charSpace: 0 })
-  
-  yPos += 15
-  
+  doc.text('Royal Suppliers', rightColX, fromY + 7, { charSpace: 0 })
+
+  yPos += 18
+
   // Table header
-  doc.setFontSize(9)
+  doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(100, 100, 100)
   
@@ -455,13 +465,15 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional)
-  const materialWidth = tableWidth * 0.40   // 40% for material
-  const weightWidth = tableWidth * 0.20     // 20% for weight
-  const rateWidth = tableWidth * 0.20       // 20% for rate
-  const totalWidth = tableWidth * 0.20      // 20% for total
-  
-  const materialX = tableStartX
+  // Column widths (proportional) - adjusted to include date
+  const dateWidth = tableWidth * 0.15      // 15% for date
+  const materialWidth = tableWidth * 0.30  // 30% for material
+  const weightWidth = tableWidth * 0.18    // 18% for weight
+  const rateWidth = tableWidth * 0.18      // 18% for rate
+  const totalWidth = tableWidth * 0.19     // 19% for total
+
+  const dateX = tableStartX
+  const materialX = dateX + dateWidth
   const weightX = materialX + materialWidth
   const rateX = weightX + weightWidth
   const totalX = rateX + rateWidth
@@ -482,16 +494,17 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   // Text baseline should be slightly below center to account for text metrics
   const headerCenterY = (headerTopY + headerBottomY) / 2 + 1.5
   
+  doc.text('Date', dateX, headerCenterY, { charSpace: 0 })
   doc.text('Material', materialX, headerCenterY, { charSpace: 0 })
   doc.text('Weight', weightX + weightWidth, headerCenterY, { charSpace: 0, align: 'right' })
   doc.text('Rate', rateX + rateWidth, headerCenterY, { charSpace: 0, align: 'right' })
   doc.text('Total', totalX + totalWidth, headerCenterY, { charSpace: 0, align: 'right' })
   
-  yPos = headerBottomY + 5
-  
+  yPos = headerBottomY + 6
+
   // Table content - iterate through all orders
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(11)
   doc.setTextColor(50, 50, 50)
   
   let totalAmount = 0
@@ -517,7 +530,7 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
     const rowStartY = yPos
     if (Array.isArray(materialLines)) {
       materialLines.forEach((line: string, index: number) => {
-        doc.text(line, materialX, yPos + (index * 6), textOptions)
+        doc.text(line, materialX, yPos + (index * 7), textOptions)
       })
     } else {
       doc.text(materialLines, materialX, yPos, textOptions)
@@ -527,9 +540,9 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
     doc.text(`Rs.${formatIndianCurrency(order.total)}`, totalX + totalWidth, yPos, { charSpace: 0, align: 'right' })
     
     // Adjust yPos if material name wrapped to multiple lines
-    const rowHeight = Math.max(6, materialLines.length * 6)
+    const rowHeight = Math.max(7, materialLines.length * 7)
     yPos += rowHeight
-    yPos += 3
+    yPos += 4
     
     totalAmount += order.total
   }
@@ -545,21 +558,21 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   let summaryY = totalsY
   
   // Subtotal
-  doc.setFontSize(10)
+  doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 30, 30)
   doc.text('Subtotal:', summaryX - 60, summaryY, { charSpace: 0 })
   doc.setFont('helvetica', 'normal')
   doc.text(`Rs.${formatIndianCurrency(totalAmount)}`, summaryX, summaryY, { align: 'right', charSpace: 0 })
-  summaryY += 7
-  
+  summaryY += 8
+
   // Grand Total
-  summaryY += 3
+  summaryY += 4
   doc.setDrawColor(200, 200, 200)
   doc.line(summaryX - 60, summaryY, summaryX, summaryY)
-  summaryY += 7
-  
-  doc.setFontSize(12)
+  summaryY += 8
+
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(0, 0, 0)
   doc.text('Total:', summaryX - 60, summaryY, { charSpace: 0 })

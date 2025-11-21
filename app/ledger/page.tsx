@@ -154,20 +154,27 @@ export default function LedgerPage() {
           createRipple(event)
           handleEntryClick(e)
         }}
-        className="w-full bg-white rounded-lg border border-gray-100 mb-1 p-2 flex items-center justify-between active:bg-gray-50 transition-all duration-150 touch-manipulation native-press"
+        className="w-full bg-white rounded-lg border border-gray-100 mb-1 p-2 active:bg-gray-50 transition-all duration-150 touch-manipulation native-press"
         style={{ 
           WebkitTapHighlightColor: 'transparent',
           position: 'relative',
           overflow: 'hidden'
         }}
       >
-        <div className="flex items-center justify-between flex-1 min-w-0">
-          <span className={`font-bold ${e.type === 'credit' ? 'text-green-700' : 'text-red-700'}`} style={{ fontSize: '12px' }}>
-            {formatIndianCurrency(e.amount)}
-          </span>
-          <span className="text-gray-500 ml-2 flex-shrink-0" style={{ fontSize: '10px' }}>
-            {format(new Date(e.date), 'dd MMM')}
-          </span>
+        <div className="flex flex-col w-full">
+          <div className="flex items-center justify-between w-full mb-1">
+            <span className={`font-bold ${e.type === 'credit' ? 'text-green-700' : 'text-red-700'}`} style={{ fontSize: '13px' }}>
+              {formatIndianCurrency(e.amount)}
+            </span>
+            <span className="text-gray-500 flex-shrink-0" style={{ fontSize: '10px' }}>
+              {format(new Date(e.date), 'dd MMM')}
+            </span>
+          </div>
+          {e.note && (
+            <div className="text-gray-600 text-left w-full mt-0.5" style={{ fontSize: '11px', lineHeight: '1.3' }}>
+              {e.note}
+            </div>
+          )}
         </div>
       </button>
     )

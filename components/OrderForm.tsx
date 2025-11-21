@@ -6,6 +6,7 @@ import { Order } from '@/types/order'
 import { X } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
+import ConfirmPaymentPopup from '@/components/ConfirmPaymentPopup'
 
 interface OrderFormProps {
   order?: Order | null
@@ -46,6 +47,8 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   const [showCustomSiteName, setShowCustomSiteName] = useState(false)
   const [truckOwners, setTruckOwners] = useState<string[]>([])
   const [showCustomTruckOwner, setShowCustomTruckOwner] = useState(false)
+  const [showConfirmPaymentPopup, setShowConfirmPaymentPopup] = useState(false)
+  const [pendingPaidState, setPendingPaidState] = useState(false)
   const firstInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -825,7 +828,58 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     </>
   )
 
+  // Calculate remaining amount for confirmation popup
+  const existingPayments = order?.partialPayments || []
+  const totalPaidFromPayments = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+  const remainingAmount = originalTotal - totalPaidFromPayments
+
+  const handleAddRemainingPayment = () => {
+    // Add remaining amount as payment
+    setFormData({
+      ...formData,
+      paid: true,
+      paymentDue: false,
+      paidAmountForRawMaterials: originalTotal, // Full amount including remaining
+    })
+    setShowConfirmPaymentPopup(false)
+    setPendingPaidState(false)
+  }
+
+  const handleMarkAsPaidOnly = () => {
+    // Just mark as paid without adding remaining as payment
+    setFormData({
+      ...formData,
+      paid: true,
+      paymentDue: false,
+      paidAmountForRawMaterials: totalPaidFromPayments, // Keep existing payments only
+    })
+    setShowConfirmPaymentPopup(false)
+    setPendingPaidState(false)
+  }
+
   // Use portal to render at document body level
   if (typeof window === 'undefined') return null
-  return createPortal(formContent, document.body)
+  return (
+    <>
+      {createPortal(formContent, document.body)}
+      {order && (
+        <ConfirmPaymentPopup
+          isOpen={showConfirmPaymentPopup}
+          onClose={() => {
+            setShowConfirmPaymentPopup(false)
+            setPendingPaidState(false)
+            // Revert checkbox state
+            setFormData({
+              ...formData,
+              paid: false,
+              paymentDue: true,
+            })
+          }}
+          remainingAmount={remainingAmount}
+          onAddRemainingPayment={handleAddRemainingPayment}
+          onMarkAsPaidOnly={handleMarkAsPaidOnly}
+        />
+      )}
+    </>
+  )
 }

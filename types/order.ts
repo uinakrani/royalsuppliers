@@ -59,5 +59,6 @@ export interface DashboardStats {
   customerPaymentsReceived: number // Money received from customers (invoices)
   rawMaterialPaymentsReceived: number // Payments received for raw materials
   profitReceived: number // Profit received based on received money
+  calculatedBalance: number // Current balance: Money received - Costs + Profits
 }
 
