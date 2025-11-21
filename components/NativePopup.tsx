@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 
 export type PopupType = 'confirm' | 'prompt' | 'success' | 'error' | 'info' | 'warning'
@@ -224,9 +225,29 @@ export default function NativePopup() {
   })
   const [isClosing, setIsClosing] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Check if app is in standalone mode
+    const checkStandalone = () => {
+      const isStandaloneMode = 
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.documentElement.classList.contains('standalone')
+      setIsStandalone(isStandaloneMode)
+    }
+    checkStandalone()
+    // Re-check on class changes
+    const observer = new MutationObserver(checkStandalone)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     // Register the setState function
@@ -352,26 +373,40 @@ export default function NativePopup() {
 
   if (!state.isOpen) return null
 
-  return (
+  const popupContent = (
     <>
       {/* Backdrop */}
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black/50 z-[10000] ${
+        className={`fixed inset-0 bg-black/50 z-[99999] popup-backdrop ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
         style={{ 
           willChange: 'opacity, backdrop-filter',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'none',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: isStandalone ? 99999 : 99999,
         }}
       />
 
       {/* Popup */}
       <div
-        className="fixed inset-0 z-[10001] flex items-center justify-center p-4 pointer-events-none"
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pointer-events-none popup-container"
+        style={{ 
+          WebkitTapHighlightColor: 'transparent',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: isStandalone ? 99999 : 99999,
+        }}
       >
         <div
           ref={popupRef}
@@ -478,5 +513,9 @@ export default function NativePopup() {
       </div>
     </>
   )
+
+  // Use portal to render at document body level
+  if (typeof window === 'undefined') return null
+  return createPortal(popupContent, document.body)
 }
 

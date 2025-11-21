@@ -516,6 +516,43 @@ table tbody button {
   }
 }
 
+/* Ensure popups are always on top in standalone PWA mode */
+html.standalone .popup-backdrop,
+html.standalone .popup-container {
+  z-index: 99999 !important;
+  position: fixed !important;
+}
+
+html.standalone .popup-backdrop {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+html.standalone .popup-container {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+/* Also target by display-mode media query */
+@media (display-mode: standalone) {
+  .popup-backdrop,
+  .popup-container {
+    z-index: 99999 !important;
+    position: fixed !important;
+  }
+  
+  .popup-backdrop {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+  }
+}
+
 /* PWA: Splash screen background */
 @media (display-mode: standalone) {
   body::before {

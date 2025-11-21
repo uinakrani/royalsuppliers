@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Order, PaymentRecord } from '@/types/order'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
@@ -41,8 +42,28 @@ export default function OrderDetailPopup({
 }: OrderDetailPopupProps) {
   const [isClosing, setIsClosing] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(false)
   const backdropRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Check if app is in standalone mode
+    const checkStandalone = () => {
+      const isStandaloneMode = 
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.documentElement.classList.contains('standalone')
+      setIsStandalone(isStandaloneMode)
+    }
+    checkStandalone()
+    // Re-check on class changes
+    const observer = new MutationObserver(checkStandalone)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (isOpen) {
@@ -100,27 +121,34 @@ export default function OrderDetailPopup({
   const partialPayments = order.partialPayments || []
   const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
 
-  return (
+  const popupContent = (
     <>
       {/* Backdrop */}
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black/50 z-[10000] ${
+        className={`fixed inset-0 bg-black/50 z-[99999] popup-backdrop ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
         style={{
           willChange: 'opacity',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'none',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: isStandalone ? 99999 : 99999,
         }}
       />
 
       {/* Popup */}
       <div
-        className="fixed z-[10001] flex items-center justify-center pointer-events-none"
+        className="fixed z-[99999] flex items-center justify-center pointer-events-none popup-container"
         style={{ 
           WebkitTapHighlightColor: 'transparent',
+          position: 'fixed',
           top: 'calc(70px + env(safe-area-inset-top, 0px))', // Header height (~70px) + safe area
           bottom: '4rem', // NavBar height (4rem = 64px)
           left: 0,
@@ -128,6 +156,7 @@ export default function OrderDetailPopup({
           padding: '1rem',
           paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+          zIndex: isStandalone ? 99999 : 99999,
         }}
       >
         <div
@@ -417,5 +446,9 @@ export default function OrderDetailPopup({
       </div>
     </>
   )
+
+  // Use portal to render at document body level
+  if (typeof window === 'undefined') return null
+  return createPortal(popupContent, document.body)
 }
 
