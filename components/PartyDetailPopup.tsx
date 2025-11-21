@@ -16,6 +16,7 @@ interface PartyGroup {
   partyName: string
   totalSelling: number
   totalPaid: number
+  totalProfit: number
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
@@ -282,6 +283,14 @@ export default function PartyDetailPopup({
                   <span className="text-sm font-bold text-gray-900">{formatIndianCurrency(group.totalSelling)}</span>
                 </div>
                 <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Profit</span>
+                  <span className={`text-sm font-bold ${
+                    group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatIndianCurrency(group.totalProfit)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Total Paid</span>
                   <span className="text-sm font-bold text-green-600">{formatIndianCurrency(group.totalPaid)}</span>
                 </div>
@@ -305,7 +314,7 @@ export default function PartyDetailPopup({
               </div>
             </div>
 
-            {/* Orders Section */}
+            {/* Orders Section - Compact */}
             <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -313,7 +322,7 @@ export default function PartyDetailPopup({
                   <h3 className="font-semibold text-gray-900">Orders ({group.orders.length})</h3>
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {group.orders.map((order, index) => {
                   const orderDate = safeParseDate(order.date)
                   const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
@@ -328,12 +337,12 @@ export default function PartyDetailPopup({
                   return (
                     <div
                       key={order.id}
-                      className="bg-white rounded-lg p-2.5 border border-blue-300 transition-all duration-200 active:bg-blue-50 native-press"
+                      className="bg-white rounded-lg p-2 border border-blue-300 transition-all duration-150 active:bg-blue-50 native-press"
                       style={{
                         WebkitTapHighlightColor: 'transparent',
                         position: 'relative',
                         overflow: 'hidden',
-                        animation: `fadeInUp 0.3s ease-out ${index * 0.05}s both`,
+                        animation: `fadeInUp 0.2s ease-out ${index * 0.03}s both`,
                       }}
                       onClick={(e) => {
                         if (onOrderClick) {
@@ -343,89 +352,57 @@ export default function PartyDetailPopup({
                         }
                       }}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          {orderDate && (
-                            <div className="flex items-center gap-1 mb-1">
-                              <Calendar size={12} className="text-gray-400" />
-                              <span className="text-xs text-gray-500">{format(orderDate, 'dd MMM yyyy')}</span>
-                            </div>
-                          )}
-                          <p className="text-sm font-semibold text-gray-900">{order.siteName}</p>
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            {materials.slice(0, 2).join(', ')}{materials.length > 2 ? ` +${materials.length - 2} more` : ''}
+                      {/* Compact Header Row */}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {orderDate && (
+                              <span className="text-[9px] text-gray-500">{format(orderDate, 'dd MMM')}</span>
+                            )}
+                            <span className="text-xs font-semibold text-gray-900 truncate">{order.siteName}</span>
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {materials.slice(0, 2).map((mat, idx) => (
+                              <span key={idx} className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[8px] font-medium">
+                                {mat}
+                              </span>
+                            ))}
+                            {materials.length > 2 && (
+                              <span className="text-[8px] text-gray-500">+{materials.length - 2}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right ml-2 flex-shrink-0">
+                          <p className="text-xs font-bold text-primary-600">{formatIndianCurrency(order.total)}</p>
+                          <p className={`text-[10px] font-semibold mt-0.5 ${
+                            order.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            Profit: {formatIndianCurrency(order.profit)}
                           </p>
                         </div>
-                        <div className="text-right ml-2">
-                          <p className="text-sm font-bold text-primary-600">{formatIndianCurrency(order.total)}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Weight: {order.weight.toFixed(2)}</p>
-                        </div>
                       </div>
+                      
+                      {/* Compact Info Row */}
                       {expenseAmount > 0 && (
-                        <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-600">Expense:</span>
-                            <span className="font-medium text-gray-900">{formatIndianCurrency(expenseAmount)}</span>
+                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[9px]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-600">Exp:</span>
+                            <span className="text-gray-700">{formatIndianCurrency(expenseAmount)}</span>
                           </div>
-                          <div className="flex justify-between items-center text-xs">
+                          <div className="flex items-center gap-2">
                             <span className="text-gray-600">Paid:</span>
-                            <span className={`font-medium ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                            <span className={`${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
                               {formatIndianCurrency(totalPaid)}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-600">Remaining:</span>
-                            <span className={`font-medium ${remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {formatIndianCurrency(remainingAmount)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          {order.invoiced ? (
-                            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-medium">
-                              Invoiced
-                            </span>
-                          ) : (
-                            <span className="text-[9px] text-gray-400">Not Invoiced</span>
+                          {remainingAmount > 0 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-600">Rem:</span>
+                              <span className="text-red-600">{formatIndianCurrency(remainingAmount)}</span>
+                            </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              createRipple(e)
-                              handleClose()
-                              setTimeout(() => onEditOrder(order), 300)
-                            }}
-                            className="p-1.5 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation native-press"
-                            title="Edit"
-                            style={{
-                              WebkitTapHighlightColor: 'transparent',
-                              position: 'relative',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              createRipple(e)
-                              handleClose()
-                              setTimeout(() => onDeleteOrder(order.id!), 300)
-                            }}
-                            className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 active:bg-red-200 transition-colors touch-manipulation native-press"
-                            title="Delete"
-                            style={{
-                              WebkitTapHighlightColor: 'transparent',
-                              position: 'relative',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )
                 })}

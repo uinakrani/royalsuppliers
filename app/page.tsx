@@ -9,7 +9,7 @@ import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import { Invoice } from '@/types/invoice'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
-import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus, ArrowRight, Activity } from 'lucide-react'
+import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus, ArrowRight, Activity, ArrowDown, ArrowUp, Wallet, AlertCircle } from 'lucide-react'
 import { createRipple } from '@/lib/rippleEffect'
 import FilterPopup from '@/components/FilterPopup'
 import TruckLoading from '@/components/TruckLoading'
@@ -31,6 +31,11 @@ export default function Dashboard() {
     estimatedProfit: 0,
     paymentReceived: 0,
     costAmount: 0,
+    moneyOut: 0,
+    rawMaterialPaymentsOutstanding: 0,
+    customerPaymentsReceived: 0,
+    rawMaterialPaymentsReceived: 0,
+    profitReceived: 0,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -153,17 +158,25 @@ export default function Dashboard() {
       // Calculate stats from filtered orders
       const calculatedStats = calculateStats(filteredOrders)
       
-      // Calculate payment received
+      // Calculate customer payments received and profit received
       // Payment received should:
       // 1. Filter invoices by party name and material (if filters are applied)
       // 2. Count ALL payments made within the date range (payment date, not order date)
-      let paymentReceived = 0
+      let customerPaymentsReceived = 0
+      let profitReceived = 0
+      
+      // Create a map of filtered order IDs for quick lookup
+      const filteredOrderMap = new Map(filteredOrders.map(order => [order.id, order]))
+      
       try {
         const allInvoices = await invoiceService.getAllInvoices()
         const allOrders = await orderService.getAllOrders()
         
         // Create a map of order ID to order for quick lookup
         const orderMap = new Map(allOrders.map(order => [order.id, order]))
+        
+        // Map to track how much each order has received from customer payments
+        const orderPaymentsReceived = new Map<string, number>()
         
         // Filter invoices by party name and material (if filters are applied)
         allInvoices.forEach((invoice) => {
@@ -192,6 +205,15 @@ export default function Dashboard() {
             }
           }
           
+          // Calculate total invoice amount from orders
+          let invoiceTotalAmount = 0
+          invoice.orderIds.forEach(orderId => {
+            const order = orderMap.get(orderId)
+            if (order && filteredOrderMap.has(orderId)) {
+              invoiceTotalAmount += order.total
+            }
+          })
+          
           // Count all payments made within the date range
           // Payment date is what matters, not order date
           if (invoice.partialPayments && invoice.partialPayments.length > 0) {
@@ -212,7 +234,20 @@ export default function Dashboard() {
               }
               
               if (isInRange) {
-                paymentReceived += payment.amount
+                customerPaymentsReceived += payment.amount
+                
+                // Distribute payment proportionally to orders in invoice
+                if (invoiceTotalAmount > 0) {
+                  invoice.orderIds.forEach(orderId => {
+                    const order = orderMap.get(orderId)
+                    if (order && filteredOrderMap.has(orderId)) {
+                      const orderProportion = order.total / invoiceTotalAmount
+                      const orderPaymentAmount = payment.amount * orderProportion
+                      const currentReceived = orderPaymentsReceived.get(orderId) || 0
+                      orderPaymentsReceived.set(orderId, currentReceived + orderPaymentAmount)
+                    }
+                  })
+                }
               }
             })
           }
@@ -235,17 +270,49 @@ export default function Dashboard() {
             if (dateRangeStart && payDate < dateRangeStart) inRange = false
             if (dateRangeEnd && payDate > dateRangeEnd) inRange = false
             if (inRange) {
-              paymentReceived += p.amount
+              customerPaymentsReceived += p.amount
+              // For party payments, we need to distribute to orders proportionally
+              // This is complex, so we'll approximate by distributing to all orders of that party
+              filteredOrders.forEach(order => {
+                if (order.partyName === p.partyName) {
+                  const currentReceived = orderPaymentsReceived.get(order.id!) || 0
+                  // Approximate: distribute equally among party orders (simplified)
+                  const orderCount = filteredOrders.filter(o => o.partyName === p.partyName).length
+                  if (orderCount > 0) {
+                    orderPaymentsReceived.set(order.id!, currentReceived + (p.amount / orderCount))
+                  }
+                }
+              })
             }
           })
         } catch (err) {
           console.warn('Party payments not included:', err)
         }
+        
+        // Calculate profit received based on customer payments
+        filteredOrders.forEach(order => {
+          const receivedAmount = orderPaymentsReceived.get(order.id!) || 0
+          
+          if (order.total > 0) {
+            if (order.paid || receivedAmount >= order.total) {
+              // If order is fully paid (by flag or by received amount), all profit is received
+              profitReceived += order.profit
+            } else if (receivedAmount > 0) {
+              // If partially paid, calculate profit proportionally
+              // Calculate profit ratio: profit per rupee of order total
+              const profitRatio = order.profit / order.total
+              // Profit received = profit ratio * amount received
+              profitReceived += profitRatio * receivedAmount
+            }
+          }
+        })
       } catch (error) {
         console.error('Error loading invoices for payment calculation:', error)
       }
       
-      calculatedStats.paymentReceived = paymentReceived
+      calculatedStats.paymentReceived = customerPaymentsReceived
+      calculatedStats.customerPaymentsReceived = customerPaymentsReceived
+      calculatedStats.profitReceived = profitReceived
       
       setOrders(filteredOrders)
       setStats(calculatedStats)
@@ -273,6 +340,11 @@ export default function Dashboard() {
         estimatedProfit: 0,
         paymentReceived: 0,
         costAmount: 0,
+        moneyOut: 0,
+        rawMaterialPaymentsOutstanding: 0,
+        customerPaymentsReceived: 0,
+        rawMaterialPaymentsReceived: 0,
+        profitReceived: 0,
       })
     } finally {
       setLoading(false)
@@ -506,7 +578,132 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="p-3 space-y-3">
-          {/* Main Stats Grid - Enhanced Cards */}
+          {/* Financial Overview - Money Flow */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-primary-100 rounded-xl">
+                <Wallet size={18} className="text-primary-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900">Financial Overview</h3>
+            </div>
+            
+            {/* Money Out */}
+            <div className="mb-3 p-3 bg-red-50 rounded-xl border border-red-100">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <ArrowDown size={16} className="text-red-600" />
+                  <span className="text-sm font-semibold text-gray-700">Money Going Out</span>
+                </div>
+                <span className="text-lg font-bold text-red-600">
+                  {formatIndianCurrency(stats.moneyOut)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">
+                Total expenses (Raw materials + Additional costs)
+              </p>
+            </div>
+
+            {/* Outstanding Raw Materials */}
+            {stats.rawMaterialPaymentsOutstanding > 0 && (
+              <div className="mb-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={16} className="text-orange-600" />
+                    <span className="text-sm font-semibold text-gray-700">Outstanding Raw Materials</span>
+                  </div>
+                  <span className="text-lg font-bold text-orange-600">
+                    {formatIndianCurrency(stats.rawMaterialPaymentsOutstanding)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Yet to be paid for raw materials
+                </p>
+              </div>
+            )}
+
+            {/* Money Received */}
+            <div className="mb-3 p-3 bg-green-50 rounded-xl border border-green-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <ArrowUp size={16} className="text-green-600" />
+                  <span className="text-sm font-semibold text-gray-700">Money Received</span>
+                </div>
+                <span className="text-lg font-bold text-green-600">
+                  {formatIndianCurrency(stats.customerPaymentsReceived + stats.rawMaterialPaymentsReceived)}
+                </span>
+              </div>
+              <div className="space-y-1.5 pl-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">From Customers</span>
+                  <span className="text-sm font-semibold text-green-700">
+                    {formatIndianCurrency(stats.customerPaymentsReceived)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">For Raw Materials</span>
+                  <span className="text-sm font-semibold text-green-700">
+                    {formatIndianCurrency(stats.rawMaterialPaymentsReceived)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Profit Analysis */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 bg-blue-100 rounded-xl">
+                <TrendingUp size={18} className="text-blue-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900">Profit Analysis</h3>
+            </div>
+            
+            <div className="space-y-3">
+              {/* Estimated Profit */}
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-gray-700">Estimated Profit</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    {formatIndianCurrency(stats.estimatedProfit)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Total profit from all orders
+                </p>
+              </div>
+
+              {/* Profit Received */}
+              <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-gray-700">Profit Received</span>
+                  <span className="text-lg font-bold text-purple-600">
+                    {formatIndianCurrency(stats.profitReceived)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Profit based on received payments
+                </p>
+                {stats.estimatedProfit > 0 && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-600">Realization Rate</span>
+                      <span className="text-xs font-semibold text-purple-700">
+                        {((stats.profitReceived / stats.estimatedProfit) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className="bg-purple-600 h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, (stats.profitReceived / stats.estimatedProfit) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 gap-3">
             {/* Balance Card */}
             <div 
@@ -534,37 +731,11 @@ export default function Dashboard() {
               <p className="text-xs opacity-90 font-medium">Current Balance</p>
             </div>
 
-            {/* Profit Card */}
+            {/* Total Cost Card */}
             <div 
-              className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white native-press"
+              className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-4 text-white native-press"
               style={{
                 animation: 'fadeInUp 0.4s ease-out 0.2s both',
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-              onClick={(e) => {
-                createRipple(e)
-                router.push('/orders')
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                  <TrendingUp size={20} className="text-white" />
-                </div>
-                <ArrowRight size={16} className="opacity-70" />
-              </div>
-              <p className="text-2xl font-bold mb-0.5">
-                {formatIndianCurrency(stats.estimatedProfit)}
-              </p>
-              <p className="text-xs opacity-90 font-medium">Total Profit</p>
-            </div>
-
-            {/* Cost Card */}
-            <div 
-              className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 text-white native-press"
-              style={{
-                animation: 'fadeInUp 0.4s ease-out 0.3s both',
                 WebkitTapHighlightColor: 'transparent',
                 position: 'relative',
                 overflow: 'hidden',
@@ -584,32 +755,6 @@ export default function Dashboard() {
                 {formatIndianCurrency(stats.costAmount)}
               </p>
               <p className="text-xs opacity-90 font-medium">Total Cost</p>
-            </div>
-
-            {/* Payment Received Card */}
-            <div 
-              className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white native-press"
-              style={{
-                animation: 'fadeInUp 0.4s ease-out 0.4s both',
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-              onClick={(e) => {
-                createRipple(e)
-                router.push('/invoices')
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                  <Receipt size={20} className="text-white" />
-                </div>
-                <ArrowRight size={16} className="opacity-70" />
-              </div>
-              <p className="text-2xl font-bold mb-0.5">
-                {formatIndianCurrency(stats.paymentReceived)}
-              </p>
-              <p className="text-xs opacity-90 font-medium">Payment Received</p>
             </div>
           </div>
 

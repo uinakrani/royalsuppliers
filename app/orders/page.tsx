@@ -26,6 +26,7 @@ interface PartyGroup {
   partyName: string
   totalSelling: number
   totalPaid: number
+  totalProfit: number
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
@@ -736,6 +737,7 @@ export default function OrdersPage() {
     const groups: PartyGroup[] = []
     partyMap.forEach((partyOrders, partyName) => {
       const totalSelling = partyOrders.reduce((sum, order) => sum + order.total, 0)
+      const totalProfit = partyOrders.reduce((sum, order) => sum + order.profit, 0)
       
       // Get all payments for this party
       const partyPaymentRecords = partyPayments.filter(p => p.partyName === partyName)
@@ -777,6 +779,7 @@ export default function OrdersPage() {
         partyName,
         totalSelling,
         totalPaid,
+        totalProfit,
         lastPaymentDate,
         lastPaymentAmount,
         orders: partyOrders.sort((a, b) => {
@@ -1110,18 +1113,19 @@ export default function OrdersPage() {
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
       ) : viewMode === 'byParty' ? (
-        // By Party View - Compact Mobile Design
+        // By Party View - Ultra Compact Design
         <div className="p-2 space-y-2">
           {getPartyGroups().map((group, index) => {
             const balance = group.totalSelling - group.totalPaid
             const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+            const paymentPercentage = group.totalSelling > 0 ? (group.totalPaid / group.totalSelling) * 100 : 0
             
             return (
               <div 
                 key={group.partyName} 
-                className="bg-white rounded-xl border border-gray-100 overflow-hidden transition-all duration-200 active:bg-gray-50 native-press"
+                className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:border-primary-300 active:scale-[0.99] native-press"
                 style={{
-                  animation: `fadeInUp 0.3s ease-out ${index * 0.03}s both`,
+                  animation: `fadeInUp 0.3s ease-out ${index * 0.04}s both`,
                   WebkitTapHighlightColor: 'transparent',
                   position: 'relative',
                   overflow: 'hidden',
@@ -1133,15 +1137,15 @@ export default function OrdersPage() {
                 }}
               >
                 <div className="p-2.5">
-                  {/* Header Row */}
+                  {/* Header Row - Minimal */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <User size={14} className="text-primary-600 flex-shrink-0" />
+                        <User size={13} className="text-primary-600 flex-shrink-0" />
                         <h3 className="font-bold text-sm text-gray-900 truncate">{group.partyName}</h3>
                       </div>
                       {group.orders.length > 0 && group.orders[0].siteName && (
-                        <p className="text-[10px] text-gray-500 truncate ml-5">{group.orders[0].siteName}</p>
+                        <p className="text-[10px] text-gray-500 truncate ml-4.5">{group.orders[0].siteName}</p>
                       )}
                     </div>
                     <button
@@ -1188,56 +1192,63 @@ export default function OrdersPage() {
                           }
                         }
                       }}
-                      className="p-1.5 bg-primary-600 text-white rounded-lg text-[10px] font-semibold hover:bg-primary-700 active:bg-primary-800 transition-all native-press flex items-center gap-1 flex-shrink-0"
+                      className="p-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 active:bg-primary-800 transition-all native-press flex items-center justify-center flex-shrink-0"
                       style={{
                         WebkitTapHighlightColor: 'transparent',
                         position: 'relative',
                         overflow: 'hidden'
                       }}
                     >
-                      <Plus size={12} />
+                      <Plus size={16} />
                     </button>
                   </div>
 
-                  {/* Amount Info - Inline */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                  {/* Stats - Inline */}
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                    <div className="flex items-center gap-1">
                       <span className="text-[10px] text-gray-600">Total:</span>
-                      <span className="text-sm font-bold text-primary-700">
+                      <span className="text-xs font-bold text-primary-700">
                         {formatIndianCurrency(group.totalSelling)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-600">Received:</span>
-                      <span className="text-xs font-semibold text-green-700">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-gray-600">Profit:</span>
+                      <span className={`text-xs font-bold ${
+                        group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {formatIndianCurrency(group.totalProfit)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-gray-600">Receive:</span>
+                      <span className="text-xs font-bold text-green-600">
                         {formatIndianCurrency(group.totalPaid)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-600">Balance:</span>
-                      <span className={`text-xs font-semibold ${
-                        balance > 0 ? 'text-red-700' : 'text-green-700'
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-gray-600">Due:</span>
+                      <span className={`text-xs font-bold ${
+                        balance > 0 ? 'text-red-600' : 'text-green-600'
                       }`}>
                         {formatIndianCurrency(Math.abs(balance))}
                       </span>
                     </div>
                   </div>
 
-                  {/* Last Payment & Order Count - Compact Row */}
+                  {/* Footer - Minimal */}
                   <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
                     {lastPaymentDateObj && group.lastPaymentAmount !== null ? (
-                      <div className="flex items-center gap-1">
-                        <Calendar size={10} className="text-gray-400" />
-                        <span className="text-[10px] text-gray-500">
-                          {format(lastPaymentDateObj, 'dd MMM')} • {formatIndianCurrency(group.lastPaymentAmount)}
-                        </span>
-                      </div>
+                      <span className="text-[10px] text-gray-500">
+                        {format(lastPaymentDateObj, 'dd MMM')} • {formatIndianCurrency(group.lastPaymentAmount)}
+                      </span>
                     ) : (
-                      <span className="text-[10px] text-gray-400">No payments yet</span>
+                      <span className="text-[10px] text-gray-400">No payments</span>
                     )}
                     <div className="flex items-center gap-1">
-                      <Package size={10} className="text-gray-400" />
-                      <span className="text-[10px] text-gray-500">{group.orders.length} order{group.orders.length !== 1 ? 's' : ''}</span>
+                      <span className="text-[10px] text-gray-500">
+                        {group.orders.length} order{group.orders.length !== 1 ? 's' : ''}
+                      </span>
+                      <ChevronRight size={11} className="text-gray-400" />
                     </div>
                   </div>
                 </div>

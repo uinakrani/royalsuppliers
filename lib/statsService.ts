@@ -15,6 +15,12 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     estimatedProfit: 0,
     paymentReceived: 0, // Will be calculated separately with invoice data
     costAmount: 0,
+    // New financial metrics
+    moneyOut: 0,
+    rawMaterialPaymentsOutstanding: 0,
+    customerPaymentsReceived: 0,
+    rawMaterialPaymentsReceived: 0,
+    profitReceived: 0,
   }
 
   orders.forEach((order) => {
@@ -24,10 +30,27 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     stats.costAmount += orderCost // Same as totalCost for filtered orders
     stats.totalProfit += order.profit
     stats.estimatedProfit += order.profit // Estimated profit from filtered orders
+    
+    // Money going out (expenses)
+    stats.moneyOut += orderCost
 
+    // Raw material payments
+    const rawMaterialPayments = order.partialPayments || []
+    const totalRawMaterialPaid = rawMaterialPayments.reduce((sum, p) => sum + p.amount, 0)
+    stats.rawMaterialPaymentsReceived += totalRawMaterialPaid
+    
+    // Outstanding raw material payments
+    const rawMaterialOutstanding = Math.max(0, order.originalTotal - totalRawMaterialPaid)
+    stats.rawMaterialPaymentsOutstanding += rawMaterialOutstanding
+
+    // Calculate profit received based on order payment status
+    // If order is fully paid, all profit is received
+    // If partially paid, calculate proportionally
     if (order.paid) {
       stats.currentBalance += order.total
       stats.paidOrders++
+      // If fully paid, all profit is received
+      stats.profitReceived += order.profit
     } else {
       // Calculate total from partialPayments array if available, otherwise use paidAmount
       const partialTotal = order.partialPayments && order.partialPayments.length > 0
@@ -39,6 +62,10 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
         stats.currentBalance += partialTotal
         stats.partialOrders++
         stats.unpaidOrders++
+        
+        // Calculate profit received proportionally
+        // Note: This is for customer payments, not raw material payments
+        // We'll calculate this separately when we have invoice data
       } else {
         stats.unpaidOrders++
       }

@@ -53,5 +53,11 @@ export interface DashboardStats {
   estimatedProfit: number // Sum of profit from filtered orders
   paymentReceived: number // Sum of invoice payments within date range
   costAmount: number // Sum of originalTotal + additionalCost from filtered orders
+  // New financial metrics
+  moneyOut: number // Total expenses (originalTotal + additionalCost)
+  rawMaterialPaymentsOutstanding: number // Yet to be paid for raw materials
+  customerPaymentsReceived: number // Money received from customers (invoices)
+  rawMaterialPaymentsReceived: number // Payments received for raw materials
+  profitReceived: number // Profit received based on received money
 }
 
