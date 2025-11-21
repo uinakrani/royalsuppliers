@@ -13,7 +13,7 @@ import { FileText, Plus, Trash2, Filter, X, AlertCircle, CheckCircle, Download }
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterPopup from '@/components/FilterPopup'
-import LoadingSpinner from '@/components/LoadingSpinner'
+import TruckLoading from '@/components/TruckLoading'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { createRipple } from '@/lib/rippleEffect'
@@ -293,7 +293,7 @@ export default function InvoicesPage() {
           </div>
         </div>
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
-          <LoadingSpinner size={32} />
+          <TruckLoading size={150} />
         </div>
         <NavBar />
       </div>

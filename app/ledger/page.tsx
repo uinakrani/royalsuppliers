@@ -10,6 +10,7 @@ import LedgerEntryPopup from '@/components/LedgerEntryPopup'
 import BottomSheet from '@/components/BottomSheet'
 import LedgerEntryModal from '@/components/LedgerEntryModal'
 import { createRipple } from '@/lib/rippleEffect'
+import TruckLoading from '@/components/TruckLoading'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
@@ -202,10 +203,10 @@ export default function LedgerPage() {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        paddingBottom: 'calc(4rem + 5rem)' // NavBar (4rem) + Buttons bar (~5rem)
+        paddingBottom: '10rem' // NavBar (~5rem) + Buttons bar (~4rem) + spacing
       }}>
         {loading ? (
-          <div className="text-center text-gray-500 py-6" style={{ fontSize: '12px' }}>Loading...</div>
+          <TruckLoading size={150} />
         ) : (
           <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
             {/* Income Column */}
@@ -253,39 +254,62 @@ export default function LedgerPage() {
         )}
       </div>
 
-      {/* Add Buttons Bar - Fixed at bottom, above NavBar */}
+      {/* Add Buttons Bar - Floating at bottom, above NavBar */}
       <div 
-        className="bg-white border-t border-gray-200 fixed left-0 right-0 z-30"
+        className="fixed left-0 right-0 z-30 flex items-end justify-center"
         style={{ 
-          bottom: '4rem',
-          padding: '0.75rem',
+          bottom: '6rem',
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-          width: '100%',
-          boxSizing: 'border-box',
+          pointerEvents: 'none',
         }}
       >
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleAddEntry('credit')}
-            className="flex-1 bg-green-600 text-white rounded-lg active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium"
-            style={{ WebkitTapHighlightColor: 'transparent', fontSize: '14px' }}
-            title="Add Income"
-            aria-label="Add Income"
-          >
-            <Plus size={18} />
-            <span>Add Income</span>
-          </button>
-          <button
-            onClick={() => handleAddEntry('debit')}
-            className="flex-1 bg-red-600 text-white rounded-lg active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium"
-            style={{ WebkitTapHighlightColor: 'transparent', fontSize: '14px' }}
-            title="Add Expense"
-            aria-label="Add Expense"
-          >
-            <Plus size={18} />
-            <span>Add Expense</span>
-          </button>
+        <div 
+          className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
+          style={{ 
+            padding: '0.75rem',
+            boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
+            pointerEvents: 'auto',
+          }}
+        >
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => {
+                createRipple(e)
+                handleAddEntry('credit')
+              }}
+              className="flex-1 bg-green-600 text-white rounded-xl active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+              style={{ 
+                WebkitTapHighlightColor: 'transparent', 
+                fontSize: '14px',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              title="Add Income"
+              aria-label="Add Income"
+            >
+              <Plus size={18} />
+              <span>Add Income</span>
+            </button>
+            <button
+              onClick={(e) => {
+                createRipple(e)
+                handleAddEntry('debit')
+              }}
+              className="flex-1 bg-red-600 text-white rounded-xl active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+              style={{ 
+                WebkitTapHighlightColor: 'transparent', 
+                fontSize: '14px',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+              title="Add Expense"
+              aria-label="Add Expense"
+            >
+              <Plus size={18} />
+              <span>Add Expense</span>
+            </button>
+          </div>
         </div>
       </div>
 

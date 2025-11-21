@@ -19,17 +19,18 @@ export default function NavBar() {
     <nav 
       className="fixed bottom-0 left-0 right-0 z-50 flex items-end justify-center"
       style={{ 
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.5rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)',
         paddingLeft: 'max(env(safe-area-inset-left, 0px), 0.75rem)',
         paddingRight: 'max(env(safe-area-inset-right, 0px), 0.75rem)',
         pointerEvents: 'none',
       }}
     >
       <div 
-        className="bg-white/95 backdrop-blur-xl rounded-t-3xl border-t border-gray-200/60 flex justify-around items-center w-full"
+        className="bg-white/95 backdrop-blur-xl border-t border-gray-200/60 flex justify-around items-center w-full"
         style={{ 
           height: '4rem',
           minHeight: '4rem',
+          borderRadius: '2rem 2rem 0 0',
           boxShadow: '0 -2px 16px rgba(0, 0, 0, 0.06), 0 -1px 4px rgba(0, 0, 0, 0.03)',
           pointerEvents: 'auto',
         }}

@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus, ArrowRight, Activity } from 'lucide-react'
 import { createRipple } from '@/lib/rippleEffect'
 import FilterPopup from '@/components/FilterPopup'
-import LoadingSpinner from '@/components/LoadingSpinner'
+import TruckLoading from '@/components/TruckLoading'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { partyPaymentService } from '@/lib/partyPaymentService'
@@ -473,7 +473,7 @@ export default function Dashboard() {
       {/* Statistics Cards */}
       {loading ? (
         <div className="fixed inset-0 flex flex-col items-center justify-center z-30 bg-gray-50 gap-4 p-4">
-          <LoadingSpinner size={32} />
+          <TruckLoading size={150} />
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md text-center">
               <p className="text-sm text-red-800 mb-2">{error}</p>

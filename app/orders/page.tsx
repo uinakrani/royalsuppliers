@@ -14,7 +14,7 @@ import PaymentEditPopup from '@/components/PaymentEditPopup'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterPopup from '@/components/FilterPopup'
-import LoadingSpinner from '@/components/LoadingSpinner'
+import TruckLoading from '@/components/TruckLoading'
 import OrderDetailDrawer from '@/components/OrderDetailDrawer'
 import PartyDetailPopup from '@/components/PartyDetailPopup'
 import OrderDetailPopup from '@/components/OrderDetailPopup'
@@ -901,20 +901,25 @@ export default function OrdersPage() {
         </div>
       </FilterPopup>
 
-      {/* View Mode Tabs - Fixed at Bottom (Thumb-Friendly) */}
+      {/* View Mode Tabs - Floating at Bottom */}
       <div 
-        className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[45]"
+        className="fixed left-0 right-0 z-[45] flex items-end justify-center"
         style={{ 
-          bottom: selectedOrders.size > 0 ? '8.5rem' : '4rem',
-          padding: '0.5rem',
-          paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0px))',
-          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
-          paddingTop: '0.5rem',
+          bottom: selectedOrders.size > 0 ? '10.5rem' : '6rem',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          pointerEvents: 'none',
           transition: 'bottom 0.3s ease-out',
         }}
       >
-        <div className="flex gap-2">
+        <div 
+          className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl flex gap-2 w-full"
+          style={{ 
+            padding: '0.5rem',
+            boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
+            pointerEvents: 'auto',
+          }}
+        >
           <button
             onClick={(e) => {
               createRipple(e)
@@ -954,63 +959,71 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Action Buttons - Fixed at Bottom (only when orders are selected) */}
+      {/* Action Buttons - Floating at Bottom (only when orders are selected) */}
       {selectedOrders.size > 0 && (
         <div 
-          className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[44]"
+          className="fixed left-0 right-0 z-[44] flex items-end justify-center"
           style={{ 
-            bottom: '4rem',
-            padding: '0.75rem',
+            bottom: '6rem',
             paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+            pointerEvents: 'none',
           }}
         >
-          <div className="flex gap-2">
-            <button
-              onClick={(e) => {
-                createRipple(e)
-                handleBulkCreateInvoice()
-              }}
-              className="flex-1 bg-green-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation native-press"
-              style={{ 
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <FileText size={18} />
-              <span>Create Invoice ({selectedOrders.size})</span>
-            </button>
-            <button
-              onClick={(e) => {
-                createRipple(e)
-                handleBulkDelete()
-              }}
-              className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation native-press"
-              style={{ 
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <Trash2 size={18} />
-              <span>Delete ({selectedOrders.size})</span>
-            </button>
-            <button
-              onClick={(e) => {
-                createRipple(e)
-                setSelectedOrders(new Set())
-              }}
-              className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium active:bg-gray-300 transition-colors touch-manipulation native-press"
-              style={{ 
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              Clear
-            </button>
+          <div 
+            className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
+            style={{ 
+              padding: '0.75rem',
+              boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  handleBulkCreateInvoice()
+                }}
+                className="flex-1 bg-green-600 text-white px-3 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:bg-green-700 transition-colors touch-manipulation native-press"
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <FileText size={18} />
+                <span>Create Invoice ({selectedOrders.size})</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  handleBulkDelete()
+                }}
+                className="flex-1 bg-red-600 text-white px-3 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 active:bg-red-700 transition-colors touch-manipulation native-press"
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <Trash2 size={18} />
+                <span>Delete ({selectedOrders.size})</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  setSelectedOrders(new Set())
+                }}
+                className="px-4 py-3 bg-gray-200 text-gray-700 rounded-xl text-sm font-medium active:bg-gray-300 transition-colors touch-manipulation native-press"
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1020,12 +1033,12 @@ export default function OrdersPage() {
         flex: 1,
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        paddingBottom: selectedOrders.size > 0 ? '12rem' : '7rem'
+        paddingBottom: selectedOrders.size > 0 ? '13rem' : '8rem'
       }}>
       {/* Orders List */}
       {loading ? (
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
-          <LoadingSpinner size={32} />
+          <TruckLoading size={150} />
         </div>
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
@@ -1534,4 +1547,5 @@ export default function OrdersPage() {
     </div>
   )
 }
+
 
