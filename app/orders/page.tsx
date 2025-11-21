@@ -69,6 +69,9 @@ export default function OrdersPage() {
   const [editingPayment, setEditingPayment] = useState<{ order: Order; paymentId: string } | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [showBottomTabs, setShowBottomTabs] = useState(true)
+  const lastScrollTop = useRef(0)
 
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
@@ -97,6 +100,46 @@ export default function OrdersPage() {
     window.addEventListener('resize', updateHeaderHeight)
     return () => window.removeEventListener('resize', updateHeaderHeight)
   }, [])
+
+  // Scroll detection for hiding/showing bottom tabs (only in byParty view)
+  useEffect(() => {
+    if (viewMode !== 'byParty' || !contentRef.current) {
+      setShowBottomTabs(true)
+      return
+    }
+
+    const contentElement = contentRef.current
+    let ticking = false
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollTop = contentElement.scrollTop
+          const scrollThreshold = 50 // Show/hide threshold
+
+          if (scrollTop > scrollThreshold) {
+            // Scrolling down - hide tabs
+            if (scrollTop > lastScrollTop.current) {
+              setShowBottomTabs(false)
+            } else {
+              // Scrolling up - show tabs
+              setShowBottomTabs(true)
+            }
+          } else {
+            // Near top - always show
+            setShowBottomTabs(true)
+          }
+
+          lastScrollTop.current = scrollTop
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+
+    contentElement.addEventListener('scroll', handleScroll, { passive: true })
+    return () => contentElement.removeEventListener('scroll', handleScroll)
+  }, [viewMode])
 
   // Check for highlight query parameter
   useEffect(() => {
@@ -905,11 +948,13 @@ export default function OrdersPage() {
       <div 
         className="fixed left-0 right-0 z-[45] flex items-end justify-center"
         style={{ 
-          bottom: selectedOrders.size > 0 ? '10.5rem' : '6rem',
+          bottom: selectedOrders.size > 0 ? '9.75rem' : '5.25rem',
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
           pointerEvents: 'none',
-          transition: 'bottom 0.3s ease-out',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: viewMode === 'byParty' && !showBottomTabs ? 'translateY(calc(100% + 1rem))' : 'translateY(0)',
+          opacity: viewMode === 'byParty' && !showBottomTabs ? 0 : 1,
         }}
       >
         <div 
@@ -917,7 +962,7 @@ export default function OrdersPage() {
           style={{ 
             padding: '0.5rem',
             boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
-            pointerEvents: 'auto',
+            pointerEvents: viewMode === 'byParty' && !showBottomTabs ? 'none' : 'auto',
           }}
         >
           <button
@@ -964,7 +1009,7 @@ export default function OrdersPage() {
         <div 
           className="fixed left-0 right-0 z-[44] flex items-end justify-center"
           style={{ 
-            bottom: '6rem',
+            bottom: '5.25rem',
             paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
             paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
             pointerEvents: 'none',
@@ -1029,12 +1074,15 @@ export default function OrdersPage() {
       )}
 
       {/* Content Area - Scrollable, fits between header and buttons/nav */}
-      <div style={{ 
-        flex: 1,
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        paddingBottom: selectedOrders.size > 0 ? '13rem' : '8rem'
-      }}>
+      <div 
+        ref={contentRef}
+        style={{ 
+          flex: 1,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: selectedOrders.size > 0 ? '12.25rem' : '7.25rem'
+        }}
+      >
       {/* Orders List */}
       {loading ? (
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">

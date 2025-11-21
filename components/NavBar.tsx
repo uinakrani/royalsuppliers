@@ -19,7 +19,7 @@ export default function NavBar() {
     <nav 
       className="fixed left-0 right-0 z-50 flex items-end justify-center"
       style={{ 
-        bottom: '0.5rem',
+        bottom: '0.75rem',
         paddingLeft: 'max(env(safe-area-inset-left, 0px), 0.75rem)',
         paddingRight: 'max(env(safe-area-inset-right, 0px), 0.75rem)',
         pointerEvents: 'none',

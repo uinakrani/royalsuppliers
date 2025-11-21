@@ -203,7 +203,7 @@ export default function LedgerPage() {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        paddingBottom: '10rem' // NavBar (~5rem) + Buttons bar (~4rem) + spacing
+        paddingBottom: '9.25rem' // NavBar (~4.75rem) + Buttons bar (~4rem) + spacing
       }}>
         {loading ? (
           <TruckLoading size={150} />
@@ -258,7 +258,7 @@ export default function LedgerPage() {
       <div 
         className="fixed left-0 right-0 z-30 flex items-end justify-center"
         style={{ 
-          bottom: '6rem',
+          bottom: '5.25rem',
           paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
           pointerEvents: 'none',
