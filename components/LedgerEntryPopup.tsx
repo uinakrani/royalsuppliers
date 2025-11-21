@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ArrowLeft } from 'lucide-react'
+import { orderService } from '@/lib/orderService'
 
 interface LedgerEntryPopupProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (data: { amount: number; date: string; note?: string }) => void
+  onSave: (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => void
   type: 'credit' | 'debit'
-  initialData?: { amount: number; date: string; note?: string }
+  initialData?: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }
   mode: 'add' | 'edit'
 }
 
@@ -17,13 +18,19 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
   const [isClosing, setIsClosing] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
-  const [step, setStep] = useState<'amount' | 'date' | 'note'>('amount')
+  const [step, setStep] = useState<'amount' | 'date' | 'supplier' | 'party' | 'note'>('amount')
   const backdropRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
   
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
   const [note, setNote] = useState('')
+  const [supplier, setSupplier] = useState('')
+  const [showCustomSupplier, setShowCustomSupplier] = useState(false)
+  const [partyName, setPartyName] = useState('')
+  const [showCustomPartyName, setShowCustomPartyName] = useState(false)
+  const [suppliers, setSuppliers] = useState<string[]>([])
+  const [partyNames, setPartyNames] = useState<string[]>([])
   const [errors, setErrors] = useState<{ amount?: string; date?: string }>({})
 
   useEffect(() => {
@@ -44,6 +51,30 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
     return () => observer.disconnect()
   }, [])
 
+  const loadSuppliers = async () => {
+    try {
+      const supplierList = await orderService.getUniqueSuppliers()
+      setSuppliers(supplierList)
+      if (supplier && supplierList.length > 0 && !supplierList.includes(supplier)) {
+        setShowCustomSupplier(true)
+      }
+    } catch (error) {
+      console.error('Error loading suppliers:', error)
+    }
+  }
+
+  const loadPartyNames = async () => {
+    try {
+      const names = await orderService.getUniquePartyNames()
+      setPartyNames(names)
+      if (partyName && names.length > 0 && !names.includes(partyName)) {
+        setShowCustomPartyName(true)
+      }
+    } catch (error) {
+      console.error('Error loading party names:', error)
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -54,12 +85,20 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
         setAmount(initialData.amount.toString())
         setDate(new Date(initialData.date).toISOString().split('T')[0])
         setNote(initialData.note || '')
+        setSupplier(initialData.supplier || '')
+        setPartyName(initialData.partyName || '')
       } else {
         setAmount('')
         setDate(new Date().toISOString().split('T')[0])
         setNote('')
+        setSupplier('')
+        setPartyName('')
       }
+      setShowCustomSupplier(false)
+      setShowCustomPartyName(false)
       setErrors({})
+      loadSuppliers()
+      loadPartyNames()
       requestAnimationFrame(() => {
         setIsMounted(true)
       })
@@ -82,6 +121,10 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
       setAmount('')
       setDate('')
       setNote('')
+      setSupplier('')
+      setPartyName('')
+      setShowCustomSupplier(false)
+      setShowCustomPartyName(false)
       setErrors({})
     }, 250)
   }
@@ -134,6 +177,15 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
         setErrors(prev => ({ ...prev, date: 'Invalid date' }))
         return
       }
+      // For expense entries, go to supplier step; for income, go to party step; otherwise go to note
+      if (type === 'debit') {
+        setStep('supplier')
+      } else if (type === 'credit') {
+        setStep('party')
+      } else {
+        setStep('note')
+      }
+    } else if (step === 'supplier' || step === 'party') {
       setStep('note')
     } else if (step === 'note') {
       await handleSave()
@@ -157,6 +209,8 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
         amount: amountNum,
         date,
         note: note.trim() || undefined,
+        supplier: type === 'debit' ? (supplier.trim() || undefined) : undefined,
+        partyName: type === 'credit' ? (partyName.trim() || undefined) : undefined,
       })
       handleClose()
     } catch (error) {
@@ -168,8 +222,16 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
   const handleBack = () => {
     if (step === 'date') {
       setStep('amount')
-    } else if (step === 'note') {
+    } else if (step === 'supplier' || step === 'party') {
       setStep('date')
+    } else if (step === 'note') {
+      if (type === 'debit') {
+        setStep('supplier')
+      } else if (type === 'credit') {
+        setStep('party')
+      } else {
+        setStep('date')
+      }
     }
   }
 
@@ -260,7 +322,10 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
             {/* Step Indicator */}
             <div className="flex items-center justify-center gap-2 mb-4">
               <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 'amount' ? 'bg-primary-600 w-8' : 'bg-primary-300 w-4'}`} />
-              <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 'date' ? 'bg-primary-600 w-8' : step === 'note' ? 'bg-primary-300 w-4' : 'bg-gray-200 w-4'}`} />
+              <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 'date' ? 'bg-primary-600 w-8' : (step === 'supplier' || step === 'party' || step === 'note') ? 'bg-primary-300 w-4' : 'bg-gray-200 w-4'}`} />
+              {(type === 'debit' || type === 'credit') && (
+                <div className={`h-1.5 rounded-full transition-all duration-300 ${(step === 'supplier' || step === 'party') ? 'bg-primary-600 w-8' : step === 'note' ? 'bg-primary-300 w-4' : 'bg-gray-200 w-4'}`} />
+              )}
               <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 'note' ? 'bg-primary-600 w-8' : 'bg-gray-200 w-4'}`} />
             </div>
 
@@ -308,6 +373,122 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
               </div>
             )}
 
+            {/* Supplier Step (for expense entries) */}
+            {step === 'supplier' && type === 'debit' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supplier <span className="text-gray-400 font-normal">(optional - can skip)</span>
+                  </label>
+                  {!showCustomSupplier ? (
+                    <div className="space-y-2">
+                      <select
+                        value={supplier}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setShowCustomSupplier(true)
+                          } else {
+                            setSupplier(e.target.value)
+                          }
+                        }}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        style={{ fontSize: '16px' }}
+                        autoFocus
+                      >
+                        <option value="">Select a supplier</option>
+                        {suppliers.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Add New Supplier</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={supplier}
+                        onChange={(e) => setSupplier(e.target.value)}
+                        placeholder="Enter supplier name"
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        style={{ fontSize: '16px' }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomSupplier(false)
+                          setSupplier('')
+                        }}
+                        className="text-xs text-primary-600 active:text-primary-700"
+                      >
+                        ← Select from existing suppliers
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Party Step (for income entries) */}
+            {step === 'party' && type === 'credit' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Party Name <span className="text-gray-400 font-normal">(optional - can skip)</span>
+                  </label>
+                  {!showCustomPartyName ? (
+                    <div className="space-y-2">
+                      <select
+                        value={partyName}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setShowCustomPartyName(true)
+                          } else {
+                            setPartyName(e.target.value)
+                          }
+                        }}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        style={{ fontSize: '16px' }}
+                        autoFocus
+                      >
+                        <option value="">Select a party name</option>
+                        {partyNames.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Add New Party Name</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={partyName}
+                        onChange={(e) => setPartyName(e.target.value)}
+                        placeholder="Enter party name"
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        style={{ fontSize: '16px' }}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomPartyName(false)
+                          setPartyName('')
+                        }}
+                        className="text-xs text-primary-600 active:text-primary-700"
+                      >
+                        ← Select from existing names
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Note Step */}
             {step === 'note' && (
               <div className="space-y-3">
@@ -329,13 +510,32 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
 
           {/* Footer */}
           <div className="flex-shrink-0 border-t border-gray-200 p-4">
-            <button
-              onClick={handleNext}
-              className="w-full py-3 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 transition-colors touch-manipulation"
-              style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
-            >
-              {step === 'note' ? 'Save' : 'Next'}
-            </button>
+            {(step === 'supplier' || step === 'party') ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleNext}
+                  className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold active:bg-gray-300 transition-colors touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="flex-1 py-3 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 transition-colors touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+                >
+                  Next
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleNext}
+                className="w-full py-3 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 transition-colors touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+              >
+                {step === 'note' ? 'Save' : 'Next'}
+              </button>
+            )}
           </div>
         </div>
       </div>

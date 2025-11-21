@@ -27,7 +27,7 @@ interface PartyGroup {
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
-  payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }>
+  payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment; ledgerEntryId?: string }>
 }
 
 interface PartyDetailDrawerProps {
@@ -386,14 +386,21 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                           </p>
                         )}
                       </div>
-                      <button
-                        onClick={() => handleRemovePayment(paymentItem.payment.id)}
-                        disabled={isProcessing}
-                        className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Remove Payment"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {!paymentItem.ledgerEntryId && (
+                        <button
+                          onClick={() => handleRemovePayment(paymentItem.payment.id)}
+                          disabled={isProcessing}
+                          className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Remove Payment"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                      {paymentItem.ledgerEntryId && (
+                        <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry">
+                          From Ledger
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

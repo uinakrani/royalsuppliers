@@ -47,15 +47,9 @@ export const orderService = {
         updatedAt: new Date().toISOString(),
       }
 
-      // If order is paid and paidAmountForRawMaterials is provided, create partial payment record
-      if (!order.paymentDue && order.paid && paidAmountForRawMaterials && paidAmountForRawMaterials > 0) {
-        const paymentRecord: PaymentRecord = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          amount: paidAmountForRawMaterials,
-          date: new Date().toISOString(),
-        }
-        orderData.partialPayments = [paymentRecord]
-        orderData.paidAmount = paidAmountForRawMaterials
+      // Store partialPayments if provided (from form)
+      if (order.partialPayments && Array.isArray(order.partialPayments) && order.partialPayments.length > 0) {
+        orderData.partialPayments = order.partialPayments
       }
 
       console.log('Creating order in Firestore:', {
@@ -77,32 +71,6 @@ export const orderService = {
       const docRef = await Promise.race([savePromise, timeoutPromise])
       
       console.log('✅ Order created successfully with ID:', docRef.id)
-
-      // Create ledger entries for expenses
-      // Only add ledger entry if order is paid (not paymentDue)
-      if (!order.paymentDue && order.paid) {
-        try {
-          // Add raw material payment expense
-          const ledgerAmount = paidAmountForRawMaterials && paidAmountForRawMaterials > 0 
-            ? paidAmountForRawMaterials 
-            : expenseAmount
-          
-          if (ledgerAmount > 0) {
-            const truckInfo = order.truckOwner ? ` - ${order.truckOwner}` : ''
-            const note = `Raw materials${truckInfo} - ${order.partyName} (${order.siteName})`
-            await ledgerService.addEntry('debit', ledgerAmount, note, 'orderExpense')
-          }
-          
-          // Add additional costs expense (always paid when order is created)
-          const additionalCost = Number(order.additionalCost || 0)
-          if (additionalCost > 0) {
-            const note = `Additional costs - ${order.partyName} (${order.siteName})`
-            await ledgerService.addEntry('debit', additionalCost, note, 'orderExpense')
-          }
-        } catch (e) {
-          console.warn('Ledger entry for order expense failed (non-fatal):', e)
-        }
-      }
 
       return docRef.id
     } catch (error: any) {
@@ -134,164 +102,16 @@ export const orderService = {
       throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials. See README.md for setup instructions.')
     }
     try {
-      // Get existing order to check payment status changes
+      // Get existing order
       const existingOrder = await this.getOrderById(id)
       if (!existingOrder) {
         throw new Error('Order not found')
-      }
-
-      // Check if order is being changed from "due" to "paid"
-      const wasDue = existingOrder.paymentDue && !existingOrder.paid
-      // Order will be paid if: paid is explicitly true, or paymentDue is explicitly false and paid is not explicitly false
-      const willBePaid = order.paid === true || (order.paymentDue === false && order.paid !== false)
-      
-      // Also check if we're just marking as paid without changing paymentDue
-      const isMarkingAsPaid = order.paid === true && existingOrder.paymentDue && !existingOrder.paid
-      
-      // Get updated originalTotal value if provided (for expense calculation)
-      let nextOriginal = 0
-      if (Object.prototype.hasOwnProperty.call(order, 'originalTotal')) {
-        nextOriginal = Number(order.originalTotal || 0)
       }
 
       // Prepare update data
       const updateData: any = {
         ...order,
         updatedAt: new Date().toISOString(),
-      }
-      
-      // Handle ledger entries and payment status
-      try {
-        // Skip ledger entry creation if partialPayments is being updated
-        // This means we're coming from addPaymentToOrder which already created the ledger entry
-        const isUpdatingPayments = Object.prototype.hasOwnProperty.call(order, 'partialPayments')
-        
-        // If order changed from "due" to "paid", create ledger entry for full expense
-        // This happens when:
-        // 1. Order was due and is now being marked as paid
-        // 2. Order was due and paymentDue is being set to false with paid being true
-        // BUT skip if we're updating payments (addPaymentToOrder already handled it)
-        if (wasDue && (willBePaid || isMarkingAsPaid) && !isUpdatingPayments) {
-          // Use updated value if provided, otherwise use existing value
-          // Expense amount is just originalTotal (raw material cost)
-          const expenseAmount = Object.prototype.hasOwnProperty.call(order, 'originalTotal')
-            ? nextOriginal
-            : Number(existingOrder.originalTotal || 0)
-          
-          // Get the final total paid amount (from update data if provided, otherwise from existing)
-          // Preserve existing partialPayments when marking as paid (they contain payment history)
-          const finalPayments = order.partialPayments !== undefined 
-            ? order.partialPayments 
-            : (existingOrder.partialPayments || [])
-          const totalPaid = finalPayments.reduce((sum, p) => sum + p.amount, 0)
-          const remainingAmount = expenseAmount - totalPaid
-          
-          // Create expense entry for the remaining raw material amount (if any)
-          if (remainingAmount > 0) {
-            const truckInfo = existingOrder.truckOwner ? ` - ${existingOrder.truckOwner}` : ''
-            const note = `Raw materials${truckInfo} - ${existingOrder.partyName} (${existingOrder.siteName})`
-            await ledgerService.addEntry('debit', remainingAmount, note, 'orderExpense')
-          }
-          
-          // Also add additional costs expense (always paid when order is marked as paid)
-          const additionalCost = Object.prototype.hasOwnProperty.call(order, 'additionalCost')
-            ? Number(order.additionalCost || 0)
-            : Number(existingOrder.additionalCost || 0)
-          if (additionalCost > 0) {
-            const note = `Additional costs - ${existingOrder.partyName} (${existingOrder.siteName})`
-            await ledgerService.addEntry('debit', additionalCost, note, 'orderExpense')
-          }
-          
-          // Note: Only expense (debit) entries are created for raw material payments and additional costs
-          // No income (credit) entries are created, even if paid less than full expense or for order profit
-          
-          // When marking as paid directly (not through payment flow):
-          // - If order already has partialPayments, preserve them (they contain payment history)
-          //   The expense entry for remaining amount was already created above (line 185-188)
-          // - If order has no partialPayments and paidAmountForRawMaterials is provided, create a payment record
-          // - Only clear partialPayments if explicitly set to empty array in update data
-          if (isMarkingAsPaid && !Object.prototype.hasOwnProperty.call(order, 'partialPayments')) {
-            // If order already has partialPayments, preserve them (don't overwrite with paidAmountForRawMaterials)
-            if (existingOrder.partialPayments && existingOrder.partialPayments.length > 0) {
-              // Preserve existing partialPayments - they contain payment history
-              // The expense entry for remaining amount was already created above (line 185-188)
-              // No need to update partialPayments in updateData - they'll be preserved from existing order
-            } else {
-              // No existing partialPayments - check if paidAmountForRawMaterials is provided (from OrderForm)
-              const paidAmountForRawMaterials = (order as any).paidAmountForRawMaterials
-              if (paidAmountForRawMaterials && paidAmountForRawMaterials > 0) {
-                // Create a payment record for the paid amount
-                const paymentRecord: PaymentRecord = {
-                  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                  amount: paidAmountForRawMaterials,
-                  date: new Date().toISOString(),
-                }
-                updateData.partialPayments = [paymentRecord]
-                updateData.paidAmount = paidAmountForRawMaterials
-              } else {
-                // No existing payments and no paidAmountForRawMaterials - clear partialPayments
-                updateData.partialPayments = []
-                updateData.paidAmount = deleteField()
-              }
-            }
-          }
-        }
-        // If expense amount changed and order is paid, post delta
-        else if (!existingOrder.paymentDue && existingOrder.paid) {
-          // Track changes to originalTotal
-          if (Object.prototype.hasOwnProperty.call(order, 'originalTotal')) {
-            const prevOriginal = Number(existingOrder.originalTotal || 0)
-            const newOriginal = nextOriginal
-            const expenseDelta = newOriginal - prevOriginal
-            
-            if (expenseDelta !== 0) {
-              const truckOwner = order.truckOwner || existingOrder.truckOwner
-              const truckInfo = truckOwner ? ` - ${truckOwner}` : ''
-              if (expenseDelta > 0) {
-                await ledgerService.addEntry(
-                  'debit',
-                  expenseDelta,
-                  `Raw materials updated${truckInfo} - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
-                  'orderExpense'
-                )
-              } else {
-                await ledgerService.addEntry(
-                  'credit',
-                  Math.abs(expenseDelta),
-                  `Raw materials reduced${truckInfo} - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
-                  'orderExpense'
-                )
-              }
-            }
-          }
-          
-          // Track changes to additionalCost
-          if (Object.prototype.hasOwnProperty.call(order, 'additionalCost')) {
-            const prevAdditional = Number(existingOrder.additionalCost || 0)
-            const newAdditional = Number(order.additionalCost || 0)
-            const additionalDelta = newAdditional - prevAdditional
-            
-            if (additionalDelta !== 0) {
-              if (additionalDelta > 0) {
-                await ledgerService.addEntry(
-                  'debit',
-                  additionalDelta,
-                  `Additional costs updated - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
-                  'orderExpense'
-                )
-              } else {
-                await ledgerService.addEntry(
-                  'credit',
-                  Math.abs(additionalDelta),
-                  `Additional costs reduced - ${order.partyName || existingOrder.partyName} (${order.siteName || existingOrder.siteName})`.trim(),
-                  'orderExpense'
-                )
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Ledger entry for order update failed (non-fatal):', e)
       }
       
       // Actually update the document in Firestore
@@ -333,7 +153,18 @@ export const orderService = {
       console.warn('Firebase is not configured. Returning empty array.')
       return []
     }
-    let q = query(collection(db, ORDERS_COLLECTION), orderBy('date', 'desc'))
+    
+    // Check if we need to avoid orderBy to prevent composite index requirement
+    // When filtering by supplier, partyName, material, truckOwner, or truckNo, 
+    // we'll sort in JavaScript instead
+    const needsClientSideSort = !!(filters?.supplier || filters?.partyName || filters?.material || filters?.truckOwner || filters?.truckNo)
+    
+    let q: any = collection(db, ORDERS_COLLECTION)
+    
+    // Only use orderBy if we don't have filters that require composite indexes
+    if (!needsClientSideSort) {
+      q = query(q, orderBy('date', 'desc'))
+    }
 
     if (filters) {
       if (filters.partyName) {
@@ -348,8 +179,8 @@ export const orderService = {
       if (filters.truckNo) {
         q = query(q, where('truckNo', '==', filters.truckNo))
       }
-      if (filters.paymentDue !== undefined) {
-        q = query(q, where('paymentDue', '==', filters.paymentDue))
+      if (filters.supplier) {
+        q = query(q, where('supplier', '==', filters.supplier))
       }
     }
 
@@ -391,6 +222,15 @@ export const orderService = {
       
       orders.push(orderData as Order)
     })
+
+    // Sort in JavaScript if we skipped orderBy to avoid composite index requirement
+    if (needsClientSideSort) {
+      orders.sort((a, b) => {
+        const aDate = new Date(a.date).getTime()
+        const bDate = new Date(b.date).getTime()
+        return bDate - aDate // Descending order (newest first)
+      })
+    }
 
     // Filter by date range in memory (Firestore has limitations with date range queries)
     let filteredOrders = orders
@@ -459,120 +299,21 @@ export const orderService = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount: paymentAmount,
       date: paymentDate,
+      note: note || undefined,
     }
     const updatedPayments = [...existingPayments, newPayment]
     
     // Calculate total paid amount from payments array
     const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
     
-    // Check if fully paid (either by amount or by markAsPaid flag)
-    const isFullyPaid = markAsPaid || totalPaid >= expenseAmount
-    
-    // Calculate profit adjustment: if marked as paid but paid less than expense, add difference to profit
-    let profitAdjustment = 0
-    if (isFullyPaid && totalPaid < expenseAmount) {
-      // Remaining amount (expenseAmount - totalPaid) goes to profit
-      profitAdjustment = expenseAmount - totalPaid
-    }
-    
-    // Calculate new profit (current profit + adjustment)
-    const currentProfit = Number(order.profit || 0)
-    const newProfit = currentProfit + profitAdjustment
-    
-    // Create ledger entry for this payment (debit - expense for raw materials ONLY, no income entry)
-    try {
-      const truckInfo = order.truckOwner ? ` - ${order.truckOwner}` : ''
-      const ledgerNote = note && note.trim() 
-        ? `Raw materials payment${truckInfo} - ${order.partyName} (${order.siteName}): ${note.trim()}`
-        : `Raw materials payment${truckInfo} - ${order.partyName} (${order.siteName})`
-      await ledgerService.addEntry('debit', paymentAmount, ledgerNote, 'orderExpense', paymentDate)
-    } catch (e) {
-      console.warn('Ledger entry for order payment failed (non-fatal):', e)
-    }
-    
-    // Note: Profit adjustment is calculated and saved to order, but NO ledger entry is created
-    // Only expense (debit) entries are created for raw material payments
-    
     // Prepare update data
     const updateData: any = {
-      paid: isFullyPaid,
       partialPayments: updatedPayments,
-      paymentDue: !isFullyPaid,
-    }
-    
-    // Set paidAmount only if not fully paid, otherwise delete it
-    if (isFullyPaid) {
-      updateData.paidAmount = deleteField()
-    } else {
-      updateData.paidAmount = totalPaid
-    }
-    
-    // Update profit if there's an adjustment (when marked as paid with less than full payment)
-    if (profitAdjustment > 0) {
-      updateData.profit = newProfit
     }
     
     await this.updateOrder(id, updateData)
   },
 
-  // Mark order as paid (fully or partially) - legacy function, kept for backward compatibility
-  async markAsPaid(id: string, paidAmount?: number): Promise<void> {
-    const order = await this.getOrderById(id)
-    if (!order) {
-      throw new Error('Order not found')
-    }
-    
-    // Calculate expense amount (originalTotal only - raw material cost)
-    const expenseAmount = Number(order.originalTotal || 0)
-    const finalPaidAmount = paidAmount ?? expenseAmount
-    const isFullyPaid = finalPaidAmount >= expenseAmount
-    
-    // Get existing partial payments
-    const existingPayments = order.partialPayments || []
-    
-    // Calculate current total from existing payments
-    const currentTotal = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-    
-    // Calculate the new payment amount (difference between final and current)
-    const newPaymentAmount = finalPaidAmount - currentTotal
-    
-    // If there's a new payment to add, create ledger entry
-    if (newPaymentAmount > 0) {
-      try {
-        const note = `Order expense payment - ${order.partyName} (${order.siteName})`
-        await ledgerService.addEntry('debit', newPaymentAmount, note, 'orderExpense')
-      } catch (e) {
-        console.warn('Ledger entry for order payment failed (non-fatal):', e)
-      }
-    }
-    
-    let updatedPayments: PaymentRecord[]
-    if (isFullyPaid) {
-      // If fully paid, clear partial payments
-      updatedPayments = []
-    } else if (newPaymentAmount > 0) {
-      // Add new payment record
-      const newPayment: PaymentRecord = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        amount: newPaymentAmount,
-        date: new Date().toISOString(),
-      }
-      updatedPayments = [...existingPayments, newPayment]
-    } else {
-      // No change needed
-      updatedPayments = existingPayments
-    }
-    
-    // Calculate total paid amount from payments array
-    const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
-    
-    await this.updateOrder(id, {
-      paid: isFullyPaid,
-      paidAmount: isFullyPaid ? undefined : totalPaid,
-      partialPayments: updatedPayments,
-      paymentDue: !isFullyPaid,
-    })
-  },
 
   // Update a specific partial payment record
   async updatePartialPayment(id: string, paymentId: string, updates: { amount?: number; date?: string }): Promise<void> {
@@ -643,22 +384,7 @@ export const orderService = {
       
       await updateDoc(orderRef, updateData)
       
-      // Update ledger entries: credit old amount, debit new amount
-      try {
-        const amountDelta = newAmount - oldAmount
-        if (amountDelta !== 0) {
-          const note = `Payment updated - Order ${order.partyName} (${order.siteName})`
-          if (amountDelta > 0) {
-            // Payment increased, add debit entry
-            await ledgerService.addEntry('debit', amountDelta, note, 'orderPaymentUpdate')
-          } else {
-            // Payment decreased, add credit entry
-            await ledgerService.addEntry('credit', Math.abs(amountDelta), note, 'orderPaymentUpdate')
-          }
-        }
-      } catch (e) {
-        console.warn('Ledger entry for payment update failed (non-fatal):', e)
-      }
+      // Note: No automatic ledger entry creation - user must manually create ledger entries if needed
       
       console.log('Payment updated successfully:', paymentId)
     } catch (error: any) {
@@ -717,13 +443,7 @@ export const orderService = {
       
       await updateDoc(orderRef, updateData)
       
-      // Create credit ledger entry to reverse the payment
-      try {
-        const note = `Order expense payment removed - ${order.partyName} (${order.siteName})`
-        await ledgerService.addEntry('credit', paymentToRemove.amount, note, 'orderExpense')
-      } catch (e) {
-        console.warn('Ledger entry for payment removal failed (non-fatal):', e)
-      }
+      // Note: No automatic ledger entry creation - user must manually create ledger entries if needed
       
       console.log('Payment removed successfully:', paymentId)
     } catch (error: any) {
@@ -835,6 +555,32 @@ export const orderService = {
       return Array.from(siteNames).sort()
     } catch (error: any) {
       console.error('Error fetching site names:', error)
+      return []
+    }
+  },
+
+  // Get unique suppliers
+  async getUniqueSuppliers(): Promise<string[]> {
+    const db = getDb()
+    if (!db) {
+      console.warn('Firebase is not configured. Returning empty array.')
+      return []
+    }
+    try {
+      const q = query(collection(db, ORDERS_COLLECTION))
+      const querySnapshot = await getDocs(q)
+      const suppliers = new Set<string>()
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+        if (data.supplier && typeof data.supplier === 'string') {
+          suppliers.add(data.supplier.trim())
+        }
+      })
+      
+      return Array.from(suppliers).sort()
+    } catch (error: any) {
+      console.error('Error fetching suppliers:', error)
       return []
     }
   },

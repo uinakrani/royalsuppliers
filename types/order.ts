@@ -2,6 +2,8 @@ export interface PaymentRecord {
   id: string
   amount: number
   date: string // ISO date string
+  note?: string // Optional note for the payment
+  ledgerEntryId?: string // ID of ledger entry that created this payment (for tracking)
 }
 
 export interface Order {
@@ -15,15 +17,13 @@ export interface Order {
   total: number // calculated: weight * rate
   truckOwner: string
   truckNo: string
+  supplier: string // Supplier of raw materials
   originalWeight: number
   originalRate: number
   originalTotal: number // calculated: originalWeight * originalRate
   additionalCost: number
   profit: number // calculated: total - (originalTotal + additionalCost)
-  paymentDue: boolean
-  paid: boolean
-  paidAmount?: number // total amount paid (calculated from partialPayments for backward compatibility)
-  partialPayments?: PaymentRecord[] // array of individual payment records
+  partialPayments?: PaymentRecord[] // array of individual payment records for raw materials
   invoiced?: boolean // whether order has been invoiced
   invoiceId?: string // ID of the invoice this order belongs to
   archived?: boolean // whether order is archived (when invoice is fully paid)
@@ -38,7 +38,7 @@ export interface OrderFilters {
   material?: string
   truckOwner?: string
   truckNo?: string
-  paymentDue?: boolean
+  supplier?: string
 }
 
 export interface DashboardStats {

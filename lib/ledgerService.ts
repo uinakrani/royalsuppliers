@@ -25,12 +25,22 @@ export interface LedgerEntry {
   date: string // ISO timestamp
   createdAt?: string
   source?: LedgerSource
+  supplier?: string // For expense entries - supplier of raw materials
+  partyName?: string // For income entries - party from which payment received
 }
 
 const LEDGER_COLLECTION = 'ledgerEntries'
 
 export const ledgerService = {
-  async addEntry(type: LedgerType, amount: number, note?: string, source: LedgerSource = 'manual', date?: string): Promise<string> {
+  async addEntry(
+    type: LedgerType, 
+    amount: number, 
+    note?: string, 
+    source: LedgerSource = 'manual', 
+    date?: string,
+    supplier?: string,
+    partyName?: string
+  ): Promise<string> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     const now = new Date().toISOString()
@@ -50,6 +60,12 @@ export const ledgerService = {
     }
     if (note && note.trim()) {
       payload.note = note.trim()
+    }
+    if (supplier && supplier.trim()) {
+      payload.supplier = supplier.trim()
+    }
+    if (partyName && partyName.trim()) {
+      payload.partyName = partyName.trim()
     }
     const ref = await addDoc(collection(db, LEDGER_COLLECTION), {
       ...payload,
@@ -85,6 +101,8 @@ export const ledgerService = {
         note: data.note,
         date: dateValue,
         source: data.source,
+        supplier: data.supplier,
+        partyName: data.partyName,
         ...(createdAt ? { createdAt } : {}),
       })
     })
@@ -131,6 +149,8 @@ export const ledgerService = {
           note: data.note,
           date: dateValue,
           source: data.source,
+          supplier: data.supplier,
+          partyName: data.partyName,
           ...(createdAt ? { createdAt } : {}),
         })
       })
@@ -175,7 +195,7 @@ export const ledgerService = {
     await this.remove(lastEntry.id)
   },
 
-  async update(id: string, updates: { amount?: number; note?: string; date?: string }): Promise<void> {
+  async update(id: string, updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string }): Promise<void> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     const entryRef = doc(db, LEDGER_COLLECTION, id)
@@ -200,6 +220,22 @@ export const ledgerService = {
         dateValue = new Date(dateValue + 'T00:00:00').toISOString()
       }
       updateData.date = dateValue
+    }
+
+    if (updates.supplier !== undefined) {
+      if (updates.supplier && updates.supplier.trim()) {
+        updateData.supplier = updates.supplier.trim()
+      } else {
+        updateData.supplier = null // Remove supplier if empty
+      }
+    }
+
+    if (updates.partyName !== undefined) {
+      if (updates.partyName && updates.partyName.trim()) {
+        updateData.partyName = updates.partyName.trim()
+      } else {
+        updateData.partyName = null // Remove partyName if empty
+      }
     }
     
     await updateDoc(entryRef, updateData)

@@ -293,7 +293,7 @@ export default function InvoicesPage() {
           </div>
         </div>
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
-          <TruckLoading size={150} />
+          <TruckLoading size={100} />
         </div>
         <NavBar />
       </div>

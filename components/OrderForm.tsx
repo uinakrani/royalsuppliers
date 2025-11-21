@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Order } from '@/types/order'
-import { X } from 'lucide-react'
+import { Order, PaymentRecord } from '@/types/order'
+import { X, Plus, Trash2, Edit2 } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
-import ConfirmPaymentPopup from '@/components/ConfirmPaymentPopup'
 
 interface OrderFormProps {
   order?: Order | null
@@ -31,24 +30,25 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     rate: order?.rate || 0,
     truckOwner: order?.truckOwner || '',
     truckNo: order?.truckNo || '',
+    supplier: order?.supplier || '',
     originalWeight: order?.originalWeight || 0,
     originalRate: order?.originalRate || 0,
     additionalCost: order?.additionalCost || 0,
-    paymentDue: order?.paymentDue ?? true,
-    paid: order?.paid || false,
-    paidAmountForRawMaterials: 0, // Amount paid for raw materials when order is marked as paid
+    partialPayments: order?.partialPayments || [],
   })
 
   const [saving, setSaving] = useState(false)
-  const [errors, setErrors] = useState<{ material?: string }>({})
+  const [errors, setErrors] = useState<{ material?: string; payments?: string }>({})
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [showCustomPartyName, setShowCustomPartyName] = useState(false)
   const [siteNames, setSiteNames] = useState<string[]>([])
   const [showCustomSiteName, setShowCustomSiteName] = useState(false)
   const [truckOwners, setTruckOwners] = useState<string[]>([])
   const [showCustomTruckOwner, setShowCustomTruckOwner] = useState(false)
-  const [showConfirmPaymentPopup, setShowConfirmPaymentPopup] = useState(false)
-  const [pendingPaidState, setPendingPaidState] = useState(false)
+  const [suppliers, setSuppliers] = useState<string[]>([])
+  const [showCustomSupplier, setShowCustomSupplier] = useState(false)
+  const [editingPaymentIndex, setEditingPaymentIndex] = useState<number | null>(null)
+  const [newPayment, setNewPayment] = useState({ amount: '', note: '' })
   const firstInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -84,6 +84,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     loadPartyNames()
     loadSiteNames()
     loadTruckOwners()
+    loadSuppliers()
     return () => {
       document.body.style.overflow = ''
     }
@@ -92,13 +93,6 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
   useEffect(() => {
     // Update form data when order prop changes
     if (order) {
-      // Calculate paid amount from partialPayments if exists
-      const existingPayments = order.partialPayments || []
-      const totalPaidFromPayments = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-      const paidAmountForRawMaterials = order.paid && totalPaidFromPayments > 0 
-        ? totalPaidFromPayments 
-        : (order.paid ? Number(order.originalTotal || 0) : 0)
-
       setFormData({
         date: order.date || new Date().toISOString().split('T')[0],
         partyName: order.partyName || '',
@@ -108,12 +102,11 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         rate: order.rate || 0,
         truckOwner: order.truckOwner || '',
         truckNo: order.truckNo || '',
+        supplier: order.supplier || '',
         originalWeight: order.originalWeight || 0,
         originalRate: order.originalRate || 0,
         additionalCost: order.additionalCost || 0,
-        paymentDue: order.paymentDue ?? true,
-        paid: order.paid || false,
-        paidAmountForRawMaterials,
+        partialPayments: order.partialPayments || [],
       })
       // Check if party name exists in the list
       if (order.partyName && partyNames.length > 0 && !partyNames.includes(order.partyName)) {
@@ -127,8 +120,12 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       if (order.truckOwner && truckOwners.length > 0 && !truckOwners.includes(order.truckOwner)) {
         setShowCustomTruckOwner(true)
       }
+      // Check if supplier exists in the list
+      if (order.supplier && suppliers.length > 0 && !suppliers.includes(order.supplier)) {
+        setShowCustomSupplier(true)
+      }
     }
-  }, [order, partyNames, siteNames, truckOwners])
+  }, [order, partyNames, siteNames, truckOwners, suppliers])
 
   const loadPartyNames = async () => {
     try {
@@ -169,6 +166,19 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     }
   }
 
+  const loadSuppliers = async () => {
+    try {
+      const supplierList = await orderService.getUniqueSuppliers()
+      setSuppliers(supplierList)
+      // If current supplier is not in the list, show custom input
+      if (formData.supplier && !supplierList.includes(formData.supplier)) {
+        setShowCustomSupplier(true)
+      }
+    } catch (error) {
+      console.error('Error loading suppliers:', error)
+    }
+  }
+
   const calculateFields = () => {
     const total = formData.weight * formData.rate
     const originalTotal = formData.originalWeight * formData.originalRate
@@ -179,12 +189,100 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
 
   const { total, originalTotal, profit } = calculateFields()
 
-  // Update paidAmountForRawMaterials when originalTotal changes and order is paid
-  useEffect(() => {
-    if (formData.paid && (!formData.paidAmountForRawMaterials || formData.paidAmountForRawMaterials === 0)) {
-      setFormData(prev => ({ ...prev, paidAmountForRawMaterials: originalTotal }))
+  // Calculate total paid from partial payments
+  const totalPaid = useMemo(() => {
+    return formData.partialPayments.reduce((sum, p) => sum + p.amount, 0)
+  }, [formData.partialPayments])
+
+  const remainingAmount = useMemo(() => {
+    return Math.max(0, originalTotal - totalPaid)
+  }, [originalTotal, totalPaid])
+
+  // Add new payment
+  const handleAddPayment = () => {
+    const amount = parseFloat(newPayment.amount)
+    if (!amount || amount <= 0) {
+      setErrors({ payments: 'Please enter a valid payment amount' })
+      return
     }
-  }, [originalTotal, formData.paid])
+    if (totalPaid + amount > originalTotal) {
+      setErrors({ payments: `Total payments cannot exceed original total of ${formatIndianCurrency(originalTotal)}` })
+      return
+    }
+
+    const payment: PaymentRecord = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      amount,
+      date: new Date().toISOString(),
+      note: newPayment.note.trim() || undefined,
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      partialPayments: [...prev.partialPayments, payment],
+    }))
+    setNewPayment({ amount: '', note: '' })
+    setErrors({})
+  }
+
+  // Update existing payment
+  const handleUpdatePayment = (index: number) => {
+    const amount = parseFloat(newPayment.amount)
+    if (!amount || amount <= 0) {
+      setErrors({ payments: 'Please enter a valid payment amount' })
+      return
+    }
+
+    const otherPaymentsTotal = formData.partialPayments
+      .filter((_, i) => i !== index)
+      .reduce((sum, p) => sum + p.amount, 0)
+
+    if (otherPaymentsTotal + amount > originalTotal) {
+      setErrors({ payments: `Total payments cannot exceed original total of ${formatIndianCurrency(originalTotal)}` })
+      return
+    }
+
+    const updatedPayments = [...formData.partialPayments]
+    updatedPayments[index] = {
+      ...updatedPayments[index],
+      amount,
+      note: newPayment.note.trim() || undefined,
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      partialPayments: updatedPayments,
+    }))
+    setEditingPaymentIndex(null)
+    setNewPayment({ amount: '', note: '' })
+    setErrors({})
+  }
+
+  // Delete payment
+  const handleDeletePayment = (index: number) => {
+    const updatedPayments = formData.partialPayments.filter((_, i) => i !== index)
+    setFormData(prev => ({
+      ...prev,
+      partialPayments: updatedPayments,
+    }))
+  }
+
+  // Start editing payment
+  const handleStartEditPayment = (index: number) => {
+    const payment = formData.partialPayments[index]
+    setEditingPaymentIndex(index)
+    setNewPayment({
+      amount: payment.amount.toString(),
+      note: payment.note || '',
+    })
+  }
+
+  // Cancel editing payment
+  const handleCancelEditPayment = () => {
+    setEditingPaymentIndex(null)
+    setNewPayment({ amount: '', note: '' })
+    setErrors({})
+  }
 
   const handleClose = () => {
     setIsClosing(true)
@@ -211,15 +309,9 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
       return
     }
 
-    // Validate paid amount if order is marked as paid
-    if (formData.paid && formData.paidAmountForRawMaterials <= 0) {
-      setErrors({ material: 'Please enter the amount paid for raw materials' })
-      return
-    }
-
-    // Validate paid amount doesn't exceed original total
-    if (formData.paid && formData.paidAmountForRawMaterials > originalTotal) {
-      setErrors({ material: 'Paid amount cannot exceed original total' })
+    // Validate payments don't exceed original total
+    if (totalPaid > originalTotal) {
+      setErrors({ payments: `Total payments cannot exceed original total of ${formatIndianCurrency(originalTotal)}` })
       return
     }
     
@@ -227,26 +319,13 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     setErrors({})
 
     try {
-      // Calculate adjusted profit if paid amount is less than original total
-      let adjustedProfit = profit
-      if (formData.paid && formData.paidAmountForRawMaterials < originalTotal) {
-        const remainingAmount = originalTotal - formData.paidAmountForRawMaterials
-        // Only add to profit if remaining amount is less than 300
-        if (remainingAmount < 300) {
-          adjustedProfit = profit + remainingAmount
-        }
-        // If remaining amount >= 300, don't add to profit (leave it as unpaid)
-      }
-
-      const orderData: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number } = {
+      const orderData: Omit<Order, 'id'> = {
         ...formData,
         material: materials, // Store as array
         total,
         originalTotal,
-        profit: adjustedProfit,
+        profit,
         date: formData.date,
-        // Store paid amount for raw materials (will be used to create partial payment)
-        paidAmountForRawMaterials: formData.paid ? formData.paidAmountForRawMaterials : undefined,
       }
       await onSave(orderData)
       handleClose()
@@ -625,6 +704,60 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Supplier *
+            </label>
+            {!showCustomSupplier ? (
+              <div className="space-y-2">
+                <select
+                  value={formData.supplier}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setShowCustomSupplier(true)
+                    } else {
+                      setFormData({ ...formData, supplier: e.target.value })
+                    }
+                  }}
+                  required={!showCustomSupplier}
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  style={{ fontSize: '16px' }}
+                >
+                  <option value="">Select a supplier</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier} value={supplier}>
+                      {supplier}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Add New Supplier</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={formData.supplier}
+                  onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                  placeholder="Enter supplier name"
+                  required
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  style={{ fontSize: '16px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomSupplier(false)
+                    setFormData({ ...formData, supplier: '' })
+                  }}
+                  className="text-xs text-primary-600 active:text-primary-700 touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  ← Select from existing suppliers
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -704,97 +837,132 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 pt-2">
-            <input
-              type="checkbox"
-              id="paymentDue"
-              checked={formData.paymentDue}
-              onChange={(e) => {
-                const isDue = e.target.checked
-                setFormData({ 
-                  ...formData, 
-                  paymentDue: isDue, 
-                  paid: !isDue,
-                  paidAmountForRawMaterials: !isDue ? (formData.paidAmountForRawMaterials || originalTotal) : 0
-                })
-              }}
-              className="custom-checkbox"
-            />
-            <label htmlFor="paymentDue" className="text-xs text-gray-700">
-              Payment Due
-            </label>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="paid"
-              checked={formData.paid}
-              onChange={(e) => {
-                const isPaid = e.target.checked
-                setFormData({ 
-                  ...formData, 
-                  paid: isPaid, 
-                  paymentDue: !isPaid,
-                  paidAmountForRawMaterials: isPaid ? (formData.paidAmountForRawMaterials || originalTotal) : 0
-                })
-              }}
-              className="custom-checkbox"
-            />
-            <label htmlFor="paid" className="text-xs text-gray-700">
-              Paid
-            </label>
-          </div>
-
-          {formData.paid && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Amount Paid for Raw Materials *
+          {/* Partial Payments Section */}
+          <div className="border-t border-gray-200 pt-3 mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-medium text-gray-700">
+                Raw Material Payments
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.paidAmountForRawMaterials || ''}
-                onChange={(e) => {
-                  const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
-                  setFormData({ ...formData, paidAmountForRawMaterials: value })
-                  if (errors.material) {
-                    setErrors({})
-                  }
-                }}
-                placeholder={`Max: ${formatIndianCurrency(originalTotal)}`}
-                required
-                max={originalTotal}
-                className={`w-full px-3 py-2.5 bg-gray-50 border rounded-lg focus:outline-none focus:ring-2 ${
-                  formData.paidAmountForRawMaterials > originalTotal
-                    ? 'border-red-500 bg-red-50 focus:ring-red-500 focus:border-red-500'
-                    : 'border-gray-300 focus:ring-primary-500 focus:border-transparent'
-                }`}
-                style={{ fontSize: '16px' }}
-              />
-              {formData.paidAmountForRawMaterials > originalTotal && (
-                <p className="mt-1 text-[11px] text-red-600 font-medium">
-                  Amount cannot exceed original total
-                </p>
-              )}
-              {formData.paidAmountForRawMaterials > 0 && formData.paidAmountForRawMaterials < originalTotal && (() => {
-                const remainingAmount = originalTotal - formData.paidAmountForRawMaterials
-                if (remainingAmount < 300) {
-                  return (
-                    <p className="mt-1 text-[11px] text-gray-600">
-                      Remaining {formatIndianCurrency(remainingAmount)} will be added to profit
-                    </p>
-                  )
-                } else {
-                  return (
-                    <p className="mt-1 text-[11px] text-orange-600">
-                      Remaining {formatIndianCurrency(remainingAmount)} will not be added to profit (≥ ₹300)
-                    </p>
-                  )
-                }
-              })()}
+              <div className="text-xs text-gray-500">
+                Paid: {formatIndianCurrency(totalPaid)} / {formatIndianCurrency(originalTotal)}
+              </div>
             </div>
-          )}
+            
+            {/* Existing Payments */}
+            {formData.partialPayments.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {formData.partialPayments.map((payment, index) => (
+                  <div key={payment.id} className="bg-gray-50 p-2 rounded-lg border border-gray-200">
+                    {editingPaymentIndex === index ? (
+                      <div className="space-y-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newPayment.amount}
+                          onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                          placeholder="Amount"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <input
+                          type="text"
+                          value={newPayment.note}
+                          onChange={(e) => setNewPayment({ ...newPayment, note: e.target.value })}
+                          placeholder="Note (optional)"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdatePayment(index)}
+                            className="flex-1 px-2 py-1.5 text-xs bg-primary-600 text-white rounded active:bg-primary-700"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEditPayment}
+                            className="flex-1 px-2 py-1.5 text-xs bg-gray-200 text-gray-700 rounded active:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-gray-900">
+                              {formatIndianCurrency(payment.amount)}
+                            </span>
+                          </div>
+                          {payment.note && (
+                            <p className="text-xs text-gray-600 mt-1">{payment.note}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 ml-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditPayment(index)}
+                            className="p-1.5 text-gray-600 hover:text-primary-600 active:text-primary-700 rounded"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePayment(index)}
+                            className="p-1.5 text-gray-600 hover:text-red-600 active:text-red-700 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add New Payment */}
+            {editingPaymentIndex === null && (
+              <div className="space-y-2 border border-gray-200 rounded-lg p-2 bg-white">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={newPayment.amount}
+                  onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                  placeholder="Amount"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <input
+                  type="text"
+                  value={newPayment.note}
+                  onChange={(e) => setNewPayment({ ...newPayment, note: e.target.value })}
+                  placeholder="Note (optional)"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddPayment}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-primary-600 text-white rounded-lg active:bg-primary-700 transition-colors"
+                >
+                  <Plus size={14} />
+                  Add Payment
+                </button>
+              </div>
+            )}
+
+            {errors.payments && (
+              <p className="mt-1 text-xs text-red-600">{errors.payments}</p>
+            )}
+
+            {remainingAmount > 0 && (
+              <p className="mt-2 text-xs text-gray-600">
+                Remaining: <span className="font-semibold">{formatIndianCurrency(remainingAmount)}</span>
+              </p>
+            )}
+          </div>
         </form>
         
         {/* Fixed buttons at bottom */}
@@ -828,58 +996,7 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
     </>
   )
 
-  // Calculate remaining amount for confirmation popup
-  const existingPayments = order?.partialPayments || []
-  const totalPaidFromPayments = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-  const remainingAmount = originalTotal - totalPaidFromPayments
-
-  const handleAddRemainingPayment = () => {
-    // Add remaining amount as payment
-    setFormData({
-      ...formData,
-      paid: true,
-      paymentDue: false,
-      paidAmountForRawMaterials: originalTotal, // Full amount including remaining
-    })
-    setShowConfirmPaymentPopup(false)
-    setPendingPaidState(false)
-  }
-
-  const handleMarkAsPaidOnly = () => {
-    // Just mark as paid without adding remaining as payment
-    setFormData({
-      ...formData,
-      paid: true,
-      paymentDue: false,
-      paidAmountForRawMaterials: totalPaidFromPayments, // Keep existing payments only
-    })
-    setShowConfirmPaymentPopup(false)
-    setPendingPaidState(false)
-  }
-
   // Use portal to render at document body level
   if (typeof window === 'undefined') return null
-  return (
-    <>
-      {createPortal(formContent, document.body)}
-      {order && (
-        <ConfirmPaymentPopup
-          isOpen={showConfirmPaymentPopup}
-          onClose={() => {
-            setShowConfirmPaymentPopup(false)
-            setPendingPaidState(false)
-            // Revert checkbox state
-            setFormData({
-              ...formData,
-              paid: false,
-              paymentDue: true,
-            })
-          }}
-          remainingAmount={remainingAmount}
-          onAddRemainingPayment={handleAddRemainingPayment}
-          onMarkAsPaidOnly={handleMarkAsPaidOnly}
-        />
-      )}
-    </>
-  )
+  return createPortal(formContent, document.body)
 }

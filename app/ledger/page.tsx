@@ -11,6 +11,10 @@ import BottomSheet from '@/components/BottomSheet'
 import LedgerEntryModal from '@/components/LedgerEntryModal'
 import { createRipple } from '@/lib/rippleEffect'
 import TruckLoading from '@/components/TruckLoading'
+import { orderService } from '@/lib/orderService'
+import { PaymentRecord } from '@/types/order'
+import { getDb } from '@/lib/firebase'
+import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
@@ -111,17 +115,273 @@ export default function LedgerPage() {
     setModalOpen(false)
   }
 
-  const handleSaveEntry = async (data: { amount: number; date: string; note?: string }) => {
+  const handleSaveEntry = async (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => {
     if (drawerMode === 'edit' && editingEntry?.id) {
+      const oldPartyName = editingEntry.partyName
+      const oldSupplier = editingEntry.supplier
+      const newPartyName = data.partyName?.trim() || undefined
+      const newSupplier = data.supplier?.trim() || undefined
+      
       await ledgerService.update(editingEntry.id, {
         amount: data.amount,
         date: data.date,
         note: data.note,
+        supplier: newSupplier,
+        partyName: newPartyName,
       })
+      
+      // Handle party name changes for income entries
+      if (editingEntry.type === 'credit') {
+        if (oldPartyName && !newPartyName) {
+          // Party was removed - delete the linked party payment
+          await deleteLinkedPartyPayment(editingEntry.id)
+        } else if (oldPartyName && newPartyName && oldPartyName !== newPartyName) {
+          // Party was changed - update the linked party payment
+          await updateLinkedPartyPayment(editingEntry.id, data.amount, data.date, data.note)
+          // Also need to update partyName in the payment if it changed
+          await updateLinkedPartyPaymentPartyName(editingEntry.id, newPartyName)
+        } else if (!oldPartyName && newPartyName) {
+          // Party was added - create a new party payment
+          await createPartyPaymentFromIncome(editingEntry.id, newPartyName, data.amount, data.date, data.note)
+        } else if (oldPartyName && newPartyName && oldPartyName === newPartyName) {
+          // Party unchanged - just update amount/date/note
+          await updateLinkedPartyPayment(editingEntry.id, data.amount, data.date, data.note)
+        }
+      }
+      
+      // Handle supplier changes for expense entries
+      if (editingEntry.type === 'debit') {
+        if (oldSupplier && !newSupplier) {
+          // Supplier was removed - revert the partial payments that were added
+          await revertExpenseDistribution(editingEntry.id, oldSupplier)
+        } else if (oldSupplier && newSupplier && oldSupplier !== newSupplier) {
+          // Supplier was changed - revert old payments and distribute new ones
+          await revertExpenseDistribution(editingEntry.id, oldSupplier)
+          await distributeExpenseToOrders(editingEntry.id, data.amount, newSupplier, data.date)
+        } else if (!oldSupplier && newSupplier) {
+          // Supplier was added - distribute expense to orders
+          await distributeExpenseToOrders(editingEntry.id, data.amount, newSupplier, data.date)
+        } else if (oldSupplier && newSupplier && oldSupplier === newSupplier) {
+          // Supplier unchanged - if amount or date changed, recalculate distribution
+          const oldAmount = editingEntry.amount
+          const oldDate = editingEntry.date
+          if (oldAmount !== data.amount || oldDate !== data.date) {
+            // Revert old distribution and apply new one with updated amount/date
+            await revertExpenseDistribution(editingEntry.id, oldSupplier)
+            await distributeExpenseToOrders(editingEntry.id, data.amount, newSupplier, data.date)
+          }
+        }
+      }
     } else {
-      await ledgerService.addEntry(drawerType, data.amount, data.note, 'manual', data.date)
+      const entryId = await ledgerService.addEntry(
+        drawerType, 
+        data.amount, 
+        data.note, 
+        'manual', 
+        data.date,
+        data.supplier,
+        data.partyName
+      )
+      
+      // If this is an expense entry with a supplier, distribute it to orders
+      if (drawerType === 'debit' && data.supplier && data.supplier.trim()) {
+        await distributeExpenseToOrders(entryId, data.amount, data.supplier.trim(), data.date)
+      }
+      
+      // If this is an income entry with a party name, create a party payment
+      if (drawerType === 'credit' && data.partyName && data.partyName.trim()) {
+        await createPartyPaymentFromIncome(entryId, data.partyName.trim(), data.amount, data.date, data.note)
+      }
     }
     // Drawer will close automatically on success
+  }
+
+  const distributeExpenseToOrders = async (entryId: string, expenseAmount: number, supplier: string, expenseDate: string) => {
+    try {
+      console.log(`🔄 Distributing expense ${expenseAmount} for supplier ${supplier} (ledger entry ${entryId})`)
+      
+      // Get all orders for this supplier
+      const allOrders = await orderService.getAllOrders({ supplier })
+      
+      if (allOrders.length === 0) {
+        console.warn(`No orders found for supplier ${supplier}`)
+        return
+      }
+      
+      // Calculate outstanding amounts for each order (excluding payments from this ledger entry)
+      const ordersWithOutstanding = allOrders
+        .map(order => {
+          const existingPayments = order.partialPayments || []
+          // Exclude payments from this ledger entry (in case we're updating)
+          const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== entryId)
+          const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + p.amount, 0)
+          const remaining = Math.max(0, (order.originalTotal || 0) - totalPaid)
+          return { order, remaining, currentPayments: existingPayments }
+        })
+        .filter(({ remaining }) => remaining > 0)
+        .sort((a, b) => {
+          // Sort by date (oldest first), then by creation time
+          const aDate = new Date(a.order.date).getTime()
+          const bDate = new Date(b.order.date).getTime()
+          if (aDate !== bDate) return aDate - bDate
+          const aTime = safeGetTime(a.order.createdAt || a.order.updatedAt || a.order.date)
+          const bTime = safeGetTime(b.order.createdAt || b.order.updatedAt || b.order.date)
+          return aTime - bTime
+        })
+      
+      if (ordersWithOutstanding.length === 0) {
+        console.warn(`No orders with outstanding payments for supplier ${supplier}`)
+        return
+      }
+      
+      let remainingExpense = expenseAmount
+      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord }> = []
+      
+      // Distribute expense across orders (oldest first, fill completely before next)
+      for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
+        if (remainingExpense <= 0) break
+        
+        if (!order.id) continue
+        
+        const paymentAmount = Math.min(remainingExpense, remaining)
+        
+        // Convert date to ISO string if needed
+        let paymentDate = expenseDate
+        if (paymentDate && !paymentDate.includes('T')) {
+          paymentDate = new Date(paymentDate + 'T00:00:00').toISOString()
+        }
+        
+        const payment: PaymentRecord = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          amount: paymentAmount,
+          date: paymentDate,
+          note: `From ledger entry`,
+          ledgerEntryId: entryId, // Track which ledger entry created this payment
+        }
+        
+        // Remove any existing payments from this ledger entry first
+        const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== entryId)
+        const updatedPayments = [...paymentsWithoutThisEntry, payment]
+        
+        paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
+        remainingExpense -= paymentAmount
+        
+        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (remaining: ${remaining - paymentAmount})`)
+      }
+      
+      // Update orders with new payment distributions
+      for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
+        await orderService.updateOrder(orderId, {
+          partialPayments: updatedPayments,
+        })
+        console.log(`  ✅ Updated order ${orderId} with new payment distribution`)
+      }
+      
+      // If there's remaining expense that couldn't be distributed, log it
+      if (remainingExpense > 0) {
+        console.warn(`⚠️ Could not fully distribute expense of ${expenseAmount}. Remaining undistributed: ${remainingExpense}`)
+      } else {
+        console.log(`✅ Successfully distributed expense ${expenseAmount} across orders`)
+      }
+    } catch (error) {
+      console.error('❌ Error distributing expense to orders:', error)
+      // Don't throw - ledger entry is already created, just log the error
+    }
+  }
+
+  const safeGetTime = (dateString: string | null | undefined): number => {
+    if (!dateString) return 0
+    const date = new Date(dateString)
+    return isNaN(date.getTime()) ? 0 : date.getTime()
+  }
+
+  const createPartyPaymentFromIncome = async (entryId: string, partyName: string, amount: number, paymentDate: string, note?: string) => {
+    try {
+      const db = getDb()
+      if (!db) {
+        throw new Error('Firebase is not configured.')
+      }
+      
+      // Convert date to ISO string if needed
+      let dateValue = paymentDate
+      if (dateValue && !dateValue.includes('T')) {
+        dateValue = new Date(dateValue + 'T00:00:00').toISOString()
+      }
+      
+      const now = new Date().toISOString()
+      const paymentData: any = {
+        partyName,
+        amount,
+        date: dateValue,
+        ledgerEntryId: entryId, // Link to ledger entry
+        createdAt: now,
+        updatedAt: now,
+      }
+      
+      // Add note if provided
+      if (note && note.trim()) {
+        paymentData.note = note.trim()
+      }
+      
+      // Create party payment directly without creating ledger entry (since we already created it)
+      await addDoc(collection(db, 'partyPayments'), paymentData)
+      console.log(`✅ Party payment created for ${partyName}: ${amount} (linked to ledger entry ${entryId})`)
+    } catch (error) {
+      console.error('Error creating party payment from income entry:', error)
+      // Don't throw - ledger entry is already created, just log the error
+    }
+  }
+
+  const updateLinkedPartyPayment = async (ledgerEntryId: string, amount: number, paymentDate: string, note?: string) => {
+    try {
+      const db = getDb()
+      if (!db) {
+        throw new Error('Firebase is not configured.')
+      }
+      
+      // Find the party payment linked to this ledger entry
+      const q = query(
+        collection(db, 'partyPayments'),
+        where('ledgerEntryId', '==', ledgerEntryId)
+      )
+      const querySnapshot = await getDocs(q)
+      
+      if (querySnapshot.empty) {
+        console.warn(`No party payment found linked to ledger entry ${ledgerEntryId}`)
+        return
+      }
+      
+      // Convert date to ISO string if needed
+      let dateValue = paymentDate
+      if (dateValue && !dateValue.includes('T')) {
+        dateValue = new Date(dateValue + 'T00:00:00').toISOString()
+      }
+      
+      // Update all linked party payments (should only be one, but handle multiple just in case)
+      const updatePromises = querySnapshot.docs.map(async (paymentDoc) => {
+        const updateData: any = {
+          amount,
+          date: dateValue,
+          updatedAt: new Date().toISOString(),
+        }
+        
+        if (note !== undefined) {
+          if (note && note.trim()) {
+            updateData.note = note.trim()
+          } else {
+            updateData.note = null // Remove note if empty
+          }
+        }
+        
+        await updateDoc(doc(db, 'partyPayments', paymentDoc.id), updateData)
+      })
+      
+      await Promise.all(updatePromises)
+      console.log(`✅ Updated party payment linked to ledger entry ${ledgerEntryId}`)
+    } catch (error) {
+      console.error('Error updating linked party payment:', error)
+      // Don't throw - ledger entry is already updated, just log the error
+    }
   }
 
   const handleDeleteClick = (entryId: string) => {
@@ -133,6 +393,22 @@ export default function LedgerPage() {
   const handleDeleteConfirm = async () => {
     if (!entryToDelete) return
     try {
+      // Get the entry before deleting to check its type and supplier/party
+      const entryToDeleteObj = entries.find(e => e.id === entryToDelete)
+      
+      // Before deleting ledger entry, clean up related data
+      if (entryToDeleteObj) {
+        // Delete linked party payment if it's an income entry
+        if (entryToDeleteObj.type === 'credit' && entryToDeleteObj.partyName) {
+          await deleteLinkedPartyPayment(entryToDelete)
+        }
+        
+        // Revert expense distribution if it's an expense entry with supplier
+        if (entryToDeleteObj.type === 'debit' && entryToDeleteObj.supplier) {
+          await revertExpenseDistribution(entryToDelete, entryToDeleteObj.supplier)
+        }
+      }
+      
       await ledgerService.remove(entryToDelete)
       // Entry will be removed from list automatically via realtime subscription
       setDeleteSheetOpen(false)
@@ -142,6 +418,103 @@ export default function LedgerPage() {
       console.error('Failed to delete entry:', error)
       setDeleteSheetOpen(false)
       setEntryToDelete(null)
+    }
+  }
+
+  const deleteLinkedPartyPayment = async (ledgerEntryId: string) => {
+    try {
+      const db = getDb()
+      if (!db) {
+        throw new Error('Firebase is not configured.')
+      }
+      
+      // Find the party payment linked to this ledger entry
+      const q = query(
+        collection(db, 'partyPayments'),
+        where('ledgerEntryId', '==', ledgerEntryId)
+      )
+      const querySnapshot = await getDocs(q)
+      
+      if (querySnapshot.empty) {
+        // No linked party payment, nothing to delete
+        return
+      }
+      
+      // Delete all linked party payments (should only be one, but handle multiple just in case)
+      const deletePromises = querySnapshot.docs.map(async (paymentDoc) => {
+        await deleteDoc(doc(db, 'partyPayments', paymentDoc.id))
+      })
+      
+      await Promise.all(deletePromises)
+      console.log(`✅ Deleted party payment linked to ledger entry ${ledgerEntryId}`)
+    } catch (error) {
+      console.error('Error deleting linked party payment:', error)
+      // Don't throw - we still want to delete the ledger entry even if party payment deletion fails
+    }
+  }
+
+  const updateLinkedPartyPaymentPartyName = async (ledgerEntryId: string, newPartyName: string) => {
+    try {
+      const db = getDb()
+      if (!db) {
+        throw new Error('Firebase is not configured.')
+      }
+      
+      // Find the party payment linked to this ledger entry
+      const q = query(
+        collection(db, 'partyPayments'),
+        where('ledgerEntryId', '==', ledgerEntryId)
+      )
+      const querySnapshot = await getDocs(q)
+      
+      if (querySnapshot.empty) {
+        console.warn(`No party payment found linked to ledger entry ${ledgerEntryId}`)
+        return
+      }
+      
+      // Update all linked party payments with new party name
+      const updatePromises = querySnapshot.docs.map(async (paymentDoc) => {
+        await updateDoc(doc(db, 'partyPayments', paymentDoc.id), {
+          partyName: newPartyName,
+          updatedAt: new Date().toISOString(),
+        })
+      })
+      
+      await Promise.all(updatePromises)
+      console.log(`✅ Updated party name in payment linked to ledger entry ${ledgerEntryId}`)
+    } catch (error) {
+      console.error('Error updating party name in linked party payment:', error)
+      // Don't throw - ledger entry is already updated, just log the error
+    }
+  }
+
+  const revertExpenseDistribution = async (ledgerEntryId: string, supplier: string) => {
+    try {
+      // Get all orders for this supplier
+      const allOrders = await orderService.getAllOrders({ supplier })
+      
+      // Find and remove partial payments that were created by this ledger entry
+      for (const order of allOrders) {
+        if (!order.id || !order.partialPayments) continue
+        
+        // Filter out payments that have this ledger entry ID
+        const updatedPayments = order.partialPayments.filter(
+          payment => payment.ledgerEntryId !== ledgerEntryId
+        )
+        
+        // Only update if payments were actually removed
+        if (updatedPayments.length < order.partialPayments.length) {
+          await orderService.updateOrder(order.id, {
+            partialPayments: updatedPayments,
+          })
+          console.log(`✅ Removed payments from order ${order.id} for ledger entry ${ledgerEntryId}`)
+        }
+      }
+      
+      console.log(`✅ Reverted expense distribution for ledger entry ${ledgerEntryId}`)
+    } catch (error) {
+      console.error('Error reverting expense distribution:', error)
+      // Don't throw - ledger entry is already updated, just log the error
     }
   }
 
@@ -213,7 +586,7 @@ export default function LedgerPage() {
         paddingBottom: '9.25rem' // NavBar (~4.75rem) + Buttons bar (~4rem) + spacing
       }}>
         {loading ? (
-          <TruckLoading size={150} />
+          <TruckLoading size={100} />
         ) : (
           <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
             {/* Income Column */}
@@ -331,6 +704,8 @@ export default function LedgerPage() {
           amount: editingEntry.amount,
           date: editingEntry.date,
           note: editingEntry.note,
+          supplier: editingEntry.supplier,
+          partyName: editingEntry.partyName,
         } : undefined}
       />
 

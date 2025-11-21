@@ -333,27 +333,43 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                           .filter(p => p.id !== payment.id)
                           .reduce((sum, p) => sum + p.amount, 0)
                         const maxAmount = expenseAmount - otherPaymentsTotal
+                        const isFromLedger = !!payment.ledgerEntryId
                         
                         return (
                           <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 p-2 rounded">
                             <div className="flex-1">
                               <div className="flex justify-between items-center">
-                                <span className="text-gray-600">{format(new Date(payment.date), 'dd MMM yyyy')}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-gray-600">{format(new Date(payment.date), 'dd MMM yyyy')}</span>
+                                  {isFromLedger && (
+                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                      From Ledger
+                                    </span>
+                                  )}
+                                  {payment.note && (
+                                    <span className="text-gray-500 text-[10px]">• {payment.note}</span>
+                                  )}
+                                </div>
                                 <span className="font-semibold text-gray-900">{formatIndianCurrency(payment.amount)}</span>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5 ml-2">
-                              <button
-                                onClick={() => setEditingPayment({ order, paymentId: payment.id })}
-                                className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
-                                title="Edit payment"
-                              >
-                                <Edit size={14} />
-                              </button>
+                            {!isFromLedger && (
+                              <div className="flex items-center gap-1.5 ml-2">
+                                <button
+                                  onClick={() => setEditingPayment({ order, paymentId: payment.id })}
+                                  className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                                  title="Edit payment"
+                                >
+                                  <Edit size={14} />
+                                </button>
                               <button
                                 onClick={async () => {
                                   if (!order.id) return
+                                  if (payment.ledgerEntryId) {
+                                    showToast('This payment was created from a ledger entry and cannot be removed', 'error')
+                                    return
+                                  }
                                   try {
                                     const confirmed = await sweetAlert.confirm({
                                       title: 'Remove Payment?',
@@ -372,13 +388,14 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                     console.error('Failed to remove payment:', error)
                                   }
                                 }}
-                                className="p-1 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
-                                title="Remove payment"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
+                                  className="p-1 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
+                                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                                  title="Remove payment"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -459,6 +476,13 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
       {editingPayment && editingPayment.order.partialPayments && (() => {
         const payment = editingPayment.order.partialPayments!.find(p => p.id === editingPayment.paymentId)
         if (!payment) return null
+        
+        // Prevent editing ledger-created payments
+        if (payment.ledgerEntryId) {
+          setEditingPayment(null)
+          showToast('This payment was created from a ledger entry and cannot be edited', 'error')
+          return null
+        }
         
         // Calculate max amount (original total - other payments)
         const otherPaymentsTotal = editingPayment.order.partialPayments!

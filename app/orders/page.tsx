@@ -18,9 +18,11 @@ import TruckLoading from '@/components/TruckLoading'
 import OrderDetailDrawer from '@/components/OrderDetailDrawer'
 import PartyDetailPopup from '@/components/PartyDetailPopup'
 import OrderDetailPopup from '@/components/OrderDetailPopup'
+import SupplierDetailPopup from '@/components/SupplierDetailPopup'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Invoice, InvoicePayment } from '@/types/invoice'
 import { createRipple } from '@/lib/rippleEffect'
+import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 
 interface PartyGroup {
   partyName: string
@@ -30,7 +32,18 @@ interface PartyGroup {
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
-  payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }>
+  payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment; ledgerEntryId?: string }>
+}
+
+interface SupplierGroup {
+  supplierName: string
+  totalAmount: number // Total raw material cost (originalTotal)
+  totalPaid: number // Total paid via partial payments and ledger entries
+  remainingAmount: number // totalAmount - totalPaid
+  lastPaymentDate: string | null
+  lastPaymentAmount: number | null
+  orders: Order[]
+  ledgerPayments: Array<{ entry: LedgerEntry }> // Expense entries from ledger
 }
 
 // Helper function to safely parse dates
@@ -60,14 +73,18 @@ export default function OrdersPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<OrderFilters>({})
   const [selectedPartyTags, setSelectedPartyTags] = useState<Set<string>>(new Set())
-  const [viewMode, setViewMode] = useState<'byParty' | 'allOrders'>('byParty')
+  const [viewMode, setViewMode] = useState<'byParty' | 'allOrders' | 'suppliers'>('allOrders')
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<Order | null>(null)
   const [showOrderDetailDrawer, setShowOrderDetailDrawer] = useState(false)
   const [selectedPartyGroup, setSelectedPartyGroup] = useState<PartyGroup | null>(null)
   const [showPartyDetailDrawer, setShowPartyDetailDrawer] = useState(false)
+  const [selectedSupplierGroup, setSelectedSupplierGroup] = useState<SupplierGroup | null>(null)
+  const [showSupplierDetailDrawer, setShowSupplierDetailDrawer] = useState(false)
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([])
   const [selectedOrderForPayments, setSelectedOrderForPayments] = useState<Order | null>(null)
   const [showPaymentHistory, setShowPaymentHistory] = useState(false)
   const [editingPayment, setEditingPayment] = useState<{ order: Order; paymentId: string } | null>(null)
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -81,29 +98,48 @@ export default function OrdersPage() {
   const [filterEndDate, setFilterEndDate] = useState('')
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{
-    order: Order
-    x: number
-    y: number
-  } | null>(null)
-  const [pressedRowId, setPressedRowId] = useState<string | null>(null)
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const searchParams = useSearchParams()
   const router = useRouter()
 
   useEffect(() => {
-    loadOrders()
-    loadInvoices()
-    loadPartyPayments()
-    loadPartyNames()
-    
-    // Cleanup long press timer on unmount
-    return () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current)
+    const initializeData = async () => {
+      setLoading(true)
+      try {
+        // Load orders first (it manages its own loading state, but we'll override)
+        await loadOrders()
+        // Load other data in parallel
+        await Promise.allSettled([
+          loadInvoices(),
+          loadPartyPayments(),
+          loadPartyNames(),
+          loadLedgerEntries()
+        ])
+      } catch (error) {
+        console.error('Error initializing data:', error)
+      } finally {
+        setLoading(false) // Always set loading to false
       }
     }
+    initializeData()
+    
+    // Subscribe to ledger entries changes for real-time updates
+    const unsubscribe = ledgerService.subscribe((entries) => {
+      setLedgerEntries(entries)
+    })
+    
+    return () => {
+      unsubscribe()
+    }
   }, [])
+
+  const loadLedgerEntries = async () => {
+    try {
+      const entries = await ledgerService.list()
+      setLedgerEntries(entries)
+    } catch (error) {
+      console.error('Error loading ledger entries:', error)
+    }
+  }
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -127,11 +163,6 @@ export default function OrdersPage() {
     let ticking = false
 
     const handleScroll = () => {
-      // Close context menu on scroll
-      if (contextMenu) {
-        setContextMenu(null)
-      }
-      
       if (!ticking) {
         window.requestAnimationFrame(() => {
           const scrollTop = contentElement.scrollTop
@@ -159,7 +190,7 @@ export default function OrdersPage() {
 
     contentElement.addEventListener('scroll', handleScroll, { passive: true })
     return () => contentElement.removeEventListener('scroll', handleScroll)
-  }, [viewMode, contextMenu])
+  }, [viewMode])
 
   // Check for highlight query parameter
   useEffect(() => {
@@ -193,14 +224,12 @@ export default function OrdersPage() {
   }
 
   const loadOrders = async () => {
-    setLoading(true)
     try {
       const allOrders = await orderService.getAllOrders()
       setOrders(allOrders)
     } catch (error) {
       console.error('Error loading orders:', error)
-    } finally {
-      setLoading(false)
+      throw error // Re-throw to let caller handle
     }
   }
 
@@ -324,26 +353,12 @@ export default function OrdersPage() {
     // Expense amount is just originalTotal (raw material cost)
     const expenseAmount = Number(order.originalTotal || 0)
     const existingPayments = order.partialPayments || []
-    let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-    // If order is marked as paid but has no partial payments, consider it fully paid
-    // Also check paidAmount as a fallback
-    if (totalPaid === 0) {
-      if (order.paid && expenseAmount > 0) {
-        totalPaid = expenseAmount
-      } else if (order.paidAmount && order.paidAmount > 0) {
-        totalPaid = order.paidAmount
-      }
-    }
+    const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
     const remainingAmount = expenseAmount - totalPaid
     return { expenseAmount, totalPaid, remainingAmount }
   }
 
   const handleAddPaymentToOrder = async (order: Order) => {
-    if (order.paid) {
-      showToast('Order is already fully paid', 'error')
-      return
-    }
-    
     // Calculate expense amount and remaining payment
     const { remainingAmount } = getOrderPaymentInfo(order)
     
@@ -424,9 +439,6 @@ export default function OrdersPage() {
         console.log('Order after payment:', {
           id: updatedOrderCheck.id,
           partialPayments: updatedOrderCheck.partialPayments,
-          paidAmount: updatedOrderCheck.paidAmount,
-          paid: updatedOrderCheck.paid,
-          paymentDue: updatedOrderCheck.paymentDue
         })
       }
       // Also reload if order detail drawer is open
@@ -450,6 +462,11 @@ export default function OrdersPage() {
   }
 
   const handleEditPayment = (order: Order, paymentId: string) => {
+    const payment = order.partialPayments?.find(p => p.id === paymentId)
+    if (payment?.ledgerEntryId) {
+      showToast('This payment was created from a ledger entry and cannot be edited', 'error')
+      return
+    }
     setEditingPayment({ order, paymentId })
   }
 
@@ -487,6 +504,12 @@ export default function OrdersPage() {
 
   const handleRemovePayment = async (order: Order, paymentId: string) => {
     if (!order.id) return
+    
+    const payment = order.partialPayments?.find(p => p.id === paymentId)
+    if (payment?.ledgerEntryId) {
+      showToast('This payment was created from a ledger entry and cannot be removed', 'error')
+      return
+    }
     
     try {
       const confirmed = await sweetAlert.confirm({
@@ -743,7 +766,7 @@ export default function OrdersPage() {
       const partyPaymentRecords = partyPayments.filter(p => p.partyName === partyName)
       
       // Convert party payments to the expected format
-      const allPayments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment }> = []
+      const allPayments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment; ledgerEntryId?: string }> = []
       let totalPaid = 0
       let lastPaymentDate: string | null = null
       let lastPaymentAmount: number | null = null
@@ -757,7 +780,8 @@ export default function OrdersPage() {
             amount: payment.amount,
             date: payment.date,
             note: payment.note
-          }
+          },
+          ledgerEntryId: payment.ledgerEntryId // Include ledger entry ID if linked
         })
         totalPaid += payment.amount
         
@@ -795,6 +819,123 @@ export default function OrdersPage() {
     return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
   }
 
+  const getSupplierGroups = (): SupplierGroup[] => {
+    // Group orders by supplier
+    const supplierMap = new Map<string, Order[]>()
+    filteredOrders.forEach(order => {
+      const supplier = order.supplier
+      if (!supplier || supplier.trim() === '') return
+      if (!supplierMap.has(supplier)) {
+        supplierMap.set(supplier, [])
+      }
+      supplierMap.get(supplier)!.push(order)
+    })
+
+    // Calculate totals and payment info for each supplier
+    const groups: SupplierGroup[] = []
+    supplierMap.forEach((supplierOrders, supplierName) => {
+      // Calculate total raw material cost
+      const totalAmount = supplierOrders.reduce((sum, order) => sum + (order.originalTotal || 0), 0)
+      
+      // Calculate total paid from partial payments on orders
+      // This is the source of truth - all payments (whether from ledger or manual) are stored as partial payments
+      let totalPaid = 0
+      supplierOrders.forEach(order => {
+        const partialPayments = order.partialPayments || []
+        totalPaid += partialPayments.reduce((sum, p) => sum + p.amount, 0)
+      })
+
+      // Get ledger expense entries for this supplier (for display/reference only)
+      const supplierLedgerEntries = ledgerEntries.filter(
+        e => e.type === 'debit' && e.supplier === supplierName
+      )
+
+      // Calculate remaining amount
+      const remainingAmount = Math.max(0, totalAmount - totalPaid)
+      
+      // Verify calculation: Check if ledger entry amounts match partial payments with ledgerEntryId
+      // This is for debugging/validation
+      const ledgerEntryIds = new Set(supplierLedgerEntries.map(e => e.id).filter(Boolean))
+      let totalPaidFromLedgerPayments = 0
+      supplierOrders.forEach(order => {
+        const partialPayments = order.partialPayments || []
+        partialPayments.forEach(payment => {
+          if (payment.ledgerEntryId && ledgerEntryIds.has(payment.ledgerEntryId)) {
+            totalPaidFromLedgerPayments += payment.amount
+          }
+        })
+      })
+      
+      const totalLedgerEntryAmount = supplierLedgerEntries.reduce((sum, e) => sum + e.amount, 0)
+      
+      // Log warning if there's a mismatch (ledger entries should match partial payments with ledgerEntryId)
+      if (Math.abs(totalLedgerEntryAmount - totalPaidFromLedgerPayments) > 0.01) {
+        console.warn(`⚠️ Supplier ${supplierName}: Ledger entry total (${totalLedgerEntryAmount}) doesn't match partial payments with ledgerEntryId (${totalPaidFromLedgerPayments})`)
+      }
+
+      // Track last payment date and amount
+      let lastPaymentDate: string | null = null
+      let lastPaymentAmount: number | null = null
+
+      // Check partial payments for last payment
+      supplierOrders.forEach(order => {
+        const partialPayments = order.partialPayments || []
+        partialPayments.forEach(payment => {
+          const paymentDate = safeParseDate(payment.date)
+          if (paymentDate) {
+            const currentLastDate = safeParseDate(lastPaymentDate)
+            if (!currentLastDate || paymentDate > currentLastDate) {
+              lastPaymentDate = payment.date
+              lastPaymentAmount = payment.amount
+            }
+          }
+        })
+      })
+
+      // Check ledger entries for last payment
+      supplierLedgerEntries.forEach(entry => {
+        const entryDate = safeParseDate(entry.date)
+        if (entryDate) {
+          const currentLastDate = safeParseDate(lastPaymentDate)
+          if (!currentLastDate || entryDate > currentLastDate) {
+            lastPaymentDate = entry.date
+            lastPaymentAmount = entry.amount
+          }
+        }
+      })
+
+      // Sort ledger payments by date (newest first)
+      const sortedLedgerPayments = supplierLedgerEntries
+        .map(entry => ({ entry }))
+        .sort((a, b) => safeGetTime(b.entry.date) - safeGetTime(a.entry.date))
+
+      groups.push({
+        supplierName,
+        totalAmount,
+        totalPaid,
+        remainingAmount,
+        lastPaymentDate,
+        lastPaymentAmount,
+        orders: supplierOrders.sort((a, b) => {
+          const ta = safeGetTime(a.createdAt || a.updatedAt || a.date)
+          const tb = safeGetTime(b.createdAt || b.updatedAt || b.date)
+          return tb - ta
+        }),
+        ledgerPayments: sortedLedgerPayments
+      })
+    })
+
+    return groups.sort((a, b) => {
+      const aLastDate = safeGetTime(a.lastPaymentDate)
+      const bLastDate = safeGetTime(b.lastPaymentDate)
+      return bLastDate - aLastDate
+    })
+  }
+
+  const handleSupplierGroupClick = (group: SupplierGroup) => {
+    setSelectedSupplierGroup(group)
+    setShowSupplierDetailDrawer(true)
+  }
 
   return (
     <div className="bg-gray-50" style={{ 
@@ -990,6 +1131,24 @@ export default function OrdersPage() {
           <button
             onClick={(e) => {
               createRipple(e)
+              setViewMode('allOrders')
+            }}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
+              viewMode === 'allOrders'
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+            }`}
+            style={{
+              WebkitTapHighlightColor: 'transparent',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            All Orders
+          </button>
+          <button
+            onClick={(e) => {
+              createRipple(e)
               setViewMode('byParty')
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
@@ -1008,10 +1167,10 @@ export default function OrdersPage() {
           <button
             onClick={(e) => {
               createRipple(e)
-              setViewMode('allOrders')
+              setViewMode('suppliers')
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
-              viewMode === 'allOrders'
+              viewMode === 'suppliers'
                 ? 'bg-primary-600 text-white'
                 : 'bg-gray-100 text-gray-700 active:bg-gray-200'
             }`}
@@ -1021,7 +1180,7 @@ export default function OrdersPage() {
               overflow: 'hidden',
             }}
           >
-            All Orders
+            Suppliers
           </button>
         </div>
       </div>
@@ -1098,6 +1257,13 @@ export default function OrdersPage() {
       {/* Content Area - Scrollable, fits between header and buttons/nav */}
       <div 
         ref={contentRef}
+        onClick={(e) => {
+          // Clear highlight when clicking on the container (not on a row or button)
+          if ((e.target as HTMLElement).closest('[data-order-id]') === null && 
+              (e.target as HTMLElement).closest('button') === null) {
+            setHighlightedRowId(null)
+          }
+        }}
         style={{ 
           flex: 1,
           overflowY: 'auto',
@@ -1108,7 +1274,7 @@ export default function OrdersPage() {
       {/* Orders List */}
       {loading ? (
         <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
-          <TruckLoading size={150} />
+          <TruckLoading size={100} />
         </div>
       ) : filteredOrders.length === 0 ? (
         <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
@@ -1256,6 +1422,95 @@ export default function OrdersPage() {
             )
           })}
         </div>
+      ) : viewMode === 'suppliers' ? (
+        // Suppliers View
+        <div className="p-2 space-y-2">
+          {getSupplierGroups().map((group, index) => {
+            const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+            const paymentPercentage = group.totalAmount > 0 ? (group.totalPaid / group.totalAmount) * 100 : 0
+            
+            return (
+              <div 
+                key={group.supplierName} 
+                className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:border-orange-300 active:scale-[0.99] native-press"
+                style={{
+                  animation: `fadeInUp 0.3s ease-out ${index * 0.04}s both`,
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('button')) return
+                  createRipple(e)
+                  handleSupplierGroupClick(group)
+                }}
+              >
+                <div className="p-2.5">
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Package size={13} className="text-orange-600 flex-shrink-0" />
+                        <h3 className="font-bold text-sm text-gray-900 truncate">{group.supplierName}</h3>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-gray-400 flex-shrink-0 ml-2" />
+                  </div>
+
+                  {/* Summary Row */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-600">Total Amount:</span>
+                      <span className="font-semibold text-gray-900">{formatIndianCurrency(group.totalAmount)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-600">Paid:</span>
+                      <span className="font-semibold text-green-600">{formatIndianCurrency(group.totalPaid)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-600">Remaining:</span>
+                      <span className={`font-semibold ${group.remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {formatIndianCurrency(group.remainingAmount)}
+                      </span>
+                    </div>
+                    {lastPaymentDateObj && group.lastPaymentAmount !== null && (
+                      <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-100">
+                        <span className="text-gray-500">Last Payment:</span>
+                        <span className="text-gray-700">
+                          {format(lastPaymentDateObj, 'dd MMM yyyy')} - {formatIndianCurrency(group.lastPaymentAmount)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Progress Bar */}
+                  {group.totalAmount > 0 && (
+                    <div className="mt-2">
+                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-green-500 transition-all duration-500 ease-out"
+                          style={{ width: `${Math.min(100, paymentPercentage)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Stats */}
+                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500">
+                    <span>{group.orders.length} {group.orders.length === 1 ? 'Order' : 'Orders'}</span>
+                    <span>•</span>
+                    <span>{group.ledgerPayments.length} {group.ledgerPayments.length === 1 ? 'Payment' : 'Payments'}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {getSupplierGroups().length === 0 && (
+            <div className="p-4 text-center text-sm text-gray-500">
+              No suppliers found
+            </div>
+          )}
+        </div>
       ) : (
         // All Orders View - Compact Table View
         <div className="w-full" style={{ paddingTop: '0.5rem' }}>
@@ -1318,6 +1573,9 @@ export default function OrdersPage() {
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
                   <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Add/Profit</span>
                 </div>
+                <div className="w-32 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Actions</span>
+                </div>
               </div>
             </div>
 
@@ -1333,14 +1591,20 @@ export default function OrdersPage() {
                   <div
                     key={order.id}
                     data-order-id={order.id}
-                    className={`flex items-center touch-manipulation native-press ${
-                      selectedOrders.has(order.id!)
+                    onClick={(e) => {
+                      // Don't highlight if clicking on buttons or checkboxes
+                      if ((e.target as HTMLElement).closest('button') || 
+                          (e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                        return
+                      }
+                      setHighlightedRowId(order.id || null)
+                    }}
+                    className={`flex items-center touch-manipulation transition-colors ${
+                      highlightedRowId === order.id
+                        ? 'bg-yellow-100'
+                        : selectedOrders.has(order.id!)
                         ? 'bg-primary-50'
-                        : pressedRowId === order.id
-                        ? 'bg-primary-100'
                         : 'bg-white'
-                    } ${
-                      highlightedOrderId === order.id ? 'ring-2 ring-primary-400 bg-primary-100' : ''
                     }`}
                     style={{
                       WebkitTapHighlightColor: 'transparent',
@@ -1348,90 +1612,6 @@ export default function OrdersPage() {
                       position: 'relative',
                       overflow: 'hidden',
                       minHeight: '3rem',
-                      transition: 'background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
-                      transform: pressedRowId === order.id ? 'scale(0.99)' : 'scale(1)',
-                    }}
-                    onTouchStart={(e) => {
-                      if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
-                        return
-                      }
-                      // Immediate touch feedback
-                      setPressedRowId(order.id!)
-                      // Highlight on touch - stays highlighted until another row is touched
-                      setHighlightedOrderId(order.id!)
-                      
-                      const touch = e.touches[0]
-                      const startX = touch.clientX
-                      const startY = touch.clientY
-                      
-                      longPressTimerRef.current = setTimeout(() => {
-                        setContextMenu({
-                          order,
-                          x: startX,
-                          y: startY,
-                        })
-                        // Haptic feedback if available
-                        if (navigator.vibrate) {
-                          navigator.vibrate(50)
-                        }
-                      }, 500) // 500ms long press
-                    }}
-                    onTouchEnd={() => {
-                      setPressedRowId(null)
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current)
-                        longPressTimerRef.current = null
-                      }
-                    }}
-                    onTouchCancel={() => {
-                      setPressedRowId(null)
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current)
-                        longPressTimerRef.current = null
-                      }
-                    }}
-                    onTouchMove={(e) => {
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current)
-                        longPressTimerRef.current = null
-                      }
-                    }}
-                    onMouseDown={(e) => {
-                      if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
-                        return
-                      }
-                      setPressedRowId(order.id!)
-                      const startX = e.clientX
-                      const startY = e.clientY
-                      
-                      longPressTimerRef.current = setTimeout(() => {
-                        setContextMenu({
-                          order,
-                          x: startX,
-                          y: startY,
-                        })
-                      }, 500)
-                    }}
-                    onMouseUp={() => {
-                      setPressedRowId(null)
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current)
-                        longPressTimerRef.current = null
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      setPressedRowId(null)
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current)
-                        longPressTimerRef.current = null
-                      }
-                    }}
-                    onClick={(e) => {
-                      if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
-                        return
-                      }
-                      // Highlight on click - stays highlighted until another row is clicked
-                      setHighlightedOrderId(order.id!)
                     }}
                   >
                     {/* Checkbox Column */}
@@ -1503,14 +1683,19 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    {/* Truck Owner / No. Column */}
+                    {/* Truck Owner / No. / Supplier Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight truncate">
+                      <div className="text-gray-700 text-[11px] leading-tight truncate font-semibold">
                         {order.truckOwner}
                       </div>
                       <div className="text-gray-500 text-[11px] leading-tight">
                         {order.truckNo}
                       </div>
+                      {order.supplier && (
+                        <div className="text-orange-600 text-[10px] leading-tight font-bold mt-0.5 truncate">
+                          {order.supplier}
+                        </div>
+                      )}
                     </div>
 
                     {/* Original Weight / Rate Column */}
@@ -1543,7 +1728,7 @@ export default function OrdersPage() {
                     </div>
 
                     {/* Additional Cost / Profit Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0">
+                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
                       <div className="text-blue-600 text-[11px] leading-tight">
                         Add: {formatIndianCurrency(order.additionalCost)}
                       </div>
@@ -1553,6 +1738,39 @@ export default function OrdersPage() {
                         P: {formatIndianCurrency(order.profit)}
                       </div>
                     </div>
+
+                    {/* Actions Column */}
+                    <div className="w-32 px-1.5 py-2 flex-shrink-0 flex flex-col gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAddPaymentToOrder(order)
+                        }}
+                        className="w-full px-2 py-1.5 bg-primary-600 text-white text-[10px] font-medium rounded-lg active:bg-primary-700 transition-colors touch-manipulation native-press"
+                        style={{
+                          WebkitTapHighlightColor: 'transparent',
+                          position: 'relative',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        Add Payment
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedOrderDetail(order)
+                          setShowOrderDetailDrawer(true)
+                        }}
+                        className="w-full px-2 py-1.5 bg-gray-600 text-white text-[10px] font-medium rounded-lg active:bg-gray-700 transition-colors touch-manipulation native-press"
+                        style={{
+                          WebkitTapHighlightColor: 'transparent',
+                          position: 'relative',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        View Details
+                      </button>
+                    </div>
                   </div>
                 )
               })}
@@ -1561,98 +1779,6 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Context Menu */}
-      {contextMenu && (() => {
-        // Calculate optimal position based on touch point
-        const menuWidth = 160
-        const menuHeight = 90
-        const padding = 8
-        
-        // Calculate horizontal position
-        let left = contextMenu.x
-        if (left + menuWidth > window.innerWidth - padding) {
-          left = window.innerWidth - menuWidth - padding
-        }
-        if (left < padding) {
-          left = padding
-        }
-        
-        // Calculate vertical position
-        let top = contextMenu.y
-        if (top + menuHeight > window.innerHeight - padding) {
-          // Position above touch point if menu would go off screen
-          top = contextMenu.y - menuHeight - 8
-        }
-        if (top < padding) {
-          top = padding
-        }
-        
-        // Determine transform origin based on position
-        const transformOriginX = left < window.innerWidth / 2 ? 'left' : 'right'
-        const transformOriginY = top < window.innerHeight / 2 ? 'top' : 'bottom'
-        
-        return (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black/30 z-[60]"
-              style={{
-                animation: 'fadeIn 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
-                backdropFilter: 'blur(2px)',
-                WebkitBackdropFilter: 'blur(2px)',
-              }}
-              onClick={() => setContextMenu(null)}
-              onTouchStart={() => setContextMenu(null)}
-            />
-            {/* Context Menu */}
-            <div
-              className="fixed z-[61] bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200/80"
-              style={{
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${menuWidth}px`,
-                animation: 'contextMenuEnter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                transformOrigin: `${transformOriginY} ${transformOriginX}`,
-                willChange: 'transform, opacity',
-                backfaceVisibility: 'hidden',
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-            >
-              <div className="py-0.5">
-                <button
-                  onClick={() => {
-                    setContextMenu(null)
-                    handleAddPaymentToOrder(contextMenu.order)
-                  }}
-                  className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-900 active:bg-gray-50 transition-colors touch-manipulation"
-                  style={{ 
-                    WebkitTapHighlightColor: 'transparent',
-                    fontSize: '13px',
-                  }}
-                >
-                  Pay for Raw Materials
-                </button>
-                <div className="h-[1px] bg-gray-200 mx-2" />
-                <button
-                  onClick={() => {
-                    setContextMenu(null)
-                    setSelectedOrderDetail(contextMenu.order)
-                    setShowOrderDetailDrawer(true)
-                  }}
-                  className="w-full px-3 py-2.5 text-left text-xs font-medium text-gray-900 active:bg-gray-50 transition-colors touch-manipulation"
-                  style={{ 
-                    WebkitTapHighlightColor: 'transparent',
-                    fontSize: '13px',
-                  }}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          </>
-        )
-      })()}
 
       {showForm && (
         <OrderForm
@@ -1717,6 +1843,28 @@ export default function OrdersPage() {
         }}
       />
 
+      <SupplierDetailPopup
+        group={selectedSupplierGroup}
+        isOpen={showSupplierDetailDrawer}
+        onClose={() => {
+          setShowSupplierDetailDrawer(false)
+          setSelectedSupplierGroup(null)
+        }}
+        onEditOrder={(order) => {
+          setEditingOrder(order)
+          setShowForm(true)
+        }}
+        onDeleteOrder={handleDeleteOrder}
+        onOrderClick={(order) => {
+          setSelectedOrderDetail(order)
+          setShowOrderDetailDrawer(true)
+        }}
+        onRefresh={async () => {
+          await loadOrders()
+          await loadLedgerEntries()
+        }}
+      />
+
       {/* Payment History Modal */}
       {showPaymentHistory && selectedOrderForPayments && (
         <>
@@ -1776,6 +1924,7 @@ export default function OrdersPage() {
                               .filter(p => p.id !== payment.id)
                               .reduce((sum, p) => sum + p.amount, 0)
                             const maxAmount = expenseAmount - otherPaymentsTotal
+                            const isFromLedger = !!payment.ledgerEntryId
                             
                             return (
                               <div
@@ -1784,9 +1933,16 @@ export default function OrdersPage() {
                               >
                                 <div className="flex-1">
                                   <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-semibold text-gray-900">
-                                      {formatIndianCurrency(payment.amount)}
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-sm font-semibold text-gray-900">
+                                        {formatIndianCurrency(payment.amount)}
+                                      </span>
+                                      {isFromLedger && (
+                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                          From Ledger
+                                        </span>
+                                      )}
+                                    </div>
                                     <span className="text-xs text-gray-500">
                                       {(() => {
                                         const paymentDate = safeParseDate(payment.date)
@@ -1794,25 +1950,32 @@ export default function OrdersPage() {
                                       })()}
                                     </span>
                                   </div>
+                                  {payment.note && (
+                                    <div className="text-xs text-gray-500 mt-0.5">
+                                      {payment.note}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-2 ml-3">
-                                  <button
-                                    onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
-                                    className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
-                                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                                    title="Edit payment"
-                                  >
-                                    <Edit size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
-                                    className="p-1.5 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
-                                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                                    title="Remove payment"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
+                                {!isFromLedger && (
+                                  <div className="flex items-center gap-2 ml-3">
+                                    <button
+                                      onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
+                                      className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                                      title="Edit payment"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
+                                      className="p-1.5 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
+                                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                                      title="Remove payment"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )
                           })}

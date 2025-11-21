@@ -21,6 +21,7 @@ export interface PartyPayment {
   amount: number
   date: string // ISO date string
   note?: string
+  ledgerEntryId?: string // Link to ledger entry if created from ledger
   createdAt?: string
   updatedAt?: string
 }

@@ -3,35 +3,31 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Order } from '@/types/order'
-import { InvoicePayment } from '@/types/invoice'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
-import { X, Edit, Trash2, Plus, User, DollarSign, TrendingUp, FileText, Calendar } from 'lucide-react'
-import { sweetAlert } from '@/lib/sweetalert'
-import { showToast } from '@/components/Toast'
-import { partyPaymentService } from '@/lib/partyPaymentService'
+import { X, Package, DollarSign, FileText, Calendar, TrendingDown } from 'lucide-react'
+import { LedgerEntry } from '@/lib/ledgerService'
 import { createRipple } from '@/lib/rippleEffect'
 
-interface PartyGroup {
-  partyName: string
-  totalSelling: number
+interface SupplierGroup {
+  supplierName: string
+  totalAmount: number
   totalPaid: number
-  totalProfit: number
+  remainingAmount: number
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
-  payments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment; ledgerEntryId?: string }>
+  ledgerPayments: Array<{ entry: LedgerEntry }>
 }
 
-interface PartyDetailPopupProps {
-  group: PartyGroup | null
+interface SupplierDetailPopupProps {
+  group: SupplierGroup | null
   isOpen: boolean
   onClose: () => void
   onEditOrder: (order: Order) => void
   onDeleteOrder: (id: string) => void
   onOrderClick?: (order: Order) => void
-  onPaymentAdded?: () => Promise<void>
-  onPaymentRemoved?: () => Promise<void>
+  onRefresh?: () => Promise<void>
 }
 
 const safeParseDate = (dateString: string | null | undefined): Date | null => {
@@ -42,25 +38,22 @@ const safeParseDate = (dateString: string | null | undefined): Date | null => {
   return isNaN(date.getTime()) ? null : date
 }
 
-export default function PartyDetailPopup({
+export default function SupplierDetailPopup({
   group,
   isOpen,
   onClose,
   onEditOrder,
   onDeleteOrder,
   onOrderClick,
-  onPaymentAdded,
-  onPaymentRemoved,
-}: PartyDetailPopupProps) {
+  onRefresh,
+}: SupplierDetailPopupProps) {
   const [isClosing, setIsClosing] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const backdropRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Check if app is in standalone mode
     const checkStandalone = () => {
       const isStandaloneMode = 
         window.matchMedia('(display-mode: standalone)').matches ||
@@ -69,7 +62,6 @@ export default function PartyDetailPopup({
       setIsStandalone(isStandaloneMode)
     }
     checkStandalone()
-    // Re-check on class changes
     const observer = new MutationObserver(checkStandalone)
     observer.observe(document.documentElement, {
       attributes: true,
@@ -110,86 +102,8 @@ export default function PartyDetailPopup({
     }
   }
 
-  const handleAddPayment = async () => {
-    if (!group || isProcessing) return
-
-    const balance = group.totalSelling - group.totalPaid
-    
-    try {
-      const amountStr = await sweetAlert.prompt({
-        title: 'Add Payment',
-        message: `Remaining balance: ${formatIndianCurrency(balance)}`,
-        inputLabel: 'Payment Amount',
-        inputPlaceholder: 'Enter amount',
-        inputType: 'text',
-        formatCurrencyInr: true,
-        confirmText: 'Add Payment',
-        cancelText: 'Cancel'
-      })
-      
-      if (!amountStr) return
-
-      const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
-      if (isNaN(amount) || amount <= 0) {
-        showToast('Invalid amount', 'error')
-        return
-      }
-
-      const note = await sweetAlert.prompt({
-        title: 'Payment Note (optional)',
-        inputLabel: 'Note',
-        inputPlaceholder: 'Add a note (optional)',
-        inputType: 'text',
-        required: false,
-        confirmText: 'Save',
-        cancelText: 'Skip',
-      })
-
-      setIsProcessing(true)
-      await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
-      showToast('Payment added successfully!', 'success')
-      if (onPaymentAdded) {
-        await onPaymentAdded()
-      }
-    } catch (error: any) {
-      if (error?.message && !error.message.includes('SweetAlert')) {
-        showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-      }
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleRemovePayment = async (paymentId: string) => {
-    if (!group || isProcessing) return
-
-    const confirmed = await sweetAlert.confirm({
-      title: 'Remove Payment?',
-      message: 'Are you sure you want to remove this payment? This action cannot be undone.',
-      icon: 'warning',
-      confirmText: 'Remove',
-      cancelText: 'Cancel',
-    })
-
-    if (!confirmed) return
-
-    try {
-      setIsProcessing(true)
-      await partyPaymentService.removePayment(paymentId)
-      showToast('Payment removed successfully!', 'success')
-      if (onPaymentRemoved) {
-        await onPaymentRemoved()
-      }
-    } catch (error: any) {
-      showToast(`Failed to remove payment: ${error?.message || 'Unknown error'}`, 'error')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
   if (!isOpen || !group) return null
 
-  const balance = group.totalSelling - group.totalPaid
   const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
 
   const popupContent = (
@@ -249,14 +163,12 @@ export default function PartyDetailPopup({
           {/* Header */}
           <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary-100 rounded-lg">
-                <User size={20} className="text-primary-600" />
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Package size={20} className="text-orange-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">{group.partyName}</h2>
-                {group.orders.length > 0 && group.orders[0].siteName && (
-                  <p className="text-xs text-gray-500 mt-0.5">{group.orders[0].siteName}</p>
-                )}
+                <h2 className="text-lg font-bold text-gray-900">{group.supplierName}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Raw Material Supplier</p>
               </div>
             </div>
             <button
@@ -272,39 +184,31 @@ export default function PartyDetailPopup({
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
             {/* Summary Section */}
-            <div className="bg-primary-50 rounded-lg p-3 border border-primary-200">
+            <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
               <div className="flex items-center gap-2 mb-3">
-                <TrendingUp size={16} className="text-primary-600" />
+                <TrendingDown size={16} className="text-orange-600" />
                 <h3 className="font-semibold text-gray-900">Summary</h3>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Selling</span>
-                  <span className="text-sm font-bold text-gray-900">{formatIndianCurrency(group.totalSelling)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Profit</span>
-                  <span className={`text-sm font-bold ${
-                    group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {formatIndianCurrency(group.totalProfit)}
-                  </span>
+                  <span className="text-sm text-gray-600">Total Amount</span>
+                  <span className="text-sm font-bold text-gray-900">{formatIndianCurrency(group.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Total Paid</span>
                   <span className="text-sm font-bold text-green-600">{formatIndianCurrency(group.totalPaid)}</span>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-primary-200">
-                  <span className="text-sm font-medium text-gray-700">Balance</span>
+                <div className="flex justify-between items-center pt-2 border-t border-orange-200">
+                  <span className="text-sm font-medium text-gray-700">Remaining</span>
                   <span className={`text-sm font-bold ${
-                    balance > 0 ? 'text-red-600' : 'text-green-600'
+                    group.remainingAmount > 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
-                    {formatIndianCurrency(Math.abs(balance))}
-                    {balance > 0 ? ' (Due)' : ' (Overpaid)'}
+                    {formatIndianCurrency(Math.abs(group.remainingAmount))}
+                    {group.remainingAmount > 0 ? ' (Due)' : ' (Paid)'}
                   </span>
                 </div>
                 {lastPaymentDateObj && group.lastPaymentAmount !== null && (
-                  <div className="flex justify-between items-center pt-2 border-t border-primary-200">
+                  <div className="flex justify-between items-center pt-2 border-t border-orange-200">
                     <span className="text-sm text-gray-600">Last Payment</span>
                     <span className="text-sm font-semibold text-gray-900">
                       {format(lastPaymentDateObj, 'dd MMM yyyy')} ({formatIndianCurrency(group.lastPaymentAmount)})
@@ -314,7 +218,7 @@ export default function PartyDetailPopup({
               </div>
             </div>
 
-            {/* Orders Section - Compact */}
+            {/* Orders Section */}
             <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -328,10 +232,7 @@ export default function PartyDetailPopup({
                   const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
                   const expenseAmount = Number(order.originalTotal || 0)
                   const existingPayments = order.partialPayments || []
-                  let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-                  if (order.paid && totalPaid === 0 && expenseAmount > 0) {
-                    totalPaid = expenseAmount
-                  }
+                  const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
                   const remainingAmount = expenseAmount - totalPaid
 
                   return (
@@ -352,7 +253,6 @@ export default function PartyDetailPopup({
                         }
                       }}
                     >
-                      {/* Compact Header Row */}
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
@@ -373,32 +273,48 @@ export default function PartyDetailPopup({
                           </div>
                         </div>
                         <div className="text-right ml-2 flex-shrink-0">
-                          <p className="text-xs font-bold text-primary-600">{formatIndianCurrency(order.total)}</p>
-                          <p className={`text-[10px] font-semibold mt-0.5 ${
-                            order.profit >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            Profit: {formatIndianCurrency(order.profit)}
-                          </p>
+                          <p className="text-xs font-bold text-orange-600">{formatIndianCurrency(expenseAmount)}</p>
                         </div>
                       </div>
                       
-                      {/* Compact Info Row */}
                       {expenseAmount > 0 && (
-                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[9px]">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-600">Exp:</span>
-                            <span className="text-gray-700">{formatIndianCurrency(expenseAmount)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-600">Paid:</span>
-                            <span className={`${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
-                              {formatIndianCurrency(totalPaid)}
-                            </span>
-                          </div>
-                          {remainingAmount > 0 && (
+                        <div className="space-y-1 pt-1 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-[9px]">
                             <div className="flex items-center gap-2">
-                              <span className="text-gray-600">Rem:</span>
-                              <span className="text-red-600">{formatIndianCurrency(remainingAmount)}</span>
+                              <span className="text-gray-600">Paid:</span>
+                              <span className={`font-semibold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                                {formatIndianCurrency(totalPaid)}
+                              </span>
+                            </div>
+                            {remainingAmount > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-600">Rem:</span>
+                                <span className="text-red-600 font-semibold">{formatIndianCurrency(remainingAmount)}</span>
+                              </div>
+                            )}
+                          </div>
+                          {/* Show payment breakdown if there are payments */}
+                          {totalPaid > 0 && existingPayments.length > 0 && (
+                            <div className="bg-green-50 rounded p-1.5 space-y-1">
+                              <div className="text-[8px] font-semibold text-green-700 mb-1">Payment Breakdown:</div>
+                              {existingPayments.map((payment, pIdx) => {
+                                const paymentDate = safeParseDate(payment.date)
+                                return (
+                                  <div key={pIdx} className="flex items-center justify-between text-[8px]">
+                                    <div className="flex items-center gap-1">
+                                      {paymentDate && (
+                                        <span className="text-gray-500">{format(paymentDate, 'dd MMM')}</span>
+                                      )}
+                                      {payment.note && (
+                                        <span className="text-gray-500">• {payment.note}</span>
+                                      )}
+                                    </div>
+                                    <span className="font-semibold text-green-700">
+                                      {formatIndianCurrency(payment.amount)}
+                                    </span>
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
@@ -409,38 +325,22 @@ export default function PartyDetailPopup({
               </div>
             </div>
 
-            {/* Payment History Section */}
+            {/* Payment History from Ledger */}
             <div className="bg-green-50 rounded-lg p-3 border border-green-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <DollarSign size={16} className="text-green-600" />
-                  <h3 className="font-semibold text-gray-900">Payment History ({group.payments.length})</h3>
+                  <h3 className="font-semibold text-gray-900">Ledger Payments ({group.ledgerPayments.length})</h3>
                 </div>
-                <button
-                  onClick={(e) => {
-                    createRipple(e)
-                    handleAddPayment()
-                  }}
-                  disabled={isProcessing}
-                  className="flex items-center gap-1.5 px-2 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 active:bg-green-800 transition-colors touch-manipulation native-press disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{
-                    WebkitTapHighlightColor: 'transparent',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}
-                >
-                  <Plus size={14} />
-                  Add Payment
-                </button>
               </div>
-              {group.payments.length > 0 ? (
+              {group.ledgerPayments.length > 0 ? (
                 <div className="space-y-2">
-                  {group.payments.map((paymentItem, idx) => {
-                    const paymentDate = safeParseDate(paymentItem.payment.date)
+                  {group.ledgerPayments.map((paymentItem, idx) => {
+                    const paymentDate = safeParseDate(paymentItem.entry.date)
                     return (
                       <div
-                        key={`${paymentItem.invoiceId}-${paymentItem.payment.id}-${idx}`}
-                        className="bg-white rounded-lg p-2.5 border border-green-300 transition-all duration-200 active:bg-green-50"
+                        key={paymentItem.entry.id || idx}
+                        className="bg-white rounded-lg p-2.5 border border-green-300 transition-all duration-200"
                         style={{
                           animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both`,
                         }}
@@ -448,45 +348,25 @@ export default function PartyDetailPopup({
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <p className="text-sm font-bold text-gray-900">
-                              {formatIndianCurrency(paymentItem.payment.amount)}
+                              {formatIndianCurrency(paymentItem.entry.amount)}
                             </p>
                             {paymentDate && (
                               <div className="flex items-center gap-1 mt-1">
                                 <Calendar size={12} className="text-gray-400" />
                                 <p className="text-xs text-gray-500">
-                                  {format(paymentDate, 'dd MMM yyyy HH:mm')}
+                                  {format(paymentDate, 'dd MMM yyyy')}
                                 </p>
                               </div>
                             )}
-                            {paymentItem.payment.note && (
+                            {paymentItem.entry.note && (
                               <p className="text-xs text-gray-600 mt-1">
-                                {paymentItem.payment.note}
+                                {paymentItem.entry.note}
                               </p>
                             )}
                           </div>
-                          {!paymentItem.ledgerEntryId && (
-                            <button
-                              onClick={(e) => {
-                                createRipple(e)
-                                handleRemovePayment(paymentItem.payment.id)
-                              }}
-                              disabled={isProcessing}
-                              className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 active:bg-red-200 transition-colors touch-manipulation native-press disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Remove Payment"
-                              style={{
-                                WebkitTapHighlightColor: 'transparent',
-                                position: 'relative',
-                                overflow: 'hidden'
-                              }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                          {paymentItem.ledgerEntryId && (
-                            <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry - edit in ledger">
-                              From Ledger
-                            </span>
-                          )}
+                          <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="From ledger entry - edit in ledger">
+                            From Ledger
+                          </span>
                         </div>
                       </div>
                     )
@@ -504,7 +384,6 @@ export default function PartyDetailPopup({
     </>
   )
 
-  // Use portal to render at document body level
   if (typeof window === 'undefined') return null
   return createPortal(popupContent, document.body)
 }

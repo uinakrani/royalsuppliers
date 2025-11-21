@@ -305,6 +305,7 @@ export default function OrderDetailPopup({
                 <div className="space-y-2">
                   {partialPayments.map((payment) => {
                     const paymentDate = safeParseDate(payment.date)
+                    const isFromLedger = !!payment.ledgerEntryId
                     return (
                       <div
                         key={payment.id}
@@ -312,56 +313,70 @@ export default function OrderDetailPopup({
                       >
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-semibold text-gray-900" style={{ fontSize: '13px' }}>
-                              {formatIndianCurrency(payment.amount)}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-gray-900" style={{ fontSize: '13px' }}>
+                                {formatIndianCurrency(payment.amount)}
+                              </span>
+                              {isFromLedger && (
+                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                  From Ledger
+                                </span>
+                              )}
+                            </div>
                             {paymentDate && (
                               <span className="text-xs text-gray-500">
                                 {format(paymentDate, 'dd MMM yyyy')}
                               </span>
                             )}
                           </div>
-                          {paymentDate && (
-                            <div className="text-xs text-gray-500">
-                              {format(paymentDate, 'hh:mm a')}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {paymentDate && (
+                              <div className="text-xs text-gray-500">
+                                {format(paymentDate, 'hh:mm a')}
+                              </div>
+                            )}
+                            {payment.note && (
+                              <span className="text-xs text-gray-500">• {payment.note}</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-1 ml-2">
-                          <button
-                            onClick={() => {
-                              handleClose()
-                              setTimeout(() => {
-                                onEditPayment(order, payment.id)
-                              }, 300)
-                            }}
-                            className="p-1.5 bg-blue-100 text-blue-700 rounded active:bg-blue-200 transition-colors touch-manipulation"
-                            style={{ WebkitTapHighlightColor: 'transparent' }}
-                            title="Edit Payment"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const confirmed = await sweetAlert.confirm({
-                                title: 'Remove Payment?',
-                                message: 'Are you sure you want to remove this payment?',
-                                icon: 'warning',
-                              })
-                              if (confirmed) {
-                                onRemovePayment(order, payment.id)
-                                if (onOrderUpdated) {
-                                  await onOrderUpdated()
+                        {!isFromLedger && (
+                          <div className="flex gap-1 ml-2">
+                            <button
+                              onClick={() => {
+                                handleClose()
+                                setTimeout(() => {
+                                  onEditPayment(order, payment.id)
+                                }, 300)
+                              }}
+                              className="p-1.5 bg-blue-100 text-blue-700 rounded active:bg-blue-200 transition-colors touch-manipulation"
+                              style={{ WebkitTapHighlightColor: 'transparent' }}
+                              title="Edit Payment"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const confirmed = await sweetAlert.confirm({
+                                  title: 'Remove Payment?',
+                                  message: 'Are you sure you want to remove this payment?',
+                                  icon: 'warning',
+                                })
+                                if (confirmed) {
+                                  onRemovePayment(order, payment.id)
+                                  if (onOrderUpdated) {
+                                    await onOrderUpdated()
+                                  }
                                 }
-                              }
-                            }}
-                            className="p-1.5 bg-red-100 text-red-700 rounded active:bg-red-200 transition-colors touch-manipulation"
-                            style={{ WebkitTapHighlightColor: 'transparent' }}
-                            title="Remove Payment"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                              }}
+                              className="p-1.5 bg-red-100 text-red-700 rounded active:bg-red-200 transition-colors touch-manipulation"
+                              style={{ WebkitTapHighlightColor: 'transparent' }}
+                              title="Remove Payment"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}

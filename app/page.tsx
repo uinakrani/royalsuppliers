@@ -16,6 +16,7 @@ import TruckLoading from '@/components/TruckLoading'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { partyPaymentService } from '@/lib/partyPaymentService'
+import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -156,14 +157,19 @@ export default function Dashboard() {
         })
       }
       
-      // Calculate stats from filtered orders
-      const calculatedStats = calculateStats(filteredOrders)
+      // Load ledger entries to calculate income and expenses
+      let ledgerEntries: LedgerEntry[] = []
+      try {
+        ledgerEntries = await ledgerService.list()
+      } catch (error) {
+        console.warn('Error loading ledger entries:', error)
+      }
       
-      // Calculate customer payments received and profit received
-      // Payment received should:
-      // 1. Filter invoices by party name and material (if filters are applied)
-      // 2. Count ALL payments made within the date range (payment date, not order date)
-      let customerPaymentsReceived = 0
+      // Calculate stats from filtered orders and ledger entries
+      const calculatedStats = calculateStats(filteredOrders, ledgerEntries, dateRangeStart || undefined, dateRangeEnd || undefined)
+      
+      // Calculate profit received based on customer payments from ledger
+      // Profit received = proportion of estimated profit based on how much was received vs total order value
       let profitReceived = 0
       
       // Create a map of filtered order IDs for quick lookup
@@ -235,8 +241,6 @@ export default function Dashboard() {
               }
               
               if (isInRange) {
-                customerPaymentsReceived += payment.amount
-                
                 // Distribute payment proportionally to orders in invoice
                 if (invoiceTotalAmount > 0) {
                   invoice.orderIds.forEach(orderId => {
@@ -271,7 +275,6 @@ export default function Dashboard() {
             if (dateRangeStart && payDate < dateRangeStart) inRange = false
             if (dateRangeEnd && payDate > dateRangeEnd) inRange = false
             if (inRange) {
-              customerPaymentsReceived += p.amount
               // For party payments, we need to distribute to orders proportionally
               // This is complex, so we'll approximate by distributing to all orders of that party
               filteredOrders.forEach(order => {
@@ -295,8 +298,8 @@ export default function Dashboard() {
           const receivedAmount = orderPaymentsReceived.get(order.id!) || 0
           
           if (order.total > 0) {
-            if (order.paid || receivedAmount >= order.total) {
-              // If order is fully paid (by flag or by received amount), all profit is received
+            if (receivedAmount >= order.total) {
+              // If order is fully paid by received amount, all profit is received
               profitReceived += order.profit
             } else if (receivedAmount > 0) {
               // If partially paid, calculate profit proportionally
@@ -311,19 +314,12 @@ export default function Dashboard() {
         console.error('Error loading invoices for payment calculation:', error)
       }
       
-      calculatedStats.paymentReceived = customerPaymentsReceived
-      calculatedStats.customerPaymentsReceived = customerPaymentsReceived
+      // Update stats with calculated values
+      calculatedStats.paymentReceived = calculatedStats.customerPaymentsReceived
       calculatedStats.profitReceived = profitReceived
       
-      // Calculate current balance: Money received from customers - Money spent on raw materials and costs
-      // This represents the actual cash balance (money in hand)
-      // Formula: Customer Payments Received - (Raw Material Payments Made + Additional Costs)
-      // Note: We don't add profit because profit is already the difference between what we received and what we spent
-      calculatedStats.calculatedBalance = customerPaymentsReceived - calculatedStats.moneyOut
-      
-      // Also update currentBalance to show total customer payments received (for backward compatibility)
-      // This represents payments received from customers, not the actual balance
-      calculatedStats.currentBalance = customerPaymentsReceived
+      // Current balance is already calculated in statsService from ledger entries
+      // (Income with party name - Expenses)
       
       setOrders(filteredOrders)
       setStats(calculatedStats)
@@ -557,7 +553,7 @@ export default function Dashboard() {
       {/* Statistics Cards */}
       {loading ? (
         <div className="fixed inset-0 flex flex-col items-center justify-center z-30 bg-gray-50 gap-4 p-4">
-          <TruckLoading size={150} />
+          <TruckLoading size={100} />
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md text-center">
               <p className="text-sm text-red-800 mb-2">{error}</p>
@@ -641,23 +637,12 @@ export default function Dashboard() {
                   <span className="text-sm font-semibold text-gray-700">Money Received</span>
                 </div>
                 <span className="text-lg font-bold text-green-600">
-                  {formatIndianCurrency(stats.customerPaymentsReceived + stats.rawMaterialPaymentsReceived)}
+                  {formatIndianCurrency(stats.customerPaymentsReceived)}
                 </span>
               </div>
-              <div className="space-y-1.5 pl-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">From Customers</span>
-                  <span className="text-sm font-semibold text-green-700">
-                    {formatIndianCurrency(stats.customerPaymentsReceived)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">For Raw Materials</span>
-                  <span className="text-sm font-semibold text-green-700">
-                    {formatIndianCurrency(stats.rawMaterialPaymentsReceived)}
-                  </span>
-                </div>
-              </div>
+              <p className="text-xs text-gray-600 mt-1">
+                Money received from parties (ledger credit entries with party name)
+              </p>
             </div>
           </div>
 
@@ -727,15 +712,15 @@ export default function Dashboard() {
               {formatIndianCurrency(stats.calculatedBalance)}
             </p>
             <p className="text-xs opacity-90 mb-3">
-              Money Received - Money Spent
+              Money Received (from Parties) - Money Spent
             </p>
             <div className="pt-3 border-t border-white/20 space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="opacity-80">Received from Customers:</span>
+                <span className="opacity-80">Received from Parties:</span>
                 <span className="font-semibold">{formatIndianCurrency(stats.customerPaymentsReceived)}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="opacity-80">Spent (Raw Materials + Costs):</span>
+                <span className="opacity-80">Spent (All Expenses):</span>
                 <span className="font-semibold">-{formatIndianCurrency(stats.moneyOut)}</span>
               </div>
               <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">

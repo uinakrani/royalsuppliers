@@ -1,8 +1,9 @@
 import { Order } from '@/types/order'
 import { DashboardStats } from '@/types/order'
+import { LedgerEntry } from '@/lib/ledgerService'
 import { startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns'
 
-export const calculateStats = (orders: Order[]): DashboardStats => {
+export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], dateRangeStart?: Date, dateRangeEnd?: Date): DashboardStats => {
   const stats: DashboardStats = {
     totalWeight: 0,
     totalCost: 0,
@@ -33,36 +34,72 @@ export const calculateStats = (orders: Order[]): DashboardStats => {
     stats.estimatedProfit += order.profit // Estimated profit from filtered orders
     
     // Raw material payments (payments MADE for raw materials - expenses)
+    // Note: This is money going OUT, not money received
     const rawMaterialPayments = order.partialPayments || []
     const totalRawMaterialPaid = rawMaterialPayments.reduce((sum, p) => sum + p.amount, 0)
-    stats.rawMaterialPaymentsReceived += totalRawMaterialPaid
-    
-    // Money going out (actual expenses paid): raw material payments + additional costs
-    // Note: additionalCost is always paid when order is created, so include it
-    stats.moneyOut += totalRawMaterialPaid + order.additionalCost
+    stats.rawMaterialPaymentsReceived += totalRawMaterialPaid // This tracks payments made, not received
     
     // Outstanding raw material payments (what's still owed for raw materials)
     const rawMaterialOutstanding = Math.max(0, order.originalTotal - totalRawMaterialPaid)
     stats.rawMaterialPaymentsOutstanding += rawMaterialOutstanding
 
-    // Note: currentBalance and profitReceived are calculated separately using invoice/party payment data
-    // because customer payments are tracked separately from orders
-    if (order.paid) {
+    // Determine order payment status based on partialPayments
+    if (totalRawMaterialPaid >= order.originalTotal && order.originalTotal > 0) {
+      // Fully paid if total payments >= original total
       stats.paidOrders++
+    } else if (totalRawMaterialPaid > 0) {
+      // Partially paid if there are payments but less than original total
+      stats.partialOrders++
+      stats.unpaidOrders++
     } else {
-      // Calculate total from partialPayments array if available, otherwise use paidAmount
-      const partialTotal = order.partialPayments && order.partialPayments.length > 0
-        ? order.partialPayments.reduce((sum, p) => sum + p.amount, 0)
-        : (order.paidAmount || 0)
-      
-      if (partialTotal > 0) {
-        stats.partialOrders++
-        stats.unpaidOrders++
-      } else {
-        stats.unpaidOrders++
-      }
+      // Unpaid if no payments
+      stats.unpaidOrders++
     }
   })
+
+  // Calculate income and expenses from ledger entries if provided
+  if (ledgerEntries) {
+    let totalIncomeFromLedger = 0
+    let totalIncomeWithPartyName = 0 // Money received from parties (credit entries with partyName)
+    let totalExpensesFromLedger = 0
+    
+    ledgerEntries.forEach((entry) => {
+      const entryDate = new Date(entry.date)
+      
+      // Check if entry is within date range
+      let isInRange = true
+      if (dateRangeStart && entryDate < dateRangeStart) {
+        isInRange = false
+      }
+      if (dateRangeEnd && entryDate > dateRangeEnd) {
+        isInRange = false
+      }
+      
+      if (isInRange) {
+        if (entry.type === 'credit') {
+          // All credit entries are income
+          totalIncomeFromLedger += entry.amount
+          // Money received is only credit entries with a party name
+          if (entry.partyName && entry.partyName.trim()) {
+            totalIncomeWithPartyName += entry.amount
+          }
+        } else if (entry.type === 'debit') {
+          // All debit entries are money going out (expenses)
+          totalExpensesFromLedger += entry.amount
+        }
+      }
+    })
+    
+    // Use ledger entries as the source of truth for money flow
+    // Money Received = Credit entries with party name (customer payments)
+    stats.customerPaymentsReceived = totalIncomeWithPartyName
+    
+    // Money Out = All debit entries (expenses including raw materials, additional costs, etc.)
+    stats.moneyOut = totalExpensesFromLedger
+    
+    // Calculate balance from ledger: Income (with party) - Expenses
+    stats.calculatedBalance = totalIncomeWithPartyName - totalExpensesFromLedger
+  }
 
   return stats
 }
