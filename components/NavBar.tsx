@@ -17,9 +17,9 @@ export default function NavBar() {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-end justify-center"
+      className="fixed left-0 right-0 z-50 flex items-end justify-center"
       style={{ 
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1.5rem)',
+        bottom: 'max(env(safe-area-inset-bottom, 0px), 1.5rem)',
         paddingLeft: 'max(env(safe-area-inset-left, 0px), 0.75rem)',
         paddingRight: 'max(env(safe-area-inset-right, 0px), 0.75rem)',
         pointerEvents: 'none',
