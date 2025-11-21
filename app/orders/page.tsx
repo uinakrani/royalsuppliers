@@ -906,10 +906,11 @@ export default function OrdersPage() {
         className="fixed left-0 right-0 bg-white border-t border-gray-200 z-[45] shadow-lg"
         style={{ 
           bottom: selectedOrders.size > 0 ? '8.5rem' : '4rem',
-          padding: '0.75rem',
-          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+          padding: '0.5rem',
+          paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0px))',
+          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+          paddingTop: '0.5rem',
           transition: 'bottom 0.3s ease-out',
         }}
       >
@@ -919,7 +920,7 @@ export default function OrdersPage() {
               createRipple(e)
               setViewMode('byParty')
             }}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all native-press ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
               viewMode === 'byParty'
                 ? 'bg-primary-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-700 active:bg-gray-200'
@@ -937,7 +938,7 @@ export default function OrdersPage() {
               createRipple(e)
               setViewMode('allOrders')
             }}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all native-press ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${
               viewMode === 'allOrders'
                 ? 'bg-primary-600 text-white shadow-md'
                 : 'bg-gray-100 text-gray-700 active:bg-gray-200'
@@ -1019,7 +1020,7 @@ export default function OrdersPage() {
         flex: 1,
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        paddingBottom: selectedOrders.size > 0 ? '13rem' : '8rem'
+        paddingBottom: selectedOrders.size > 0 ? '12rem' : '7rem'
       }}>
       {/* Orders List */}
       {loading ? (
