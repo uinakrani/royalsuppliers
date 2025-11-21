@@ -58,16 +58,12 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
     const expenseAmount = Number(order.originalTotal || 0)
     const existingPayments = order.partialPayments || []
     let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-    // If order is marked as paid but has no partial payments, consider it fully paid
-    if (order.paid && totalPaid === 0 && expenseAmount > 0) {
-      totalPaid = expenseAmount
-    }
     const remainingAmount = expenseAmount - totalPaid
     return { expenseAmount, totalPaid, remainingAmount }
   }
 
   const handleAddPayment = async () => {
-    if (!order || order.paid) return
+    if (!order) return
     
     const { remainingAmount } = getExpenseInfo(order)
     
@@ -404,7 +400,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                 )
               })()}
               
-              {!order.paid && remainingAmount > 0 && (
+              {remainingAmount > 0 && (
                 <button
                   onClick={handleAddPayment}
                   disabled={addingPayment}
@@ -434,13 +430,13 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
               <div className="flex justify-between items-start">
                 <span className="text-sm font-medium text-gray-500">Payment Status</span>
                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                  order.paid 
+                  remainingAmount <= 0
                     ? 'bg-green-100 text-green-700' 
-                    : order.paymentDue
+                    : totalPaid > 0
                     ? 'bg-yellow-100 text-yellow-700'
                     : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {order.paid ? 'Paid' : order.paymentDue ? 'Payment Due' : 'Pending'}
+                  {remainingAmount <= 0 ? 'Paid' : totalPaid > 0 ? 'Partially Paid' : 'Pending'}
                 </span>
               </div>
             </div>

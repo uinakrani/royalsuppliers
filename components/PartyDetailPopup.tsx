@@ -328,10 +328,7 @@ export default function PartyDetailPopup({
                   const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
                   const expenseAmount = Number(order.originalTotal || 0)
                   const existingPayments = order.partialPayments || []
-                  let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-                  if (order.paid && totalPaid === 0 && expenseAmount > 0) {
-                    totalPaid = expenseAmount
-                  }
+                  const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
                   const remainingAmount = expenseAmount - totalPaid
 
                   return (

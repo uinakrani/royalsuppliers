@@ -280,11 +280,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                     // Expense amount is just originalTotal (raw material cost)
                     const expenseAmount = Number(order.originalTotal || 0)
                     const existingPayments = order.partialPayments || []
-                    let totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-                    // If order is marked as paid but has no partial payments, consider it fully paid
-                    if (order.paid && totalPaid === 0 && expenseAmount > 0) {
-                      totalPaid = expenseAmount
-                    }
+                    const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
                     const remainingAmount = expenseAmount - totalPaid
                     
                     if (expenseAmount > 0) {

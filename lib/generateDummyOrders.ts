@@ -68,14 +68,12 @@ export const generateDummyOrders = async (): Promise<void> => {
         total,
         truckOwner: truckOwners[Math.floor(Math.random() * truckOwners.length)],
         truckNo: truckNumbers[Math.floor(Math.random() * truckNumbers.length)],
+        supplier: '', // Empty supplier for dummy orders
         originalWeight,
         originalRate,
         originalTotal,
         additionalCost,
         profit,
-        paymentDue: Math.random() > 0.3, // 70% have payment due
-        paid: Math.random() > 0.7, // 30% are fully paid
-        paidAmount: Math.random() > 0.7 ? total : (Math.random() > 0.5 ? total * 0.5 : 0),
         partialPayments: [],
         invoiced: false,
         archived: false,

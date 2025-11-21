@@ -235,7 +235,7 @@ export default function LedgerPage() {
       }
       
       let remainingExpense = expenseAmount
-      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord }> = []
+      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
       
       // Distribute expense across orders (oldest first, fill completely before next)
       for (const { order, remaining, currentPayments } of ordersWithOutstanding) {

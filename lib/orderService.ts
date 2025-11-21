@@ -196,9 +196,10 @@ export const orderService = {
       }
       
       // Process each field, converting Timestamps to strings
-      for (const key in data) {
-        if (Object.prototype.hasOwnProperty.call(data, key)) {
-          const value = data[key]
+      const dataObj = data as Record<string, any>
+      for (const key in dataObj) {
+        if (Object.prototype.hasOwnProperty.call(dataObj, key)) {
+          const value = dataObj[key]
           // Convert Firestore Timestamps to ISO strings
           if (value && typeof value.toDate === 'function') {
             const dateValue = (value as Timestamp).toDate()
@@ -263,10 +264,6 @@ export const orderService = {
       throw new Error('Order not found')
     }
     
-    if (order.paid && !markAsPaid) {
-      throw new Error('Order is already fully paid')
-    }
-    
     // Calculate expense amount (originalTotal only - raw material cost)
     const expenseAmount = Number(order.originalTotal || 0)
     
@@ -275,6 +272,11 @@ export const orderService = {
     
     // Calculate current total from existing payments
     const currentTotal = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+    
+    // Check if order is already fully paid based on partial payments
+    if (currentTotal >= expenseAmount && expenseAmount > 0 && !markAsPaid) {
+      throw new Error('Order is already fully paid')
+    }
     
     // Calculate remaining amount
     const remainingAmount = expenseAmount - currentTotal
@@ -302,9 +304,6 @@ export const orderService = {
       note: note || undefined,
     }
     const updatedPayments = [...existingPayments, newPayment]
-    
-    // Calculate total paid amount from payments array
-    const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
     
     // Prepare update data
     const updateData: any = {
