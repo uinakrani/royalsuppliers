@@ -6,6 +6,7 @@ import { Order, PaymentRecord } from '@/types/order'
 import { X, Plus, Trash2, Edit2 } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
+import Button from '@/components/Button'
 
 interface OrderFormProps {
   order?: Order | null
@@ -968,27 +969,30 @@ export default function OrderForm({ order, onClose, onSave }: OrderFormProps) {
         {/* Fixed buttons at bottom */}
         <div className="flex-shrink-0 bg-white border-t border-gray-200 p-4">
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
               onClick={handleClose}
-              className="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg text-sm font-semibold active:bg-gray-200 transition-colors touch-manipulation"
-              style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+              variant="secondary"
+              size="lg"
+              fullWidth
+              disabled={saving}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => {
                 if (formRef.current) {
                   formRef.current.requestSubmit()
                 }
               }}
-              disabled={saving}
-              className="flex-1 bg-primary-600 text-white px-4 py-3 rounded-lg text-sm font-semibold active:bg-primary-700 transition-colors disabled:opacity-50 touch-manipulation"
-              style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={saving}
             >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+              Save
+            </Button>
           </div>
         </div>
       </div>

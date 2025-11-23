@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
+import Button from '@/components/Button'
 
 export type PopupType = 'confirm' | 'prompt' | 'success' | 'error' | 'info' | 'warning'
 
@@ -527,26 +528,24 @@ export default function NativePopup() {
           <div className="relative bg-gray-50/50">
             <div className="flex gap-3 p-5">
               {(state.type === 'confirm' || state.type === 'prompt') && (
-                <button
+                <Button
                   onClick={handleClose}
-                  className="flex-1 px-5 py-4 bg-white text-gray-700 rounded-2xl font-semibold active:bg-gray-50 active:scale-[0.97] transition-all duration-200 touch-manipulation shadow-sm border border-gray-200/60"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  variant="ghost"
+                  size="lg"
+                  fullWidth
                 >
                   {state.cancelText || 'Cancel'}
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 onClick={handleConfirm}
                 disabled={state.type === 'prompt' && state.required && !state.inputValue.trim()}
-                className={`flex-1 px-5 py-4 rounded-2xl font-semibold transition-all duration-200 touch-manipulation shadow-lg ${
-                  state.type === 'prompt' && state.required && !state.inputValue.trim()
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                    : `bg-gradient-to-r from-primary-600 to-primary-700 text-white active:from-primary-700 active:to-primary-800 active:scale-[0.97] hover:shadow-xl`
-                }`}
-                style={{ WebkitTapHighlightColor: 'transparent' }}
+                variant="primary"
+                size="lg"
+                fullWidth
               >
                 {state.confirmText || 'OK'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

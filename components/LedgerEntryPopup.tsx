@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ArrowLeft } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
+import Button from '@/components/Button'
 
 interface LedgerEntryPopupProps {
   isOpen: boolean
@@ -32,6 +33,7 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [errors, setErrors] = useState<{ amount?: string; date?: string }>({})
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     // Check if app is in standalone mode
@@ -188,7 +190,12 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
     } else if (step === 'supplier' || step === 'party') {
       setStep('note')
     } else if (step === 'note') {
-      await handleSave()
+      setLoading(true)
+      try {
+        await handleSave()
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -558,29 +565,35 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
           <div className="flex-shrink-0 border-t border-gray-200 p-4">
             {(step === 'supplier' || step === 'party') ? (
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={handleNext}
-                  className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold active:bg-gray-300 transition-colors touch-manipulation"
-                  style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  disabled={loading}
                 >
                   Skip
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleNext}
-                  className="flex-1 py-3 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 transition-colors touch-manipulation"
-                  style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  loading={loading}
                 >
                   Next
-                </button>
+                </Button>
               </div>
             ) : (
-              <button
+              <Button
                 onClick={handleNext}
-                className="w-full py-3 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 transition-colors touch-manipulation"
-                style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={loading}
               >
                 {step === 'note' ? 'Save' : 'Next'}
-              </button>
+              </Button>
             )}
           </div>
         </div>

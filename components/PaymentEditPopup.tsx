@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ArrowLeft } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
+import Button from '@/components/Button'
 
 interface PaymentEditPopupProps {
   isOpen: boolean
@@ -272,13 +273,14 @@ export default function PaymentEditPopup({ isOpen, onClose, onSave, initialData,
 
           {/* Footer */}
           <div className="flex-shrink-0 border-t border-gray-200 p-4">
-            <button
+            <Button
               onClick={handleNext}
-              className="w-full bg-primary-600 text-white px-4 py-3 rounded-lg text-sm font-semibold active:bg-primary-700 transition-colors touch-manipulation"
-              style={{ WebkitTapHighlightColor: 'transparent', fontSize: '16px' }}
+              variant="primary"
+              size="lg"
+              fullWidth
             >
               {step === 'amount' ? 'Next' : 'Save'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

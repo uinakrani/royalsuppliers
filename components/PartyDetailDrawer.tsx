@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Edit, Trash2, Plus } from 'lucide-react'
 import { Order } from '@/types/order'
+import Button from '@/components/Button'
 import { InvoicePayment } from '@/types/invoice'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { partyPaymentService } from '@/lib/partyPaymentService'
@@ -349,14 +350,15 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
           <div className="border-t border-gray-200 pt-4">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Payment History ({group.payments.length})</h3>
-              <button
+              <Button
                 onClick={handleAddPayment}
-                disabled={isProcessing}
-                className="px-2 py-1 bg-primary-600 text-white rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="primary"
+                size="sm"
+                loading={isProcessing}
+                icon={<Plus size={14} />}
               >
-                <Plus size={14} />
                 Add Payment
-              </button>
+              </Button>
             </div>
             {group.payments.length > 0 ? (
               <div className="space-y-2">

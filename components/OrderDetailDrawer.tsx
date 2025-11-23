@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X, Edit, Trash2, Plus } from 'lucide-react'
+import Button from '@/components/Button'
 import { Order } from '@/types/order'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
@@ -402,14 +403,17 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
               })()}
               
               {remainingAmount > 0 && (
-                <button
+                <Button
                   onClick={handleAddPayment}
-                  disabled={addingPayment}
-                  className="w-full mt-3 bg-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  variant="primary"
+                  size="sm"
+                  fullWidth
+                  loading={addingPayment}
+                  icon={<Plus size={16} />}
+                  className="mt-3"
                 >
-                  <Plus size={16} />
-                  {addingPayment ? 'Adding...' : 'Add Payment'}
-                </button>
+                  Add Payment
+                </Button>
               )}
             </div>
           </div>

@@ -5,7 +5,7 @@ import { generateDummyOrders } from '@/lib/generateDummyOrders'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import NavBar from '@/components/NavBar'
-import { Loader2 } from 'lucide-react'
+import Button from '@/components/Button'
 
 export default function AdminPage() {
   const [generating, setGenerating] = useState(false)
@@ -69,20 +69,15 @@ export default function AdminPage() {
             <li>Different payment statuses</li>
           </ul>
           
-          <button
+          <Button
             onClick={handleGenerateOrders}
-            disabled={generating}
-            className="w-full bg-primary-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            variant="primary"
+            size="md"
+            fullWidth
+            loading={generating}
           >
-            {generating ? (
-              <>
-                <Loader2 size={20} className="animate-spin" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              'Generate Dummy Orders'
-            )}
-          </button>
+            Generate Dummy Orders
+          </Button>
           
           {progress && (
             <div className="mt-4 flex items-center justify-center gap-2">
