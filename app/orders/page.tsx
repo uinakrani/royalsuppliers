@@ -837,22 +837,27 @@ export default function OrdersPage() {
     supplierMap.forEach((supplierOrders, supplierName) => {
       // Calculate total amount to be paid: for each order, originalTotal - non-ledger partial payments
       // This represents the amount that still needs to be paid (excluding ledger payments)
+      // Formula: totalAmount = sum of (originalTotal - non-ledger partial payments) for each order
       let totalAmount = 0
       let totalPaid = 0
       supplierOrders.forEach(order => {
-        const orderOriginalTotal = order.originalTotal || 0
+        const orderOriginalTotal = Number(order.originalTotal || 0)
         const partialPayments = order.partialPayments || []
         
         // Calculate non-ledger partial payments (manual payments only)
+        // These are payments added directly to the order, not from ledger entries
         const nonLedgerPayments = partialPayments.filter(p => !p.ledgerEntryId)
-        const nonLedgerPaid = nonLedgerPayments.reduce((sum, p) => sum + p.amount, 0)
+        const nonLedgerPaid = nonLedgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
         
         // Amount still to be paid for this order = originalTotal - non-ledger payments
+        // This is the amount that needs to be paid for this specific order
         const orderRemaining = orderOriginalTotal - nonLedgerPaid
+        
+        // Only add positive remaining amounts (if order is overpaid with non-ledger, it's 0)
         totalAmount += Math.max(0, orderRemaining)
         
         // Total paid includes all payments (ledger + manual) for display purposes
-        totalPaid += partialPayments.reduce((sum, p) => sum + p.amount, 0)
+        totalPaid += partialPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
       })
 
       // Get ledger expense entries for this supplier (for display/reference only)
@@ -861,7 +866,9 @@ export default function OrdersPage() {
       )
 
       // Calculate remaining amount: totalAmount (which already excludes non-ledger payments) - ledger payments
-      const totalLedgerPayments = supplierLedgerEntries.reduce((sum, e) => sum + e.amount, 0)
+      // totalAmount = sum of (originalTotal - non-ledger payments) for each order
+      // remainingAmount = totalAmount - ledger payments (payments made via ledger expense entries)
+      const totalLedgerPayments = supplierLedgerEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
       const remainingAmount = Math.max(0, totalAmount - totalLedgerPayments)
       
       // Verify calculation: Check if ledger entry amounts match partial payments with ledgerEntryId
