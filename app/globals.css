@@ -1045,3 +1045,35 @@ select:disabled {
 .arm-animate {
   animation: armMove 2s ease-in-out infinite;
 }
+
+/* Android PWA Fullscreen Support */
+html.android.standalone {
+  /* Ensure fullscreen on Android */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+html.android.standalone body {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Android fullscreen mode - hide system UI */
+@media (display-mode: fullscreen) {
+  html.android {
+    height: 100vh;
+    height: 100dvh;
+  }
+  
+  html.android body {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+/* Ensure iOS behavior is unchanged - iOS-specific styles remain as-is */
+html.ios.standalone {
+  /* iOS styles are already defined above and should not be changed */
+}

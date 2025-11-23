@@ -41,6 +41,9 @@ export default function Button({
   
   const isDisabled = disabled || loading
 
+  // Calculate spinner size based on button size
+  const spinnerSize = size === 'sm' ? '16px' : size === 'md' ? '20px' : '24px'
+
   return (
     <button
       {...props}
@@ -53,7 +56,7 @@ export default function Button({
         <div className="absolute inset-0 flex items-center justify-center bg-inherit rounded-lg animate-fade-in z-10">
           <svg
             className="animate-spin text-current"
-            style={{ width: size === 'sm' ? '16px' : size === 'md' ? '20px' : '24px', height: size === 'sm' ? '16px' : size === 'md' ? '20px' : '24px' }}
+            style={{ width: spinnerSize, height: spinnerSize }}
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"

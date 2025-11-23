@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import PWARegister from '@/components/PWARegister'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt'
+import AndroidFullscreen from '@/components/AndroidFullscreen'
 import FirebaseSetupAlert from '@/components/FirebaseSetupAlert'
 import FirestoreRulesAlert from '@/components/FirestoreRulesAlert'
 import ToastContainer from '@/components/Toast'
@@ -119,10 +120,43 @@ export default function RootLayout({
             __html: `
               // Detect if app is in standalone mode (PWA) and add class to html
               (function() {
-                if (window.matchMedia('(display-mode: standalone)').matches || 
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                    window.matchMedia('(display-mode: fullscreen)').matches ||
                     (window.navigator.standalone === true) ||
-                    document.referrer.includes('android-app://')) {
+                    document.referrer.includes('android-app://');
+                
+                if (isStandalone) {
                   document.documentElement.classList.add('standalone');
+                }
+                
+                // Detect Android
+                const isAndroid = /Android/i.test(navigator.userAgent);
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                
+                if (isAndroid) {
+                  document.documentElement.classList.add('android');
+                }
+                if (isIOS) {
+                  document.documentElement.classList.add('ios');
+                }
+                
+                // Request fullscreen for Android when in standalone/fullscreen mode
+                if (isAndroid && isStandalone) {
+                  // Try to enter fullscreen after a short delay
+                  setTimeout(function() {
+                    const doc = document.documentElement;
+                    if (doc.requestFullscreen) {
+                      doc.requestFullscreen().catch(function() {
+                        // Fullscreen might require user gesture
+                      });
+                    } else if (doc.webkitRequestFullscreen) {
+                      doc.webkitRequestFullscreen();
+                    } else if (doc.mozRequestFullScreen) {
+                      doc.mozRequestFullScreen();
+                    } else if (doc.msRequestFullscreen) {
+                      doc.msRequestFullscreen();
+                    }
+                  }, 500);
                 }
               })();
             `,
@@ -132,6 +166,7 @@ export default function RootLayout({
           <NativePopup />
           <PWARegister />
           <PWAInstallPrompt />
+          <AndroidFullscreen />
           <FirebaseSetupAlert />
           <FirestoreRulesAlert />
           <ToastContainer />

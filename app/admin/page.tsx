@@ -81,7 +81,7 @@ export default function AdminPage() {
           
           {progress && (
             <div className="mt-4 flex items-center justify-center gap-2">
-              <Loader2 size={16} className="animate-spin text-primary-600" />
+              <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
               <p className="text-center text-sm text-gray-600">{progress}</p>
             </div>
           )}

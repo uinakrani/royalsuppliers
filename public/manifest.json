@@ -5,6 +5,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "background_color": "#2e31fb",
   "theme_color": "#2e31fb",
   "orientation": "portrait-primary",
@@ -12,7 +13,6 @@
   "prefer_related_applications": false,
   "dir": "ltr",
   "lang": "en",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "icons": [
     {
       "src": "/icon-192x192.png",
