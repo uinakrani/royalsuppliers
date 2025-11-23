@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { X, Edit, Trash2, Plus, Calendar, User, Truck, Package, DollarSign, TrendingUp, FileText } from 'lucide-react'
 import { sweetAlert } from '@/lib/sweetalert'
 import { showToast } from '@/components/Toast'
+import { isOrderPaid } from '@/lib/orderService'
 
 interface OrderDetailPopupProps {
   order: Order | null
@@ -423,12 +424,10 @@ export default function OrderDetailPopup({
                   <span className="text-xs text-gray-500">Not Invoiced</span>
                 )}
                 {(() => {
-                  const expenseAmount = Number(order.originalTotal || 0)
                   const existingPayments = order.partialPayments || []
                   const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
-                  const remainingAmount = expenseAmount - totalPaid
                   
-                  if (remainingAmount <= 0) {
+                  if (isOrderPaid(order)) {
                     return (
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
                         Paid

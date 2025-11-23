@@ -29,6 +29,7 @@ interface PopupState extends PopupOptions {
 
 let popupStateRef: {
   setState: (state: PopupState) => void
+  state?: PopupState
   resolve: (value: any) => void
   reject: (error: any) => void
 } | null = null
@@ -113,18 +114,22 @@ export const nativePopup = {
       popupStateRef.resolve = () => resolve()
       popupStateRef.reject = reject
       
-      // Auto close after 2 seconds
+      // Auto close after 2.5 seconds (with animation)
       setTimeout(() => {
-        if (popupStateRef) {
-          popupStateRef.setState({ isOpen: false, inputValue: '' })
+        if (popupStateRef && popupStateRef.state?.isOpen) {
+          // Trigger closing animation
+          popupStateRef.setState({ ...popupStateRef.state, isClosing: true })
           setTimeout(() => {
-            if (popupStateRef?.resolve) {
-              popupStateRef.resolve(undefined)
-              popupStateRef.resolve = () => {}
+            if (popupStateRef) {
+              popupStateRef.setState({ ...popupStateRef.state, isOpen: false, inputValue: '', isClosing: false })
+              if (popupStateRef?.resolve) {
+                popupStateRef.resolve(undefined)
+                popupStateRef.resolve = () => {}
+              }
             }
-          }, 300)
+          }, 325) // Match exit animation duration
         }
-      }, 2000)
+      }, 2500)
     })
   },
 
@@ -253,27 +258,40 @@ export default function NativePopup() {
     // Register the setState function
     popupStateRef = {
       setState: (newState: PopupState) => {
-        setIsClosing(false)
-        setIsMounted(false)
-        setState(newState)
-        // Trigger animation after mount
-        if (newState.isOpen) {
-          requestAnimationFrame(() => {
-            setIsMounted(true)
-          })
-          if (newState.type === 'prompt') {
-            // Focus input after animation
-            setTimeout(() => {
-              if (inputRef.current) {
-                inputRef.current.focus()
-                if (inputRef.current instanceof HTMLInputElement) {
-                  inputRef.current.select()
+        if (newState.isClosing) {
+          // Handle closing animation
+          setIsClosing(true)
+          setIsMounted(false)
+          setTimeout(() => {
+            setState(prev => ({ ...prev, isOpen: false, isClosing: false }))
+            setIsClosing(false)
+          }, 325)
+        } else {
+          setIsClosing(false)
+          setIsMounted(false)
+          setState(newState)
+          // Update state ref for auto-close
+          popupStateRef.state = newState
+          // Trigger animation after mount
+          if (newState.isOpen) {
+            requestAnimationFrame(() => {
+              setIsMounted(true)
+            })
+            if (newState.type === 'prompt') {
+              // Focus input after animation
+              setTimeout(() => {
+                if (inputRef.current) {
+                  inputRef.current.focus()
+                  if (inputRef.current instanceof HTMLInputElement) {
+                    inputRef.current.select()
+                  }
                 }
-              }
-            }, 400)
+              }, 500)
+            }
           }
         }
       },
+      state: state,
       resolve: () => {},
       reject: () => {},
     }
@@ -286,6 +304,7 @@ export default function NativePopup() {
   const handleClose = () => {
     setIsClosing(true)
     setIsMounted(false)
+    // Wait for exit animation to complete (300ms for modal + 25ms for backdrop)
     setTimeout(() => {
       setState(prev => ({ ...prev, isOpen: false }))
       setIsClosing(false)
@@ -298,7 +317,7 @@ export default function NativePopup() {
           popupStateRef.resolve(undefined)
         }
       }
-    }, 250)
+    }, 325) // Match CSS animation duration
   }
 
   const handleConfirm = () => {
@@ -318,7 +337,7 @@ export default function NativePopup() {
           }
           popupStateRef.resolve(value || null)
         }
-      }, 250)
+      }, 325) // Match CSS animation duration
     } else if (state.type === 'confirm') {
       setIsClosing(true)
       setIsMounted(false)
@@ -328,7 +347,7 @@ export default function NativePopup() {
         if (popupStateRef?.resolve) {
           popupStateRef.resolve(true)
         }
-      }, 250)
+      }, 325) // Match CSS animation duration
     } else {
       handleClose()
     }
@@ -341,18 +360,18 @@ export default function NativePopup() {
   }
 
   const getIcon = () => {
-    const iconClass = 'w-12 h-12'
+    const iconClass = 'w-14 h-14'
     switch (state.type) {
       case 'success':
-        return <CheckCircle className={`${iconClass} text-green-600`} />
+        return <CheckCircle className={`${iconClass} text-green-600`} strokeWidth={2.5} />
       case 'error':
-        return <AlertCircle className={`${iconClass} text-red-600`} />
+        return <AlertCircle className={`${iconClass} text-red-600`} strokeWidth={2.5} />
       case 'warning':
-        return <AlertTriangle className={`${iconClass} text-yellow-600`} />
+        return <AlertTriangle className={`${iconClass} text-yellow-600`} strokeWidth={2.5} />
       case 'info':
-        return <Info className={`${iconClass} text-blue-600`} />
+        return <Info className={`${iconClass} text-blue-600`} strokeWidth={2.5} />
       default:
-        return <AlertCircle className={`${iconClass} text-primary-600`} />
+        return <AlertCircle className={`${iconClass} text-primary-600`} strokeWidth={2.5} />
     }
   }
 
@@ -375,11 +394,11 @@ export default function NativePopup() {
 
   const popupContent = (
     <>
-      {/* Backdrop */}
+      {/* Backdrop with smooth blur animation */}
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black/50 z-[99999] popup-backdrop ${
+        className={`fixed inset-0 bg-black/50 backdrop-blur-md z-[99999] popup-backdrop ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
         style={{ 
@@ -410,52 +429,66 @@ export default function NativePopup() {
       >
         <div
           ref={popupRef}
-          className={`bg-white rounded-2xl border border-gray-100 max-w-sm w-full pointer-events-auto ${
+          className={`bg-white rounded-3xl border-0 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.25)] max-w-sm w-full pointer-events-auto overflow-hidden ${
             isClosing
               ? 'native-modal-exit'
               : isMounted
               ? 'native-modal-enter'
-              : 'opacity-0 scale-95 translate-y-4'
+              : 'opacity-0 scale-90 translate-y-8'
           }`}
           style={{
             willChange: 'transform, opacity',
             backfaceVisibility: 'hidden',
             WebkitFontSmoothing: 'antialiased',
+            transformStyle: 'preserve-3d',
           }}
         >
-          {/* Header */}
-          <div className="flex items-start justify-between p-4 border-b border-gray-200">
-            <div className="flex items-center gap-3 flex-1">
-              {state.type !== 'prompt' && state.type !== 'confirm' && (
-                <div className="flex-shrink-0">{getIcon()}</div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-gray-900">{state.title}</h3>
-                {state.message && (
-                  <p className="text-sm text-gray-600 mt-1">{state.message}</p>
+          {/* Header with enhanced styling - Native app feel */}
+          <div className="relative">
+            {/* Gradient background for header */}
+            <div className={`absolute inset-0 ${
+              state.type === 'success' ? 'bg-gradient-to-br from-green-50 to-white' :
+              state.type === 'error' ? 'bg-gradient-to-br from-red-50 to-white' :
+              state.type === 'warning' ? 'bg-gradient-to-br from-yellow-50 to-white' :
+              state.type === 'info' ? 'bg-gradient-to-br from-blue-50 to-white' :
+              'bg-gradient-to-br from-gray-50 to-white'
+            }`} />
+            <div className="relative flex items-start justify-between p-6 border-b border-gray-100/80">
+              <div className="flex items-center gap-4 flex-1">
+                {state.type !== 'prompt' && state.type !== 'confirm' && (
+                  <div className="flex-shrink-0 animate-pulse-once relative">
+                    <div className="absolute inset-0 bg-white/60 rounded-full blur-xl" />
+                    <div className="relative">{getIcon()}</div>
+                  </div>
                 )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-2xl font-bold text-gray-900 leading-tight tracking-tight">{state.title}</h3>
+                  {state.message && (
+                    <p className="text-sm text-gray-600 mt-2.5 leading-relaxed whitespace-pre-line">{state.message}</p>
+                  )}
+                </div>
               </div>
+              {(state.type === 'success' || state.type === 'error' || state.type === 'info' || state.type === 'warning') && (
+                <button
+                  onClick={handleClose}
+                  className="flex-shrink-0 p-2.5 rounded-2xl active:bg-gray-100/80 active:scale-95 transition-all duration-200 touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  aria-label="Close"
+                >
+                  <X size={22} className="text-gray-400" />
+                </button>
+              )}
             </div>
-            {(state.type === 'success' || state.type === 'error' || state.type === 'info' || state.type === 'warning') && (
-              <button
-                onClick={handleClose}
-                className="flex-shrink-0 p-1.5 rounded-lg active:bg-gray-100 transition-colors touch-manipulation"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-                aria-label="Close"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
-            )}
           </div>
 
-          {/* Content */}
-          <div className="p-4">
+          {/* Content with enhanced styling - Native app feel */}
+          <div className="p-6 bg-white">
             {(state.type === 'prompt' || state.type === 'confirm') && (
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {state.type === 'prompt' && (
                   <div>
                     {state.inputLabel && (
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      <label className="block text-sm font-semibold text-gray-800 mb-3">
                         {state.inputLabel}
                       </label>
                     )}
@@ -465,7 +498,7 @@ export default function NativePopup() {
                         value={state.inputValue}
                         onChange={handleInputChange}
                         placeholder={state.inputPlaceholder}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent resize-none"
+                        className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white resize-none transition-all duration-200 text-gray-900 placeholder:text-gray-400"
                         rows={3}
                       />
                     ) : (
@@ -476,7 +509,7 @@ export default function NativePopup() {
                         value={state.inputValue}
                         onChange={handleInputChange}
                         placeholder={state.inputPlaceholder}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white transition-all duration-200 text-gray-900 placeholder:text-gray-400"
                       />
                     )}
                   </div>
@@ -485,29 +518,31 @@ export default function NativePopup() {
             )}
           </div>
 
-          {/* Footer */}
-          <div className="flex gap-2 p-4 border-t border-gray-200">
-            {(state.type === 'confirm' || state.type === 'prompt') && (
+          {/* Footer with enhanced button styling - Native app feel */}
+          <div className="relative bg-gray-50/50">
+            <div className="flex gap-3 p-5">
+              {(state.type === 'confirm' || state.type === 'prompt') && (
+                <button
+                  onClick={handleClose}
+                  className="flex-1 px-5 py-4 bg-white text-gray-700 rounded-2xl font-semibold active:bg-gray-50 active:scale-[0.97] transition-all duration-200 touch-manipulation shadow-sm border border-gray-200/60"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  {state.cancelText || 'Cancel'}
+                </button>
+              )}
               <button
-                onClick={handleClose}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium active:bg-gray-200 transition-colors touch-manipulation"
+                onClick={handleConfirm}
+                disabled={state.type === 'prompt' && state.required && !state.inputValue.trim()}
+                className={`flex-1 px-5 py-4 rounded-2xl font-semibold transition-all duration-200 touch-manipulation shadow-lg ${
+                  state.type === 'prompt' && state.required && !state.inputValue.trim()
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                    : `bg-gradient-to-r from-primary-600 to-primary-700 text-white active:from-primary-700 active:to-primary-800 active:scale-[0.97] hover:shadow-xl`
+                }`}
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
-                {state.cancelText || 'Cancel'}
+                {state.confirmText || 'OK'}
               </button>
-            )}
-            <button
-              onClick={handleConfirm}
-              disabled={state.type === 'prompt' && state.required && !state.inputValue.trim()}
-              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors touch-manipulation ${
-                state.type === 'prompt' && state.required && !state.inputValue.trim()
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-primary-600 text-white active:bg-primary-700'
-              }`}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              {state.confirmText || 'OK'}
-            </button>
+            </div>
           </div>
         </div>
       </div>

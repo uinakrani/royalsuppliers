@@ -17,6 +17,18 @@ import { ledgerService } from './ledgerService'
 
 const ORDERS_COLLECTION = 'orders'
 
+// Helper function to check if an order is paid (within 100 of originalTotal)
+export const isOrderPaid = (order: Order): boolean => {
+  const expenseAmount = Number(order.originalTotal || 0)
+  if (expenseAmount <= 0) return false
+  
+  const partialPayments = order.partialPayments || []
+  const totalPaid = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+  
+  // Order is paid if total payments are within 100 of original total
+  return totalPaid >= (expenseAmount - 100)
+}
+
 export const orderService = {
   // Create order
   async createOrder(order: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number }): Promise<string> {
@@ -273,13 +285,14 @@ export const orderService = {
     // Calculate current total from existing payments
     const currentTotal = existingPayments.reduce((sum, p) => sum + p.amount, 0)
     
-    // Check if order is already fully paid based on partial payments
-    if (currentTotal >= expenseAmount && expenseAmount > 0 && !markAsPaid) {
-      throw new Error('Order is already fully paid')
+    // Check if order is already paid (within 100 of original total)
+    if (isOrderPaid(order) && !markAsPaid) {
+      throw new Error('Order is already paid')
     }
     
     // Calculate remaining amount
     const remainingAmount = expenseAmount - currentTotal
+    const tolerance = 100 // Orders are considered paid if within 100 of original total
     
     if (paymentAmount <= 0) {
       throw new Error('Payment amount must be greater than 0')
@@ -290,8 +303,9 @@ export const orderService = {
       throw new Error(`Payment amount (${paymentAmount}) cannot exceed original total (${expenseAmount})`)
     }
     
-    // If markAsPaid is not true, validate that payment doesn't exceed remaining amount
-    if (!markAsPaid && paymentAmount > remainingAmount) {
+    // If markAsPaid is not true, validate that payment doesn't exceed remaining amount + tolerance
+    // (allowing payments that would mark the order as paid, i.e., within 100 of original total)
+    if (!markAsPaid && paymentAmount > (remainingAmount + tolerance)) {
       throw new Error(`Payment amount (${paymentAmount}) exceeds remaining amount (${remainingAmount})`)
     }
     
@@ -345,6 +359,7 @@ export const orderService = {
       .filter((_, idx) => idx !== paymentIndex)
       .reduce((sum, p) => sum + p.amount, 0)
     
+    // Allow payments up to original total (with tolerance for "paid" status handled by isOrderPaid)
     if (otherPaymentsTotal + newAmount > expenseAmount) {
       const { formatIndianCurrency } = await import('./currencyUtils')
       throw new Error(`Total payments cannot exceed original total of ${formatIndianCurrency(expenseAmount)}`)
@@ -416,27 +431,16 @@ export const orderService = {
     
     const updatedPayments = existingPayments.filter(p => p.id !== paymentId)
     
-    // Calculate total paid amount from remaining payments
-    const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
-    
-    // Calculate expense amount to check if still fully paid
-    const expenseAmount = Number(order.originalTotal || 0)
-    const isFullyPaid = totalPaid >= expenseAmount
-    
     try {
       const orderRef = doc(db, ORDERS_COLLECTION, id)
       const updateData: any = {
-        paid: isFullyPaid,
-        paymentDue: !isFullyPaid,
         updatedAt: new Date().toISOString(),
       }
       
-      if (totalPaid > 0) {
-        updateData.paidAmount = totalPaid
+      if (updatedPayments.length > 0) {
         updateData.partialPayments = updatedPayments
       } else {
-        // Remove fields if no payments remain
-        updateData.paidAmount = deleteField()
+        // Remove field if no payments remain
         updateData.partialPayments = deleteField()
       }
       

@@ -5,7 +5,7 @@ import { X, Edit, Trash2, Plus } from 'lucide-react'
 import { Order } from '@/types/order'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
-import { orderService } from '@/lib/orderService'
+import { orderService, isOrderPaid } from '@/lib/orderService'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import PaymentEditDrawer from '@/components/PaymentEditDrawer'
@@ -65,12 +65,13 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
   const handleAddPayment = async () => {
     if (!order) return
     
-    const { remainingAmount } = getExpenseInfo(order)
-    
-    if (remainingAmount <= 0) {
-      showToast('Order is already fully paid', 'error')
+    // Check if order is already paid
+    if (isOrderPaid(order)) {
+      showToast('Order is already paid', 'error')
       return
     }
+    
+    const { remainingAmount } = getExpenseInfo(order)
 
     setAddingPayment(true)
     try {
@@ -430,13 +431,13 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
               <div className="flex justify-between items-start">
                 <span className="text-sm font-medium text-gray-500">Payment Status</span>
                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                  remainingAmount <= 0
+                  isOrderPaid(order)
                     ? 'bg-green-100 text-green-700' 
                     : totalPaid > 0
                     ? 'bg-yellow-100 text-yellow-700'
                     : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {remainingAmount <= 0 ? 'Paid' : totalPaid > 0 ? 'Partially Paid' : 'Pending'}
+                  {isOrderPaid(order) ? 'Paid' : totalPaid > 0 ? 'Partially Paid' : 'Pending'}
                 </span>
               </div>
             </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { orderService } from '@/lib/orderService'
+import { orderService, isOrderPaid } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
 import { partyPaymentService, PartyPayment } from '@/lib/partyPaymentService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
@@ -37,9 +37,9 @@ interface PartyGroup {
 
 interface SupplierGroup {
   supplierName: string
-  totalAmount: number // Total raw material cost (originalTotal)
-  totalPaid: number // Total paid via partial payments and ledger entries
-  remainingAmount: number // totalAmount - totalPaid
+  totalAmount: number // Total amount to be paid: sum of (originalTotal - non-ledger partial payments) for each order
+  totalPaid: number // Total paid via partial payments and ledger entries (for display)
+  remainingAmount: number // totalAmount - ledger payments (amount still remaining after ledger payments)
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
@@ -359,13 +359,14 @@ export default function OrdersPage() {
   }
 
   const handleAddPaymentToOrder = async (order: Order) => {
-    // Calculate expense amount and remaining payment
-    const { remainingAmount } = getOrderPaymentInfo(order)
-    
-    if (remainingAmount <= 0) {
-      showToast('Order is already fully paid', 'error')
+    // Check if order is already paid
+    if (isOrderPaid(order)) {
+      showToast('Order is already paid', 'error')
       return
     }
+    
+    // Calculate expense amount and remaining payment
+    const { remainingAmount } = getOrderPaymentInfo(order)
 
     try {
       const amountStr = await sweetAlert.prompt({
@@ -834,14 +835,23 @@ export default function OrdersPage() {
     // Calculate totals and payment info for each supplier
     const groups: SupplierGroup[] = []
     supplierMap.forEach((supplierOrders, supplierName) => {
-      // Calculate total raw material cost
-      const totalAmount = supplierOrders.reduce((sum, order) => sum + (order.originalTotal || 0), 0)
-      
-      // Calculate total paid from partial payments on orders
-      // This is the source of truth - all payments (whether from ledger or manual) are stored as partial payments
+      // Calculate total amount to be paid: for each order, originalTotal - non-ledger partial payments
+      // This represents the amount that still needs to be paid (excluding ledger payments)
+      let totalAmount = 0
       let totalPaid = 0
       supplierOrders.forEach(order => {
+        const orderOriginalTotal = order.originalTotal || 0
         const partialPayments = order.partialPayments || []
+        
+        // Calculate non-ledger partial payments (manual payments only)
+        const nonLedgerPayments = partialPayments.filter(p => !p.ledgerEntryId)
+        const nonLedgerPaid = nonLedgerPayments.reduce((sum, p) => sum + p.amount, 0)
+        
+        // Amount still to be paid for this order = originalTotal - non-ledger payments
+        const orderRemaining = orderOriginalTotal - nonLedgerPaid
+        totalAmount += Math.max(0, orderRemaining)
+        
+        // Total paid includes all payments (ledger + manual) for display purposes
         totalPaid += partialPayments.reduce((sum, p) => sum + p.amount, 0)
       })
 
@@ -850,8 +860,9 @@ export default function OrdersPage() {
         e => e.type === 'debit' && e.supplier === supplierName
       )
 
-      // Calculate remaining amount
-      const remainingAmount = Math.max(0, totalAmount - totalPaid)
+      // Calculate remaining amount: totalAmount (which already excludes non-ledger payments) - ledger payments
+      const totalLedgerPayments = supplierLedgerEntries.reduce((sum, e) => sum + e.amount, 0)
+      const remainingAmount = Math.max(0, totalAmount - totalLedgerPayments)
       
       // Verify calculation: Check if ledger entry amounts match partial payments with ledgerEntryId
       // This is for debugging/validation
@@ -1586,6 +1597,8 @@ export default function OrdersPage() {
                 const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
                 const partialPayments = order.partialPayments || []
                 const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+                const expenseAmount = Number(order.originalTotal || 0)
+                const isPaid = isOrderPaid(order)
 
                 return (
                   <div
@@ -1604,6 +1617,8 @@ export default function OrdersPage() {
                         ? 'bg-yellow-100'
                         : selectedOrders.has(order.id!)
                         ? 'bg-primary-50'
+                        : isPaid
+                        ? 'bg-green-50/30'
                         : 'bg-white'
                     }`}
                     style={{
@@ -1641,8 +1656,15 @@ export default function OrdersPage() {
 
                     {/* Party / Site Column */}
                     <div className="w-28 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="font-semibold text-gray-900 truncate text-[13px] leading-tight">
-                        {order.partyName}
+                      <div className="flex items-center gap-1">
+                        <div className="font-semibold text-gray-900 truncate text-[13px] leading-tight flex-1">
+                          {order.partyName}
+                        </div>
+                        {isPaid && (
+                          <span className="flex-shrink-0 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[9px] font-bold">
+                            ✓
+                          </span>
+                        )}
                       </div>
                       {order.siteName && (
                         <div className="text-[11px] text-gray-500 truncate mt-0.5">
@@ -1710,8 +1732,15 @@ export default function OrdersPage() {
 
                     {/* Original Total Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="font-semibold text-gray-800 text-[13px] leading-tight">
-                        {formatIndianCurrency(order.originalTotal)}
+                      <div className="flex items-center gap-1">
+                        <div className="font-semibold text-gray-800 text-[13px] leading-tight">
+                          {formatIndianCurrency(order.originalTotal)}
+                        </div>
+                        {isPaid && (
+                          <span className="flex-shrink-0 bg-green-500 text-white px-1.5 py-0.5 rounded text-[9px] font-bold">
+                            PAID
+                          </span>
+                        )}
                       </div>
                       {totalRawPayments > 0 && (
                         <div className="text-[11px] leading-tight mt-0.5">
@@ -1721,6 +1750,28 @@ export default function OrdersPage() {
                           {totalRawPayments < order.originalTotal && (
                             <div className="text-orange-600">
                               Rem: {formatIndianCurrency(order.originalTotal - totalRawPayments)}
+                            </div>
+                          )}
+                          {/* Show payment details for paid orders */}
+                          {isPaid && partialPayments.length > 0 && (
+                            <div className="mt-1 pt-1 border-t border-gray-200">
+                              <div className="text-[10px] text-gray-600 space-y-0.5">
+                                {partialPayments.slice(0, 2).map((payment, idx) => (
+                                  <div key={payment.id || idx} className="flex items-center justify-between gap-1">
+                                    <span className="truncate">
+                                      {payment.date ? format(safeParseDate(payment.date), 'dd MMM') : 'N/A'}
+                                    </span>
+                                    <span className="font-medium text-gray-700">
+                                      {formatIndianCurrency(payment.amount)}
+                                    </span>
+                                  </div>
+                                ))}
+                                {partialPayments.length > 2 && (
+                                  <div className="text-gray-500 italic">
+                                    +{partialPayments.length - 2} more
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

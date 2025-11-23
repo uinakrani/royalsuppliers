@@ -11,8 +11,8 @@ import BottomSheet from '@/components/BottomSheet'
 import LedgerEntryModal from '@/components/LedgerEntryModal'
 import { createRipple } from '@/lib/rippleEffect'
 import TruckLoading from '@/components/TruckLoading'
-import { orderService } from '@/lib/orderService'
-import { PaymentRecord } from '@/types/order'
+import { orderService, isOrderPaid } from '@/lib/orderService'
+import { PaymentRecord, Order } from '@/types/order'
 import { getDb } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore'
 
@@ -209,6 +209,7 @@ export default function LedgerPage() {
       }
       
       // Calculate outstanding amounts for each order (excluding payments from this ledger entry)
+      // Only include unpaid orders
       const ordersWithOutstanding = allOrders
         .map(order => {
           const existingPayments = order.partialPayments || []
@@ -216,9 +217,20 @@ export default function LedgerPage() {
           const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== entryId)
           const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + p.amount, 0)
           const remaining = Math.max(0, (order.originalTotal || 0) - totalPaid)
-          return { order, remaining, currentPayments: existingPayments }
+          
+          // Create a temporary order object with payments excluding this ledger entry
+          // to check if it's already paid
+          const tempOrder: Order = {
+            ...order,
+            partialPayments: paymentsExcludingThis
+          }
+          
+          return { order, remaining, currentPayments: existingPayments, tempOrder }
         })
-        .filter(({ remaining }) => remaining > 0)
+        .filter(({ remaining, tempOrder }) => {
+          // Filter out orders that are already paid (within 100 tolerance)
+          return remaining > 0 && !isOrderPaid(tempOrder)
+        })
         .sort((a, b) => {
           // Sort by date (oldest first), then by creation time
           const aDate = new Date(a.order.date).getTime()
