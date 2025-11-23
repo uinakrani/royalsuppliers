@@ -25,6 +25,7 @@ export interface PopupOptions {
 interface PopupState extends PopupOptions {
   isOpen: boolean
   inputValue: string
+  isClosing?: boolean
 }
 
 let popupStateRef: {
@@ -118,10 +119,12 @@ export const nativePopup = {
       setTimeout(() => {
         if (popupStateRef && popupStateRef.state?.isOpen) {
           // Trigger closing animation
-          popupStateRef.setState({ ...popupStateRef.state, isClosing: true })
+          const currentState = popupStateRef.state
+          popupStateRef.setState({ ...currentState, isClosing: true })
           setTimeout(() => {
-            if (popupStateRef) {
-              popupStateRef.setState({ ...popupStateRef.state, isOpen: false, inputValue: '', isClosing: false })
+            if (popupStateRef && popupStateRef.state) {
+              const finalState = popupStateRef.state
+              popupStateRef.setState({ ...finalState, isOpen: false, inputValue: '', isClosing: false })
               if (popupStateRef?.resolve) {
                 popupStateRef.resolve(undefined)
                 popupStateRef.resolve = () => {}
@@ -271,7 +274,9 @@ export default function NativePopup() {
           setIsMounted(false)
           setState(newState)
           // Update state ref for auto-close
-          popupStateRef.state = newState
+          if (popupStateRef) {
+            popupStateRef.state = newState
+          }
           // Trigger animation after mount
           if (newState.isOpen) {
             requestAnimationFrame(() => {

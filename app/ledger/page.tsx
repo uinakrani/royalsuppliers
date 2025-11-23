@@ -15,6 +15,8 @@ import { orderService, isOrderPaid } from '@/lib/orderService'
 import { PaymentRecord, Order } from '@/types/order'
 import { getDb } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore'
+import { nativePopup } from '@/components/NativePopup'
+import { showToast } from '@/components/Toast'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])

@@ -1759,7 +1759,7 @@ export default function OrdersPage() {
                                 {partialPayments.slice(0, 2).map((payment, idx) => (
                                   <div key={payment.id || idx} className="flex items-center justify-between gap-1">
                                     <span className="truncate">
-                                      {payment.date ? format(safeParseDate(payment.date), 'dd MMM') : 'N/A'}
+                                      {payment.date ? (() => { const date = safeParseDate(payment.date); return date ? format(date, 'dd MMM') : 'N/A'; })() : 'N/A'}
                                     </span>
                                     <span className="font-medium text-gray-700">
                                       {formatIndianCurrency(payment.amount)}

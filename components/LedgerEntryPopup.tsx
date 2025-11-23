@@ -331,23 +331,36 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
 
             {/* Amount Step */}
             {step === 'amount' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {mode === 'edit' ? 'Update Amount' : `Enter ${type === 'credit' ? 'Income' : 'Expense'} Amount`}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {mode === 'edit' 
+                      ? 'Enter the new amount for this entry'
+                      : `How much ${type === 'credit' ? 'did you receive' : 'did you spend'}?`
+                    }
+                  </p>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">Amount (₹)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" style={{ fontSize: '16px' }}>₹</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-lg font-medium" style={{ fontSize: '18px' }}>₹</span>
                     <input
                       type="text"
+                      inputMode="decimal"
+                      pattern="[0-9.]*"
                       value={amount}
                       onChange={handleAmountChange}
                       placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      style={{ fontSize: '16px' }}
+                      className="w-full pl-10 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-all duration-200 text-lg font-medium"
+                      style={{ fontSize: '18px' }}
                       autoFocus
                     />
                   </div>
                   {errors.amount && (
-                    <p className="mt-1 text-xs text-red-600">{errors.amount}</p>
+                    <p className="mt-2 text-sm text-red-600 font-medium">{errors.amount}</p>
                   )}
                 </div>
               </div>
@@ -355,19 +368,30 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
 
             {/* Date Step */}
             {step === 'date' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {mode === 'edit' ? 'Update Date' : 'Select Date'}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {mode === 'edit' 
+                      ? 'When did this transaction occur?'
+                      : `When did this ${type === 'credit' ? 'income' : 'expense'} occur?`
+                    }
+                  </p>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">Date</label>
                   <input
                     type="date"
                     value={date}
                     onChange={handleDateChange}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-all duration-200 text-base"
                     style={{ fontSize: '16px' }}
                     autoFocus
                   />
                   {errors.date && (
-                    <p className="mt-1 text-xs text-red-600">{errors.date}</p>
+                    <p className="mt-2 text-sm text-red-600 font-medium">{errors.date}</p>
                   )}
                 </div>
               </div>
@@ -375,10 +399,21 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
 
             {/* Supplier Step (for expense entries) */}
             {step === 'supplier' && type === 'debit' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {mode === 'edit' ? 'Update Supplier' : 'Select Supplier (Optional)'}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {mode === 'edit' 
+                      ? 'Which supplier is this expense for?'
+                      : 'Which supplier did you pay for raw materials? You can skip this step.'
+                    }
+                  </p>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Supplier <span className="text-gray-400 font-normal">(optional - can skip)</span>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Supplier
                   </label>
                   {!showCustomSupplier ? (
                     <div className="space-y-2">
@@ -433,10 +468,21 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
 
             {/* Party Step (for income entries) */}
             {step === 'party' && type === 'credit' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {mode === 'edit' ? 'Update Party Name' : 'Select Party Name (Optional)'}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {mode === 'edit' 
+                      ? 'Which party is this income from?'
+                      : 'Which party did you receive payment from? You can skip this step.'
+                    }
+                  </p>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Party Name <span className="text-gray-400 font-normal">(optional - can skip)</span>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Party Name
                   </label>
                   {!showCustomPartyName ? (
                     <div className="space-y-2">
