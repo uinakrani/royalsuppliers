@@ -44,6 +44,7 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     applyFilters()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoices, filters])
 
   const loadInvoices = async () => {

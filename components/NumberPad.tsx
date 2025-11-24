@@ -35,9 +35,18 @@ export default function NumberPad({
   
   // Reset display value when component opens with new value
   useEffect(() => {
-    const newValue = getInitialValue()
+    const newValue = (() => {
+      if (value === 0 || value === '0' || value === '' || !value) return '0'
+      const str = value.toString()
+      // Remove trailing zeros after decimal if it's a whole number
+      if (str.includes('.')) {
+        return str.replace(/\.?0+$/, '') || '0'
+      }
+      return str
+    })()
     setDisplayValue(newValue)
     setHasDecimal(newValue.includes('.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
   const handleNumberPress = (num: string) => {

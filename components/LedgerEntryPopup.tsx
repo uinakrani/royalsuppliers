@@ -111,6 +111,7 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
     return () => {
       document.body.style.overflow = ''
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, mode, initialData])
 
   const handleClose = () => {

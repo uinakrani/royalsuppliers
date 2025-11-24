@@ -305,6 +305,7 @@ export default function NativePopup() {
     return () => {
       popupStateRef = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleClose = () => {

@@ -397,6 +397,8 @@ export default function OrdersPage() {
         console.log('➕ Creating new order')
         const orderId = await orderService.createOrder(orderData)
         
+        showToast('Order created successfully!', 'success')
+        
         await loadOrders()
         
         setEditingOrder(null)
