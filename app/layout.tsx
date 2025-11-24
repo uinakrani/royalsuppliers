@@ -52,7 +52,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
         <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: dark)" />
@@ -104,6 +104,28 @@ export default function RootLayout({
           @media (prefers-color-scheme: light) {
             html {
               background-color: #2e31fb;
+            }
+          }
+          /* Hide browser UI on Android */
+          html.android body {
+            /* Force full viewport height */
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+          }
+          html.android #__next {
+            height: 100vh;
+            height: 100dvh;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          /* Hide address bar and browser chrome on Android */
+          @media screen and (display-mode: standalone) {
+            html.android {
+              /* Ensure fullscreen on Android */
+              position: fixed;
+              width: 100%;
+              height: 100%;
             }
           }
         `}} />

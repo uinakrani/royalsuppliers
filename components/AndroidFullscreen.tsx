@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { nativePopup } from './NativePopup'
 
 // Detect if device is Android
 const isAndroid = (): boolean => {
@@ -33,18 +32,10 @@ export default function AndroidFullscreen() {
       return
     }
 
-    // Only request fullscreen if in standalone mode
-    if (!isStandalone()) {
-      return
-    }
+    // Add Android class to body for CSS targeting
+    document.body.classList.add('android-device')
 
-    // Check if user has already dismissed fullscreen request
-    const fullscreenDismissed = localStorage.getItem('android-fullscreen-dismissed')
-    if (fullscreenDismissed === 'true') {
-      return
-    }
-
-    // Request fullscreen after user interaction
+    // Request fullscreen more aggressively - even if not in standalone mode yet
     const requestFullscreen = async () => {
       try {
         const doc = document.documentElement as any
@@ -73,36 +64,47 @@ export default function AndroidFullscreen() {
         }
       } catch (error: any) {
         // Fullscreen might require user gesture or may not be available
-        // Show a prompt to help user enable fullscreen
         if (error.name !== 'NotAllowedError') {
           console.log('Fullscreen request:', error.message || 'Not available')
         }
       }
     }
 
-    // Request fullscreen on first user interaction
+    // Request fullscreen on any user interaction
     const handleUserInteraction = () => {
       requestFullscreen()
-      // Remove listener after first interaction
-      document.removeEventListener('click', handleUserInteraction)
-      document.removeEventListener('touchstart', handleUserInteraction)
     }
 
-    // Wait a bit before adding listeners to ensure page is loaded
-    const timer = setTimeout(() => {
-      document.addEventListener('click', handleUserInteraction, { once: true })
-      document.addEventListener('touchstart', handleUserInteraction, { once: true })
+    // Add multiple event listeners for better coverage
+    const events = ['click', 'touchstart', 'touchend', 'mousedown']
+    events.forEach(event => {
+      document.addEventListener(event, handleUserInteraction, { once: true, passive: true })
+    })
+
+    // Try to request fullscreen immediately (might work if already in standalone)
+    if (isStandalone()) {
+      setTimeout(() => {
+        requestFullscreen()
+      }, 100)
+    }
+
+    // Also try after a delay
+    const timer1 = setTimeout(() => {
+      requestFullscreen()
     }, 1000)
 
-    // Also try to request fullscreen immediately if possible
-    setTimeout(() => {
+    // Try again after longer delay
+    const timer2 = setTimeout(() => {
       requestFullscreen()
-    }, 500)
+    }, 3000)
 
+    // Cleanup
     return () => {
-      clearTimeout(timer)
-      document.removeEventListener('click', handleUserInteraction)
-      document.removeEventListener('touchstart', handleUserInteraction)
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      events.forEach(event => {
+        document.removeEventListener(event, handleUserInteraction)
+      })
     }
   }, [])
 
