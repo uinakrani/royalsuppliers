@@ -232,10 +232,10 @@ export default function SupplierDetailPopup({
                             <span className="font-semibold text-orange-600">{formatIndianCurrency(undistributedAmount)}</span>
                           </div>
                         )}
-                        <div className="text-[10px] text-gray-500 mt-1 pl-1">
+                        <div className="text-xs text-gray-600 mt-2 px-2 py-1 bg-orange-100 rounded border border-orange-200">
                           {undistributedAmount > 0 
-                            ? `(Not enough unpaid orders to distribute full amount)`
-                            : `(Over-distributed - check for errors)`}
+                            ? `Not enough unpaid orders to distribute full amount`
+                            : `Over-distributed - check for errors`}
                         </div>
                       </div>
                     )
@@ -330,7 +330,7 @@ export default function SupplierDetailPopup({
                   return (
                     <div
                       key={order.id}
-                      className="bg-white rounded-lg p-2 border border-blue-300 transition-all duration-150 active:bg-blue-50 native-press"
+                      className="bg-white rounded-lg p-3 border border-blue-300 transition-all duration-150 active:bg-blue-50 native-press shadow-sm"
                       style={{
                         WebkitTapHighlightColor: 'transparent',
                         position: 'relative',
@@ -345,118 +345,122 @@ export default function SupplierDetailPopup({
                         }
                       }}
                     >
-                      <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
+                          <div className="flex items-center gap-2 mb-1">
                             {orderDate && (
-                              <span className="text-[9px] text-gray-500">{format(orderDate, 'dd MMM')}</span>
+                              <span className="text-xs text-gray-500 font-medium">{format(orderDate, 'dd MMM')}</span>
                             )}
-                            <span className="text-xs font-semibold text-gray-900 truncate">{order.siteName}</span>
+                            <span className="text-sm font-semibold text-gray-900 truncate">{order.siteName}</span>
                           </div>
-                          <div className="flex items-center gap-1 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {materials.slice(0, 2).map((mat, idx) => (
-                              <span key={idx} className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[8px] font-medium">
+                              <span key={idx} className="bg-primary-50 text-primary-700 px-2 py-1 rounded-md text-xs font-medium border border-primary-100">
                                 {mat}
                               </span>
                             ))}
                             {materials.length > 2 && (
-                              <span className="text-[8px] text-gray-500">+{materials.length - 2}</span>
+                              <span className="text-xs text-gray-500 font-medium">+{materials.length - 2} more</span>
                             )}
                           </div>
                         </div>
                         <div className="text-right ml-2 flex-shrink-0">
-                          <p className="text-xs font-bold text-orange-600">{formatIndianCurrency(expenseAmount)}</p>
+                          <p className="text-sm font-bold text-orange-600">{formatIndianCurrency(expenseAmount)}</p>
                         </div>
                       </div>
                       
                       {expenseAmount > 0 && (
-                        <div className="space-y-1.5 pt-1.5 border-t border-gray-100">
+                        <div className="space-y-2 pt-2 border-t border-gray-200">
                           {/* Payment Summary */}
-                          <div className="grid grid-cols-2 gap-1.5 text-[9px]">
-                            <div className="bg-blue-50 rounded p-1">
-                              <div className="text-gray-600 mb-0.5">Total Paid:</div>
-                              <div className={`font-bold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-blue-50 rounded-lg p-2 border border-blue-100">
+                              <div className="text-xs text-gray-600 mb-1 font-medium">Total Paid</div>
+                              <div className={`text-sm font-bold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
                                 {formatIndianCurrency(totalPaid)}
                               </div>
                             </div>
                             {remainingAmount > 0 && (
-                              <div className="bg-red-50 rounded p-1">
-                                <div className="text-gray-600 mb-0.5">Remaining:</div>
-                                <div className="font-bold text-red-600">{formatIndianCurrency(remainingAmount)}</div>
+                              <div className="bg-red-50 rounded-lg p-2 border border-red-100">
+                                <div className="text-xs text-gray-600 mb-1 font-medium">Remaining</div>
+                                <div className="text-sm font-bold text-red-600">{formatIndianCurrency(remainingAmount)}</div>
                               </div>
                             )}
                           </div>
                           
                           {/* Payment Breakdown: Direct vs Supplier */}
                           {totalPaid > 0 && (
-                            <div className="bg-gray-50 rounded p-1.5 space-y-1">
-                              <div className="text-[8px] font-semibold text-gray-700 mb-1">Payment Breakdown:</div>
+                            <div className="bg-gray-50 rounded-lg p-2.5 space-y-2 border border-gray-200">
+                              <div className="text-xs font-semibold text-gray-800 mb-2">Payment Breakdown</div>
                               
                               {/* Direct Payments (to driver, etc.) */}
                               {paidDirectly > 0 && (
-                                <div className="bg-blue-50 rounded p-1">
-                                  <div className="flex items-center justify-between text-[8px] mb-0.5">
-                                    <span className="font-semibold text-blue-700">Paid Directly (Driver, etc.):</span>
-                                    <span className="font-bold text-blue-700">{formatIndianCurrency(paidDirectly)}</span>
+                                <div className="bg-blue-50 rounded-lg p-2 border border-blue-100">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-xs font-semibold text-blue-700">Paid Directly</span>
+                                    <span className="text-xs font-bold text-blue-700">{formatIndianCurrency(paidDirectly)}</span>
                                   </div>
-                                  {directPayments.map((payment, pIdx) => {
-                                    const paymentDate = safeParseDate(payment.date)
-                                    return (
-                                      <div key={pIdx} className="flex items-center justify-between text-[7px] text-gray-600 pl-1">
-                                        <div className="flex items-center gap-1">
-                                          {paymentDate && (
-                                            <span>{format(paymentDate, 'dd MMM')}</span>
-                                          )}
-                                          {payment.note && (
-                                            <span>• {payment.note}</span>
-                                          )}
+                                  <div className="space-y-1">
+                                    {directPayments.map((payment, pIdx) => {
+                                      const paymentDate = safeParseDate(payment.date)
+                                      return (
+                                        <div key={pIdx} className="flex items-center justify-between text-xs text-gray-700 bg-white rounded px-2 py-1">
+                                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                            {paymentDate && (
+                                              <span className="text-gray-500 whitespace-nowrap">{format(paymentDate, 'dd MMM')}</span>
+                                            )}
+                                            {payment.note && (
+                                              <span className="truncate">• {payment.note}</span>
+                                            )}
+                                          </div>
+                                          <span className="font-semibold text-gray-900 ml-2 flex-shrink-0">{formatIndianCurrency(payment.amount)}</span>
                                         </div>
-                                        <span className="font-semibold">{formatIndianCurrency(payment.amount)}</span>
-                                      </div>
-                                    )
-                                  })}
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                               )}
                               
                               {/* Supplier Payments (from ledger) */}
                               {paidToSupplier > 0 && (
-                                <div className="bg-green-50 rounded p-1">
-                                  <div className="flex items-center justify-between text-[8px] mb-0.5">
-                                    <span className="font-semibold text-green-700">Paid to Supplier (Ledger):</span>
-                                    <span className="font-bold text-green-700">{formatIndianCurrency(paidToSupplier)}</span>
+                                <div className="bg-green-50 rounded-lg p-2 border border-green-100">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-xs font-semibold text-green-700">Paid to Supplier</span>
+                                    <span className="text-xs font-bold text-green-700">{formatIndianCurrency(paidToSupplier)}</span>
                                   </div>
-                                  <div className="text-[7px] text-gray-500 mb-0.5 pl-1">
+                                  <div className="text-xs text-gray-600 mb-1.5 px-1">
                                     (Portion of ledger entry allocated to this order)
                                   </div>
-                                  {supplierPaymentsWithLedger.map((payment, pIdx) => {
-                                    // Use ledger entry date if available, otherwise use payment date
-                                    const paymentDate = payment.ledgerEntry?.date 
-                                      ? safeParseDate(payment.ledgerEntry.date)
-                                      : safeParseDate(payment.date)
-                                    const displayNote = payment.ledgerEntry?.note || payment.note
-                                    // Show the ledger entry total if it's different from the order portion
-                                    const ledgerEntryTotal = payment.ledgerEntry?.amount || 0
-                                    const isPartial = ledgerEntryTotal > 0 && Math.abs(ledgerEntryTotal - payment.amount) > 0.01
-                                    return (
-                                      <div key={pIdx} className="flex items-center justify-between text-[7px] text-gray-600 pl-1">
-                                        <div className="flex items-center gap-1">
-                                          {paymentDate && (
-                                            <span>{format(paymentDate, 'dd MMM')}</span>
-                                          )}
-                                          <span className="text-green-600">• From Ledger</span>
-                                          {isPartial && (
-                                            <span className="text-gray-400" title={`Ledger entry total: ${formatIndianCurrency(ledgerEntryTotal)}`}>
-                                              (of {formatIndianCurrency(ledgerEntryTotal)})
-                                            </span>
-                                          )}
-                                          {displayNote && (
-                                            <span>• {displayNote}</span>
-                                          )}
+                                  <div className="space-y-1">
+                                    {supplierPaymentsWithLedger.map((payment, pIdx) => {
+                                      // Use ledger entry date if available, otherwise use payment date
+                                      const paymentDate = payment.ledgerEntry?.date 
+                                        ? safeParseDate(payment.ledgerEntry.date)
+                                        : safeParseDate(payment.date)
+                                      const displayNote = payment.ledgerEntry?.note || payment.note
+                                      // Show the ledger entry total if it's different from the order portion
+                                      const ledgerEntryTotal = payment.ledgerEntry?.amount || 0
+                                      const isPartial = ledgerEntryTotal > 0 && Math.abs(ledgerEntryTotal - payment.amount) > 0.01
+                                      return (
+                                        <div key={pIdx} className="flex items-center justify-between text-xs text-gray-700 bg-white rounded px-2 py-1">
+                                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                            {paymentDate && (
+                                              <span className="text-gray-500 whitespace-nowrap">{format(paymentDate, 'dd MMM')}</span>
+                                            )}
+                                            <span className="text-green-600 font-medium">• From Ledger</span>
+                                            {isPartial && (
+                                              <span className="text-gray-500 text-[10px]" title={`Ledger entry total: ${formatIndianCurrency(ledgerEntryTotal)}`}>
+                                                (of {formatIndianCurrency(ledgerEntryTotal)})
+                                              </span>
+                                            )}
+                                            {displayNote && (
+                                              <span className="truncate">• {displayNote}</span>
+                                            )}
+                                          </div>
+                                          <span className="font-semibold text-gray-900 ml-2 flex-shrink-0">{formatIndianCurrency(payment.amount)}</span>
                                         </div>
-                                        <span className="font-semibold">{formatIndianCurrency(payment.amount)}</span>
-                                      </div>
-                                    )
-                                  })}
+                                      )
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -508,7 +512,7 @@ export default function SupplierDetailPopup({
                               </p>
                             )}
                           </div>
-                          <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="From ledger entry - edit in ledger">
+                          <span className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded-md border border-gray-200" title="From ledger entry - edit in ledger">
                             From Ledger
                           </span>
                         </div>
