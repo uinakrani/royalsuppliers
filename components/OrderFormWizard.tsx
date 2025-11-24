@@ -238,7 +238,8 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       originalWeight: Weight,
       originalRate: DollarSign,
       additionalCost: DollarSign,
-      review: Check
+      review: Check,
+      confirm: Check
     }
     return icons[step]
   }
@@ -953,7 +954,6 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         right: 0,
         bottom: 0,
         zIndex: 99999,
-        height: '100vh',
         height: '100dvh',
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
