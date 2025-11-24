@@ -319,7 +319,7 @@ export default function OrderDetailPopup({
                                 {formatIndianCurrency(payment.amount)}
                               </span>
                               {isFromLedger && (
-                                <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                <span className="text-[11px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
                                   From Ledger
                                 </span>
                               )}

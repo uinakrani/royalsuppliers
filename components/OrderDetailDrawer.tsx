@@ -343,12 +343,12 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-gray-600">{format(new Date(payment.date), 'dd MMM yyyy')}</span>
                                   {isFromLedger && (
-                                    <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                    <span className="text-[11px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
                                       From Ledger
                                     </span>
                                   )}
                                   {payment.note && (
-                                    <span className="text-gray-500 text-[10px]">• {payment.note}</span>
+                                    <span className="text-gray-500 text-[11px]">• {payment.note}</span>
                                   )}
                                 </div>
                                 <span className="font-semibold text-gray-900">{formatIndianCurrency(payment.amount)}</span>

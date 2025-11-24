@@ -95,7 +95,7 @@ export default function NavBar() {
               
               {/* Label */}
               <span 
-                className={`text-[10px] mt-1 font-medium transition-all duration-200 ${
+                className={`text-[11px] mt-1 font-medium transition-all duration-200 ${
                   isActive ? 'text-primary-600' : 'text-gray-500'
                 }`}
                 style={{

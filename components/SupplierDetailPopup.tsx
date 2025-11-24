@@ -232,7 +232,7 @@ export default function SupplierDetailPopup({
                             <span className="font-semibold text-orange-600">{formatIndianCurrency(undistributedAmount)}</span>
                           </div>
                         )}
-                        <div className="text-[10px] text-gray-500 mt-1 pl-1">
+                        <div className="text-[11px] text-gray-500 mt-1 pl-1">
                           {undistributedAmount > 0 
                             ? `(Not enough unpaid orders to distribute full amount)`
                             : `(Over-distributed - check for errors)`}
@@ -349,18 +349,18 @@ export default function SupplierDetailPopup({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             {orderDate && (
-                              <span className="text-[9px] text-gray-500">{format(orderDate, 'dd MMM')}</span>
+                              <span className="text-[11px] text-gray-500">{format(orderDate, 'dd MMM')}</span>
                             )}
                             <span className="text-xs font-semibold text-gray-900 truncate">{order.siteName}</span>
                           </div>
                           <div className="flex items-center gap-1 flex-wrap">
                             {materials.slice(0, 2).map((mat, idx) => (
-                              <span key={idx} className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[8px] font-medium">
+                              <span key={idx} className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[11px] font-medium">
                                 {mat}
                               </span>
                             ))}
                             {materials.length > 2 && (
-                              <span className="text-[8px] text-gray-500">+{materials.length - 2}</span>
+                              <span className="text-[11px] text-gray-500">+{materials.length - 2}</span>
                             )}
                           </div>
                         </div>
@@ -372,7 +372,7 @@ export default function SupplierDetailPopup({
                       {expenseAmount > 0 && (
                         <div className="space-y-1.5 pt-1.5 border-t border-gray-100">
                           {/* Payment Summary */}
-                          <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                          <div className="grid grid-cols-2 gap-1.5 text-[11px]">
                             <div className="bg-blue-50 rounded p-1">
                               <div className="text-gray-600 mb-0.5">Total Paid:</div>
                               <div className={`font-bold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
@@ -390,19 +390,19 @@ export default function SupplierDetailPopup({
                           {/* Payment Breakdown: Direct vs Supplier */}
                           {totalPaid > 0 && (
                             <div className="bg-gray-50 rounded p-1.5 space-y-1">
-                              <div className="text-[8px] font-semibold text-gray-700 mb-1">Payment Breakdown:</div>
+                              <div className="text-[11px] font-semibold text-gray-700 mb-1">Payment Breakdown:</div>
                               
                               {/* Direct Payments (to driver, etc.) */}
                               {paidDirectly > 0 && (
                                 <div className="bg-blue-50 rounded p-1">
-                                  <div className="flex items-center justify-between text-[8px] mb-0.5">
+                                  <div className="flex items-center justify-between text-[11px] mb-0.5">
                                     <span className="font-semibold text-blue-700">Paid Directly (Driver, etc.):</span>
                                     <span className="font-bold text-blue-700">{formatIndianCurrency(paidDirectly)}</span>
                                   </div>
                                   {directPayments.map((payment, pIdx) => {
                                     const paymentDate = safeParseDate(payment.date)
                                     return (
-                                      <div key={pIdx} className="flex items-center justify-between text-[7px] text-gray-600 pl-1">
+                                      <div key={pIdx} className="flex items-center justify-between text-[11px] text-gray-600 pl-1">
                                         <div className="flex items-center gap-1">
                                           {paymentDate && (
                                             <span>{format(paymentDate, 'dd MMM')}</span>
@@ -421,11 +421,11 @@ export default function SupplierDetailPopup({
                               {/* Supplier Payments (from ledger) */}
                               {paidToSupplier > 0 && (
                                 <div className="bg-green-50 rounded p-1">
-                                  <div className="flex items-center justify-between text-[8px] mb-0.5">
+                                  <div className="flex items-center justify-between text-[11px] mb-0.5">
                                     <span className="font-semibold text-green-700">Paid to Supplier (Ledger):</span>
                                     <span className="font-bold text-green-700">{formatIndianCurrency(paidToSupplier)}</span>
                                   </div>
-                                  <div className="text-[7px] text-gray-500 mb-0.5 pl-1">
+                                  <div className="text-[11px] text-gray-500 mb-0.5 pl-1">
                                     (Portion of ledger entry allocated to this order)
                                   </div>
                                   {supplierPaymentsWithLedger.map((payment, pIdx) => {
@@ -438,7 +438,7 @@ export default function SupplierDetailPopup({
                                     const ledgerEntryTotal = payment.ledgerEntry?.amount || 0
                                     const isPartial = ledgerEntryTotal > 0 && Math.abs(ledgerEntryTotal - payment.amount) > 0.01
                                     return (
-                                      <div key={pIdx} className="flex items-center justify-between text-[7px] text-gray-600 pl-1">
+                                      <div key={pIdx} className="flex items-center justify-between text-[11px] text-gray-600 pl-1">
                                         <div className="flex items-center gap-1">
                                           {paymentDate && (
                                             <span>{format(paymentDate, 'dd MMM')}</span>
@@ -508,7 +508,7 @@ export default function SupplierDetailPopup({
                               </p>
                             )}
                           </div>
-                          <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="From ledger entry - edit in ledger">
+                          <span className="text-[11px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="From ledger entry - edit in ledger">
                             From Ledger
                           </span>
                         </div>

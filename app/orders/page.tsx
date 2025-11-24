@@ -1768,7 +1768,7 @@ export default function OrdersPage() {
                         <h3 className="font-bold text-sm text-gray-900 truncate">{group.partyName}</h3>
                       </div>
                       {group.orders.length > 0 && group.orders[0].siteName && (
-                        <p className="text-[10px] text-gray-500 truncate ml-4.5">{group.orders[0].siteName}</p>
+                        <p className="text-xs text-gray-500 truncate ml-4.5">{group.orders[0].siteName}</p>
                       )}
                     </div>
                     <button
@@ -1829,13 +1829,13 @@ export default function OrdersPage() {
                   {/* Stats - Inline */}
                   <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-gray-600">Total:</span>
+                      <span className="text-xs text-gray-600">Total:</span>
                       <span className="text-xs font-bold text-primary-700">
                         {formatIndianCurrency(group.totalSelling)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-gray-600">Profit:</span>
+                      <span className="text-xs text-gray-600">Profit:</span>
                       <span className={`text-xs font-bold ${
                         group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
@@ -1843,13 +1843,13 @@ export default function OrdersPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-gray-600">Receive:</span>
+                      <span className="text-xs text-gray-600">Receive:</span>
                       <span className="text-xs font-bold text-green-600">
                         {formatIndianCurrency(group.totalPaid)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-gray-600">Due:</span>
+                      <span className="text-xs text-gray-600">Due:</span>
                       <span className={`text-xs font-bold ${
                         balance > 0 ? 'text-red-600' : 'text-green-600'
                       }`}>
@@ -1861,14 +1861,14 @@ export default function OrdersPage() {
                   {/* Footer - Minimal */}
                   <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
                     {lastPaymentDateObj && group.lastPaymentAmount !== null ? (
-                      <span className="text-[10px] text-gray-500">
+                      <span className="text-xs text-gray-500">
                         {format(lastPaymentDateObj, 'dd MMM')} • {formatIndianCurrency(group.lastPaymentAmount)}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-gray-400">No payments</span>
+                      <span className="text-xs text-gray-400">No payments</span>
                     )}
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-gray-500">
+                      <span className="text-xs text-gray-500">
                         {group.orders.length} order{group.orders.length !== 1 ? 's' : ''}
                       </span>
                       <ChevronRight size={11} className="text-gray-400" />
@@ -1953,7 +1953,7 @@ export default function OrdersPage() {
                   )}
 
                   {/* Quick Stats */}
-                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500">
+                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
                     <span>{group.orders.length} {group.orders.length === 1 ? 'Order' : 'Orders'}</span>
                     <span>•</span>
                     <span>{group.ledgerPayments.length} {group.ledgerPayments.length === 1 ? 'Payment' : 'Payments'}</span>
@@ -2004,34 +2004,34 @@ export default function OrdersPage() {
               <div className="flex items-center">
                 <div className="w-12 px-1 py-1.5 flex-shrink-0"></div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Date</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Date</span>
                 </div>
                 <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
                 </div>
                 <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Material</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Material</span>
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Wt/Rate</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Wt/Rate</span>
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Total</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Total</span>
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Truck</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Truck</span>
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Orig Wt/Rate</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Orig Wt/Rate</span>
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Orig Total</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Orig Total</span>
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Add/Profit</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Add/Profit</span>
                 </div>
                 <div className="w-32 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Actions</span>
+                  <span className="text-xs font-semibold text-gray-600 uppercase leading-tight">Actions</span>
                 </div>
               </div>
             </div>
@@ -2092,10 +2092,10 @@ export default function OrdersPage() {
 
                     {/* Date Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-600 text-[11px] leading-tight font-medium">
+                      <div className="text-gray-600 text-xs leading-tight font-medium">
                         {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
                       </div>
-                      <div className="text-gray-500 text-[10px] leading-tight mt-0.5">
+                      <div className="text-gray-500 text-xs leading-tight mt-0.5">
                         {orderDate ? format(orderDate, 'hh:mm a') : ''}
                       </div>
                     </div>
@@ -2107,13 +2107,13 @@ export default function OrdersPage() {
                           {order.partyName}
                         </div>
                         {isPaid && (
-                          <span className="flex-shrink-0 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[9px] font-bold">
+                          <span className="flex-shrink-0 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-xs font-bold">
                             ✓
                           </span>
                         )}
                       </div>
                       {order.siteName && (
-                        <div className="text-[11px] text-gray-500 truncate mt-0.5">
+                        <div className="text-xs text-gray-500 truncate mt-0.5">
                           {order.siteName}
                         </div>
                       )}
@@ -2125,7 +2125,7 @@ export default function OrdersPage() {
                         {materials.map((mat, idx) => (
                           <span
                             key={idx}
-                            className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
+                            className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap"
                             title={mat}
                           >
                             {mat}
@@ -2136,10 +2136,10 @@ export default function OrdersPage() {
 
                     {/* Weight / Rate Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight">
+                      <div className="text-gray-700 text-xs leading-tight">
                         Wt: {order.weight.toLocaleString('en-IN')}
                       </div>
-                      <div className="text-gray-700 text-[11px] leading-tight">
+                      <div className="text-gray-700 text-xs leading-tight">
                         R: {formatIndianCurrency(order.rate)}
                       </div>
                     </div>
@@ -2153,14 +2153,14 @@ export default function OrdersPage() {
 
                     {/* Truck Owner / No. / Supplier Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight truncate font-semibold">
+                      <div className="text-gray-700 text-xs leading-tight truncate font-semibold">
                         {order.truckOwner}
                       </div>
-                      <div className="text-gray-500 text-[11px] leading-tight">
+                      <div className="text-gray-500 text-xs leading-tight">
                         {order.truckNo}
                       </div>
                       {order.supplier && (
-                        <div className="text-orange-600 text-[10px] leading-tight font-bold mt-0.5 truncate">
+                        <div className="text-orange-600 text-xs leading-tight font-bold mt-0.5 truncate">
                           {order.supplier}
                         </div>
                       )}
@@ -2168,10 +2168,10 @@ export default function OrdersPage() {
 
                     {/* Original Weight / Rate Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight">
+                      <div className="text-gray-700 text-xs leading-tight">
                         Wt: {order.originalWeight.toLocaleString('en-IN')}
                       </div>
-                      <div className="text-gray-700 text-[11px] leading-tight">
+                      <div className="text-gray-700 text-xs leading-tight">
                         R: {formatIndianCurrency(order.originalRate)}
                       </div>
                     </div>
@@ -2183,13 +2183,13 @@ export default function OrdersPage() {
                           {formatIndianCurrency(order.originalTotal)}
                         </div>
                         {isPaid && (
-                          <span className="flex-shrink-0 bg-green-500 text-white px-1.5 py-0.5 rounded text-[9px] font-bold">
+                          <span className="flex-shrink-0 bg-green-500 text-white px-1.5 py-0.5 rounded text-xs font-bold">
                             PAID
                           </span>
                         )}
                       </div>
                       {totalRawPayments > 0 && (
-                        <div className="text-[11px] leading-tight mt-0.5">
+                        <div className="text-xs leading-tight mt-0.5">
                           <div className="text-green-600 font-medium">
                             Paid: {formatIndianCurrency(totalRawPayments)}
                           </div>
@@ -2201,7 +2201,7 @@ export default function OrdersPage() {
                           {/* Show payment details for paid orders */}
                           {isPaid && partialPayments.length > 0 && (
                             <div className="mt-1 pt-1 border-t border-gray-200">
-                              <div className="text-[10px] text-gray-600 space-y-0.5">
+                              <div className="text-xs text-gray-600 space-y-0.5">
                                 {partialPayments.slice(0, 2).map((payment, idx) => (
                                   <div key={payment.id || idx} className="flex items-center justify-between gap-1">
                                     <span className="truncate">
@@ -2226,7 +2226,7 @@ export default function OrdersPage() {
 
                     {/* Additional Cost / Profit Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-blue-600 text-[11px] leading-tight">
+                      <div className="text-blue-600 text-xs leading-tight">
                         Add: {formatIndianCurrency(order.additionalCost)}
                       </div>
                       <div className={`font-semibold text-[13px] leading-tight ${
@@ -2243,7 +2243,7 @@ export default function OrdersPage() {
                           e.stopPropagation()
                           handleAddPaymentToOrder(order)
                         }}
-                        className="w-full px-2 py-1.5 bg-primary-600 text-white text-[10px] font-medium rounded-lg active:bg-primary-700 transition-colors touch-manipulation native-press"
+                        className="w-full px-2 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-lg active:bg-primary-700 transition-colors touch-manipulation native-press"
                         style={{
                           WebkitTapHighlightColor: 'transparent',
                           position: 'relative',
@@ -2258,7 +2258,7 @@ export default function OrdersPage() {
                           setSelectedOrderDetail(order)
                           setShowOrderDetailDrawer(true)
                         }}
-                        className="w-full px-2 py-1.5 bg-gray-600 text-white text-[10px] font-medium rounded-lg active:bg-gray-700 transition-colors touch-manipulation native-press"
+                        className="w-full px-2 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg active:bg-gray-700 transition-colors touch-manipulation native-press"
                         style={{
                           WebkitTapHighlightColor: 'transparent',
                           position: 'relative',
@@ -2435,7 +2435,7 @@ export default function OrdersPage() {
                                         {formatIndianCurrency(payment.amount)}
                                       </span>
                                       {isFromLedger && (
-                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
+                                        <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium">
                                           From Ledger
                                         </span>
                                       )}
