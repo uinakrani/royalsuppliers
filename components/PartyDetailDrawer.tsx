@@ -311,11 +311,11 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                     <div className="flex items-center justify-between pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         {order.invoiced ? (
-                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[11px] font-medium">
+                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[9px] font-medium">
                             Invoiced
                           </span>
                         ) : (
-                          <span className="text-[11px] text-gray-400">Not Invoiced</span>
+                          <span className="text-[9px] text-gray-400">Not Invoiced</span>
                         )}
                       </div>
                       <div className="flex items-center gap-1">
@@ -395,7 +395,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                         </button>
                       )}
                       {paymentItem.ledgerEntryId && (
-                        <span className="text-[11px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry">
+                        <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry">
                           From Ledger
                         </span>
                       )}

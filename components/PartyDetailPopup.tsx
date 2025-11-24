@@ -354,24 +354,24 @@ export default function PartyDetailPopup({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             {orderDate && (
-                              <span className="text-[11px] text-gray-500">{format(orderDate, 'dd MMM')}</span>
+                              <span className="text-[9px] text-gray-500">{format(orderDate, 'dd MMM')}</span>
                             )}
                             <span className="text-xs font-semibold text-gray-900 truncate">{order.siteName}</span>
                           </div>
                           <div className="flex items-center gap-1 flex-wrap">
                             {materials.slice(0, 2).map((mat, idx) => (
-                              <span key={idx} className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[11px] font-medium">
+                              <span key={idx} className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[8px] font-medium">
                                 {mat}
                               </span>
                             ))}
                             {materials.length > 2 && (
-                              <span className="text-[11px] text-gray-500">+{materials.length - 2}</span>
+                              <span className="text-[8px] text-gray-500">+{materials.length - 2}</span>
                             )}
                           </div>
                         </div>
                         <div className="text-right ml-2 flex-shrink-0">
                           <p className="text-xs font-bold text-primary-600">{formatIndianCurrency(order.total)}</p>
-                          <p className={`text-[11px] font-semibold mt-0.5 ${
+                          <p className={`text-[10px] font-semibold mt-0.5 ${
                             order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                           }`}>
                             Profit: {formatIndianCurrency(order.profit)}
@@ -381,7 +381,7 @@ export default function PartyDetailPopup({
                       
                       {/* Compact Info Row */}
                       {expenseAmount > 0 && (
-                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[11px]">
+                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[9px]">
                           <div className="flex items-center gap-2">
                             <span className="text-gray-600">Exp:</span>
                             <span className="text-gray-700">{formatIndianCurrency(expenseAmount)}</span>
@@ -480,7 +480,7 @@ export default function PartyDetailPopup({
                             </button>
                           )}
                           {paymentItem.ledgerEntryId && (
-                            <span className="text-[11px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry - edit in ledger">
+                            <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry - edit in ledger">
                               From Ledger
                             </span>
                           )}
