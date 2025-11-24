@@ -191,15 +191,68 @@ export default function SupplierDetailPopup({
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Amount</span>
+                  <span className="text-sm text-gray-600">Total Amount to Supplier</span>
                   <span className="text-sm font-bold text-gray-900">{formatIndianCurrency(group.totalAmount)}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Paid</span>
-                  <span className="text-sm font-bold text-green-600">{formatIndianCurrency(group.totalPaid)}</span>
+                <div className="text-xs text-gray-500 pl-1">
+                  (Sum of: Original Total - Direct Payments for each order)
                 </div>
+                
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm text-gray-600">Paid to Supplier (Ledger)</span>
+                  <span className="text-sm font-bold text-green-600">
+                    {formatIndianCurrency(group.ledgerPayments.reduce((sum, p) => sum + Number(p.entry.amount || 0), 0))}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500 pl-1">
+                  (Total from all ledger expense entries for this supplier)
+                </div>
+                {(() => {
+                  // Calculate total ledger entry amount vs total distributed to orders
+                  const totalLedgerEntryAmount = group.ledgerPayments.reduce((sum, p) => sum + Number(p.entry.amount || 0), 0)
+                  const totalDistributedToOrders = group.orders.reduce((sum, order) => {
+                    const ledgerPayments = (order.partialPayments || []).filter(p => {
+                      const ledgerEntryIds = new Set(group.ledgerPayments.map(p => p.entry.id).filter(Boolean))
+                      return p.ledgerEntryId && ledgerEntryIds.has(p.ledgerEntryId)
+                    })
+                    return sum + ledgerPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+                  }, 0)
+                  const undistributedAmount = totalLedgerEntryAmount - totalDistributedToOrders
+                  
+                  if (Math.abs(undistributedAmount) > 0.01) {
+                    return (
+                      <div className="mt-2 pt-2 border-t border-orange-200">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-600">Distributed to Orders:</span>
+                          <span className="font-semibold text-blue-600">{formatIndianCurrency(totalDistributedToOrders)}</span>
+                        </div>
+                        {undistributedAmount > 0 && (
+                          <div className="flex justify-between items-center text-xs mt-1">
+                            <span className="text-gray-600">Undistributed Amount:</span>
+                            <span className="font-semibold text-orange-600">{formatIndianCurrency(undistributedAmount)}</span>
+                          </div>
+                        )}
+                        <div className="text-[10px] text-gray-500 mt-1 pl-1">
+                          {undistributedAmount > 0 
+                            ? `(Not enough unpaid orders to distribute full amount)`
+                            : `(Over-distributed - check for errors)`}
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Paid (All Payments)</span>
+                  <span className="text-sm font-bold text-blue-600">{formatIndianCurrency(group.totalPaid)}</span>
+                </div>
+                <div className="text-xs text-gray-500 pl-1">
+                  (Includes: Direct payments + Supplier payments)
+                </div>
+                
                 <div className="flex justify-between items-center pt-2 border-t border-orange-200">
-                  <span className="text-sm font-medium text-gray-700">Remaining</span>
+                  <span className="text-sm font-medium text-gray-700">Remaining to Supplier</span>
                   <span className={`text-sm font-bold ${
                     group.remainingAmount > 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
@@ -232,8 +285,47 @@ export default function SupplierDetailPopup({
                   const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
                   const expenseAmount = Number(order.originalTotal || 0)
                   const existingPayments = order.partialPayments || []
-                  const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+                  
+                  // Separate payments: direct (non-ledger) vs supplier (ledger)
+                  const directPayments = existingPayments.filter(p => !p.ledgerEntryId)
+                  
+                  // Match ledger payments with actual ledger entries to ensure accuracy
+                  // Only show payments that match actual ledger entries (by ledgerEntryId)
+                  const ledgerEntryIds = new Set(group.ledgerPayments.map(p => p.entry.id).filter(Boolean))
+                  const supplierPayments = existingPayments.filter(p => {
+                    if (!p.ledgerEntryId) return false
+                    // Only include if this ledger entry exists in the supplier's ledger entries
+                    return ledgerEntryIds.has(p.ledgerEntryId)
+                  })
+                  
+                  // Get the actual ledger entry for each supplier payment to show correct amount
+                  // Note: The payment.amount is the portion of the ledger entry allocated to THIS order
+                  // (A ledger entry can be split across multiple orders)
+                  const supplierPaymentsWithLedger = supplierPayments.map(payment => {
+                    const ledgerEntry = group.ledgerPayments.find(p => p.entry.id === payment.ledgerEntryId)
+                    return {
+                      ...payment,
+                      // Use the payment amount (which is the portion allocated to this order)
+                      // NOT the full ledger entry amount (which might be split across orders)
+                      amount: payment.amount, // This is the correct amount for this order
+                      ledgerEntry: ledgerEntry?.entry // Keep reference for display
+                    }
+                  })
+                  
+                  const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+                  const paidDirectly = directPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+                  const paidToSupplier = supplierPaymentsWithLedger.reduce((sum, p) => sum + Number(p.amount || 0), 0)
                   const remainingAmount = expenseAmount - totalPaid
+                  
+                  // Verification: Log if there's a mismatch (for debugging)
+                  // This helps identify when order.partialPayments doesn't match ledger entries
+                  if (process.env.NODE_ENV === 'development' && order.id) {
+                    const allLedgerPaymentsInOrder = existingPayments.filter(p => p.ledgerEntryId)
+                    const unmatchedLedgerPayments = allLedgerPaymentsInOrder.filter(p => !ledgerEntryIds.has(p.ledgerEntryId!))
+                    if (unmatchedLedgerPayments.length > 0) {
+                      console.warn(`⚠️ Order ${order.id}: Found ${unmatchedLedgerPayments.length} ledger payment(s) that don't match any ledger entry:`, unmatchedLedgerPayments.map(p => ({ id: p.id, ledgerEntryId: p.ledgerEntryId, amount: p.amount })))
+                    }
+                  }
 
                   return (
                     <div
@@ -278,43 +370,95 @@ export default function SupplierDetailPopup({
                       </div>
                       
                       {expenseAmount > 0 && (
-                        <div className="space-y-1 pt-1 border-t border-gray-100">
-                          <div className="flex items-center justify-between text-[9px]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-600">Paid:</span>
-                              <span className={`font-semibold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                        <div className="space-y-1.5 pt-1.5 border-t border-gray-100">
+                          {/* Payment Summary */}
+                          <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                            <div className="bg-blue-50 rounded p-1">
+                              <div className="text-gray-600 mb-0.5">Total Paid:</div>
+                              <div className={`font-bold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-600'}`}>
                                 {formatIndianCurrency(totalPaid)}
-                              </span>
+                              </div>
                             </div>
                             {remainingAmount > 0 && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-600">Rem:</span>
-                                <span className="text-red-600 font-semibold">{formatIndianCurrency(remainingAmount)}</span>
+                              <div className="bg-red-50 rounded p-1">
+                                <div className="text-gray-600 mb-0.5">Remaining:</div>
+                                <div className="font-bold text-red-600">{formatIndianCurrency(remainingAmount)}</div>
                               </div>
                             )}
                           </div>
-                          {/* Show payment breakdown if there are payments */}
-                          {totalPaid > 0 && existingPayments.length > 0 && (
-                            <div className="bg-green-50 rounded p-1.5 space-y-1">
-                              <div className="text-[8px] font-semibold text-green-700 mb-1">Payment Breakdown:</div>
-                              {existingPayments.map((payment, pIdx) => {
-                                const paymentDate = safeParseDate(payment.date)
-                                return (
-                                  <div key={pIdx} className="flex items-center justify-between text-[8px]">
-                                    <div className="flex items-center gap-1">
-                                      {paymentDate && (
-                                        <span className="text-gray-500">{format(paymentDate, 'dd MMM')}</span>
-                                      )}
-                                      {payment.note && (
-                                        <span className="text-gray-500">• {payment.note}</span>
-                                      )}
-                                    </div>
-                                    <span className="font-semibold text-green-700">
-                                      {formatIndianCurrency(payment.amount)}
-                                    </span>
+                          
+                          {/* Payment Breakdown: Direct vs Supplier */}
+                          {totalPaid > 0 && (
+                            <div className="bg-gray-50 rounded p-1.5 space-y-1">
+                              <div className="text-[8px] font-semibold text-gray-700 mb-1">Payment Breakdown:</div>
+                              
+                              {/* Direct Payments (to driver, etc.) */}
+                              {paidDirectly > 0 && (
+                                <div className="bg-blue-50 rounded p-1">
+                                  <div className="flex items-center justify-between text-[8px] mb-0.5">
+                                    <span className="font-semibold text-blue-700">Paid Directly (Driver, etc.):</span>
+                                    <span className="font-bold text-blue-700">{formatIndianCurrency(paidDirectly)}</span>
                                   </div>
-                                )
-                              })}
+                                  {directPayments.map((payment, pIdx) => {
+                                    const paymentDate = safeParseDate(payment.date)
+                                    return (
+                                      <div key={pIdx} className="flex items-center justify-between text-[7px] text-gray-600 pl-1">
+                                        <div className="flex items-center gap-1">
+                                          {paymentDate && (
+                                            <span>{format(paymentDate, 'dd MMM')}</span>
+                                          )}
+                                          {payment.note && (
+                                            <span>• {payment.note}</span>
+                                          )}
+                                        </div>
+                                        <span className="font-semibold">{formatIndianCurrency(payment.amount)}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              
+                              {/* Supplier Payments (from ledger) */}
+                              {paidToSupplier > 0 && (
+                                <div className="bg-green-50 rounded p-1">
+                                  <div className="flex items-center justify-between text-[8px] mb-0.5">
+                                    <span className="font-semibold text-green-700">Paid to Supplier (Ledger):</span>
+                                    <span className="font-bold text-green-700">{formatIndianCurrency(paidToSupplier)}</span>
+                                  </div>
+                                  <div className="text-[7px] text-gray-500 mb-0.5 pl-1">
+                                    (Portion of ledger entry allocated to this order)
+                                  </div>
+                                  {supplierPaymentsWithLedger.map((payment, pIdx) => {
+                                    // Use ledger entry date if available, otherwise use payment date
+                                    const paymentDate = payment.ledgerEntry?.date 
+                                      ? safeParseDate(payment.ledgerEntry.date)
+                                      : safeParseDate(payment.date)
+                                    const displayNote = payment.ledgerEntry?.note || payment.note
+                                    // Show the ledger entry total if it's different from the order portion
+                                    const ledgerEntryTotal = payment.ledgerEntry?.amount || 0
+                                    const isPartial = ledgerEntryTotal > 0 && Math.abs(ledgerEntryTotal - payment.amount) > 0.01
+                                    return (
+                                      <div key={pIdx} className="flex items-center justify-between text-[7px] text-gray-600 pl-1">
+                                        <div className="flex items-center gap-1">
+                                          {paymentDate && (
+                                            <span>{format(paymentDate, 'dd MMM')}</span>
+                                          )}
+                                          <span className="text-green-600">• From Ledger</span>
+                                          {isPartial && (
+                                            <span className="text-gray-400" title={`Ledger entry total: ${formatIndianCurrency(ledgerEntryTotal)}`}>
+                                              (of {formatIndianCurrency(ledgerEntryTotal)})
+                                            </span>
+                                          )}
+                                          {displayNote && (
+                                            <span>• {displayNote}</span>
+                                          )}
+                                        </div>
+                                        <span className="font-semibold">{formatIndianCurrency(payment.amount)}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

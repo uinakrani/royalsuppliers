@@ -195,6 +195,44 @@ export const ledgerService = {
     await this.remove(lastEntry.id)
   },
 
+  async getEntryById(id: string): Promise<LedgerEntry | null> {
+    const db = getDb()
+    if (!db) return null
+    try {
+      const docRef = doc(db, LEDGER_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) {
+        return null
+      }
+      const data = docSnap.data() as any
+      const createdAt =
+        data.createdAt ??
+        (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+        undefined
+      
+      // Convert date field from Timestamp to ISO string if needed
+      let dateValue = data.date
+      if (dateValue && typeof dateValue.toDate === 'function') {
+        dateValue = (dateValue as Timestamp).toDate().toISOString()
+      }
+      
+      return {
+        id: docSnap.id,
+        type: data.type,
+        amount: data.amount,
+        note: data.note,
+        date: dateValue,
+        source: data.source,
+        supplier: data.supplier,
+        partyName: data.partyName,
+        ...(createdAt ? { createdAt } : {}),
+      }
+    } catch (error) {
+      console.error('Error getting ledger entry by ID:', error)
+      return null
+    }
+  },
+
   async update(id: string, updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string }): Promise<void> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')

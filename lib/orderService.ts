@@ -283,11 +283,15 @@ export const orderService = {
     const existingPayments = order.partialPayments || []
     
     // Calculate current total from existing payments
-    const currentTotal = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+    const currentTotal = existingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
     
     // Check if order is already paid (within 100 of original total)
-    if (isOrderPaid(order) && !markAsPaid) {
-      throw new Error('Order is already paid')
+    // Allow adding payments to paid orders if markAsPaid is true, otherwise warn (but don't block)
+    const isPaid = isOrderPaid(order)
+    if (isPaid && !markAsPaid) {
+      // Don't throw error - allow the payment but it may cause overpayment
+      // The UI should have already shown a confirmation dialog
+      console.warn(`⚠️ Adding payment to already paid order. Current total: ${currentTotal}, Original: ${expenseAmount}`)
     }
     
     // Calculate remaining amount
@@ -298,15 +302,19 @@ export const orderService = {
       throw new Error('Payment amount must be greater than 0')
     }
     
-    // Payment cannot exceed the original total (expense amount)
-    if (paymentAmount > expenseAmount) {
-      throw new Error(`Payment amount (${paymentAmount}) cannot exceed original total (${expenseAmount})`)
-    }
+    // Check for ledger payments on this order
+    const ledgerPayments = existingPayments.filter(p => p.ledgerEntryId)
+    const hasLedgerPayments = ledgerPayments.length > 0
+    const ledgerPaymentsTotal = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
     
-    // If markAsPaid is not true, validate that payment doesn't exceed remaining amount + tolerance
-    // (allowing payments that would mark the order as paid, i.e., within 100 of original total)
-    if (!markAsPaid && paymentAmount > (remainingAmount + tolerance)) {
-      throw new Error(`Payment amount (${paymentAmount}) exceeds remaining amount (${remainingAmount})`)
+    // Calculate new total if this payment is added
+    const newTotalPaid = currentTotal + paymentAmount
+    
+    // Warn if overpayment would occur (but allow it if markAsPaid is true)
+    // The UI should have already shown a confirmation dialog, so we just log here
+    if (newTotalPaid > expenseAmount && !markAsPaid) {
+      const overpaymentAmount = newTotalPaid - expenseAmount
+      console.warn(`⚠️ Overpayment detected: ${overpaymentAmount} over original total. Total: ${newTotalPaid}, Original: ${expenseAmount}${hasLedgerPayments ? `, Ledger payments: ${ledgerPaymentsTotal}` : ''}`)
     }
     
     // Add new payment record
@@ -329,7 +337,7 @@ export const orderService = {
 
 
   // Update a specific partial payment record
-  async updatePartialPayment(id: string, paymentId: string, updates: { amount?: number; date?: string }): Promise<void> {
+  async updatePartialPayment(id: string, paymentId: string, updates: { amount?: number; date?: string }, preserveLedgerEntryId?: string): Promise<void> {
     const db = getDb()
     if (!db) {
       throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
@@ -365,11 +373,12 @@ export const orderService = {
       throw new Error(`Total payments cannot exceed original total of ${formatIndianCurrency(expenseAmount)}`)
     }
     
-    // Update the payment record
+    // Update the payment record (preserve ledgerEntryId if provided)
     const updatedPayment: PaymentRecord = {
       ...paymentToUpdate,
       amount: newAmount,
       date: updates.date || paymentToUpdate.date,
+      ...(preserveLedgerEntryId ? { ledgerEntryId: preserveLedgerEntryId } : {}),
     }
     
     const updatedPayments = [...existingPayments]

@@ -23,6 +23,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Invoice, InvoicePayment } from '@/types/invoice'
 import { createRipple } from '@/lib/rippleEffect'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
+import { getDb } from '@/lib/firebase'
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 
 interface PartyGroup {
   partyName: string
@@ -314,8 +316,82 @@ export default function OrdersPage() {
     try {
       if (editingOrder?.id) {
         console.log('🔄 Updating order:', editingOrder.id)
+        
+        // Check if any ledger payments were modified
+        const oldPayments = editingOrder.partialPayments || []
+        const newPayments = orderData.partialPayments || []
+        
+        console.log('🔍 Checking for ledger payment changes:', {
+          oldPayments: oldPayments.map(p => ({ id: p.id, amount: p.amount, ledgerEntryId: p.ledgerEntryId })),
+          newPayments: newPayments.map(p => ({ id: p.id, amount: p.amount, ledgerEntryId: p.ledgerEntryId }))
+        })
+        
+        // Find ledger payments that changed
+        const ledgerEntryIdsToRedistribute = new Set<string>()
+        
+        // Check for modified or removed ledger payments
+        oldPayments.forEach(oldPayment => {
+          if (oldPayment.ledgerEntryId) {
+            const newPayment = newPayments.find(p => p.id === oldPayment.id)
+            if (!newPayment) {
+              // Payment was removed
+              console.log(`  ❌ Ledger payment ${oldPayment.id} was removed (ledgerEntryId: ${oldPayment.ledgerEntryId})`)
+              ledgerEntryIdsToRedistribute.add(oldPayment.ledgerEntryId)
+            } else if (Math.abs(Number(newPayment.amount) - Number(oldPayment.amount)) > 0.01 || newPayment.date !== oldPayment.date) {
+              // Payment was modified
+              console.log(`  ✏️  Ledger payment ${oldPayment.id} was modified: ${oldPayment.amount} → ${newPayment.amount} (ledgerEntryId: ${oldPayment.ledgerEntryId})`)
+              ledgerEntryIdsToRedistribute.add(oldPayment.ledgerEntryId)
+            }
+          }
+        })
+        
+        // Check for new ledger payments
+        newPayments.forEach(newPayment => {
+          if (newPayment.ledgerEntryId) {
+            const oldPayment = oldPayments.find(p => p.id === newPayment.id)
+            if (!oldPayment) {
+              // New ledger payment
+              console.log(`  ➕ New ledger payment ${newPayment.id} added (ledgerEntryId: ${newPayment.ledgerEntryId})`)
+              ledgerEntryIdsToRedistribute.add(newPayment.ledgerEntryId)
+            } else if (Math.abs(Number(newPayment.amount) - Number(oldPayment.amount)) > 0.01 || newPayment.date !== oldPayment.date) {
+              // Modified ledger payment (already handled above, but double-check)
+              if (!ledgerEntryIdsToRedistribute.has(newPayment.ledgerEntryId)) {
+                console.log(`  ✏️  Ledger payment ${newPayment.id} was modified: ${oldPayment.amount} → ${newPayment.amount} (ledgerEntryId: ${newPayment.ledgerEntryId})`)
+                ledgerEntryIdsToRedistribute.add(newPayment.ledgerEntryId)
+              }
+            }
+          }
+        })
+        
+        console.log(`📊 Found ${ledgerEntryIdsToRedistribute.size} ledger entry/entries to redistribute:`, Array.from(ledgerEntryIdsToRedistribute))
+        
+        // Update the order
         await orderService.updateOrder(editingOrder.id, orderData)
         console.log('✅ Order updated')
+        
+        // Redistribute ledger entries if any ledger payments were modified
+        if (ledgerEntryIdsToRedistribute.size > 0) {
+          console.log(`🔄 Redistributing ${ledgerEntryIdsToRedistribute.size} ledger entry/entries`)
+          
+          // Wait a bit for the order update to propagate
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Redistribute each affected ledger entry
+          const ledgerEntryIdsArray = Array.from(ledgerEntryIdsToRedistribute)
+          for (const ledgerEntryId of ledgerEntryIdsArray) {
+            try {
+              // Get the payment date from the new payments, or use the order date, or current date
+              const payment = newPayments.find(p => p.ledgerEntryId === ledgerEntryId)
+              const paymentDate = payment?.date || orderData.date || new Date().toISOString()
+              await redistributeLedgerEntry(ledgerEntryId, paymentDate)
+              console.log(`✅ Redistributed ledger entry ${ledgerEntryId}`)
+            } catch (error) {
+              console.error(`Error redistributing ledger entry ${ledgerEntryId}:`, error)
+              // Don't fail the order save if redistribution fails
+            }
+          }
+        }
+        
         showToast('Order updated successfully!', 'success')
       } else {
         console.log('➕ Creating new order')
@@ -359,19 +435,37 @@ export default function OrdersPage() {
   }
 
   const handleAddPaymentToOrder = async (order: Order) => {
-    // Check if order is already paid
-    if (isOrderPaid(order)) {
-      showToast('Order is already paid', 'error')
-      return
+    // Calculate expense amount and remaining payment
+    const { expenseAmount, totalPaid, remainingAmount } = getOrderPaymentInfo(order)
+    
+    // Check if order is already paid (warn but allow)
+    const isPaid = isOrderPaid(order)
+    if (isPaid) {
+      const confirmed = await sweetAlert.confirm({
+        title: 'Order Already Paid',
+        message: `This order is already marked as paid (within ₹100 tolerance). Adding more payments may cause overpayment. Continue?`,
+        icon: 'warning',
+        confirmText: 'Continue',
+        cancelText: 'Cancel'
+      })
+      if (!confirmed) {
+        return
+      }
     }
     
-    // Calculate expense amount and remaining payment
-    const { remainingAmount } = getOrderPaymentInfo(order)
+    // Check for ledger payments on this order
+    const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId)
+    const hasLedgerPayments = ledgerPayments.length > 0
+    const ledgerPaymentsTotal = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
 
     try {
+      const message = hasLedgerPayments 
+        ? `Remaining: ${formatIndianCurrency(remainingAmount)}\nLedger payments: ${formatIndianCurrency(ledgerPaymentsTotal)}`
+        : `Remaining amount: ${formatIndianCurrency(remainingAmount)}`
+      
       const amountStr = await sweetAlert.prompt({
         title: 'Add Payment',
-        message: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
+        message: message,
         inputLabel: 'Payment Amount',
         inputPlaceholder: 'Enter amount',
         inputType: 'text',
@@ -385,45 +479,188 @@ export default function OrdersPage() {
       }
       
       const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+      
       if (!amount || Number.isNaN(amount) || amount <= 0) {
         showToast('Invalid amount', 'error')
         return
       }
       
-      // Get the expense amount (originalTotal)
-      const { expenseAmount } = getOrderPaymentInfo(order)
-      
-      // Check if payment exceeds the original total (expense amount)
-      if (amount > expenseAmount) {
-        showToast(`Payment amount cannot exceed original total (${formatIndianCurrency(expenseAmount)})`, 'error')
-        return
-      }
-      
-      // Check if payment exceeds remaining amount
-      if (amount > remainingAmount) {
-        showToast(`Payment amount cannot exceed remaining amount (${formatIndianCurrency(remainingAmount)})`, 'error')
-        return
-      }
-      
-      // Ask user what they want to do: Add Payment or Add and Mark as Paid
-      const actionChoice = await sweetAlert.confirm({
-        title: 'Add Payment',
-        message: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
-        icon: 'question',
-        confirmText: 'Add and Mark as Paid',
-        cancelText: 'Just Add Payment',
-      })
-      const markAsPaid = actionChoice || false
-      
+      // Get note from user before processing payment
       const note = await sweetAlert.prompt({
         title: 'Add Note (optional)',
         inputLabel: 'Note',
         inputPlaceholder: 'e.g. Cash payment / Bank transfer',
         inputType: 'text',
         required: false,
-        confirmText: 'Save',
+        confirmText: 'Next',
         cancelText: 'Skip',
       })
+      
+      // Check for overpayment
+      const newTotalPaid = totalPaid + amount
+      const wouldOverpay = newTotalPaid > expenseAmount
+      const overpaymentAmount = wouldOverpay ? newTotalPaid - expenseAmount : 0
+      
+      // If overpayment detected and there are ledger payments, offer to reduce ledger payments
+      if (wouldOverpay && hasLedgerPayments) {
+        const confirmed = await sweetAlert.confirm({
+          title: 'Overpayment Detected',
+          message: `Adding this payment would result in overpayment of ${formatIndianCurrency(overpaymentAmount)}.\n\nTotal payments: ${formatIndianCurrency(newTotalPaid)}\nOriginal total: ${formatIndianCurrency(expenseAmount)}\nLedger payments on this order: ${formatIndianCurrency(ledgerPaymentsTotal)}\n\nWould you like to reduce the ledger payment(s) on this order and redistribute to other unpaid orders of this supplier?`,
+          icon: 'question',
+          confirmText: 'Reduce & Redistribute',
+          cancelText: 'Cancel'
+        })
+        
+        if (!confirmed) {
+          return
+        }
+        
+        // Reduce ledger payments on this order and redistribute
+        try {
+          // Calculate how much to reduce from ledger payments
+          let remainingToReduce = overpaymentAmount
+          const ledgerEntryIdsToRedistribute = new Set<string>()
+          const updatedPayments = [...(order.partialPayments || [])]
+          
+          // Reduce ledger payments starting from the most recent
+          const ledgerPaymentIndices: Array<{ index: number; payment: PaymentRecord }> = []
+          updatedPayments.forEach((p, idx) => {
+            if (p.ledgerEntryId) {
+              ledgerPaymentIndices.push({ index: idx, payment: p })
+            }
+          })
+          
+          // Sort by date (most recent first) to reduce from newest first
+          ledgerPaymentIndices.sort((a, b) => {
+            const aDate = new Date(a.payment.date).getTime()
+            const bDate = new Date(b.payment.date).getTime()
+            return bDate - aDate
+          })
+          
+          // Reduce ledger payments
+          for (const { index, payment } of ledgerPaymentIndices) {
+            if (remainingToReduce <= 0) break
+            
+            const currentAmount = Number(payment.amount || 0)
+            const reductionAmount = Math.min(remainingToReduce, currentAmount)
+            const newAmount = currentAmount - reductionAmount
+            
+            if (newAmount > 0) {
+              // Update the payment amount
+              updatedPayments[index] = {
+                ...payment,
+                amount: newAmount
+              }
+            } else {
+              // Remove the payment if amount becomes 0 or negative
+              updatedPayments.splice(index, 1)
+            }
+            
+            ledgerEntryIdsToRedistribute.add(payment.ledgerEntryId!)
+            remainingToReduce -= reductionAmount
+            
+            console.log(`  🔄 Reducing ledger payment ${payment.id} by ${reductionAmount} (from ${currentAmount} to ${newAmount})`)
+          }
+          
+          // Add the new direct payment
+          const paymentDate = new Date().toISOString()
+          const newPayment: PaymentRecord = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            amount: amount,
+            date: paymentDate,
+            note: note || undefined,
+          }
+          updatedPayments.push(newPayment)
+          
+          // Update the order with reduced ledger payments and new direct payment
+          await orderService.updateOrder(order.id!, {
+            partialPayments: updatedPayments,
+          })
+          
+          console.log(`✅ Updated order ${order.id} with reduced ledger payments and new direct payment`)
+          
+          // Wait for the update to propagate
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Redistribute each affected ledger entry
+          const ledgerEntryIdsArray = Array.from(ledgerEntryIdsToRedistribute)
+          for (const ledgerEntryId of ledgerEntryIdsArray) {
+            try {
+              const payment = updatedPayments.find(p => p.ledgerEntryId === ledgerEntryId)
+              const paymentDate = payment?.date || new Date().toISOString()
+              await redistributeLedgerEntry(ledgerEntryId, paymentDate)
+              console.log(`✅ Redistributed ledger entry ${ledgerEntryId}`)
+            } catch (error) {
+              console.error(`Error redistributing ledger entry ${ledgerEntryId}:`, error)
+            }
+          }
+          
+          showToast('Payment added and ledger payments redistributed!', 'success')
+          
+          // Reload orders
+          await loadOrders()
+          
+          // Update selected order if it's the same
+          if (selectedOrderDetail?.id === order.id && order.id) {
+            const updated = await orderService.getOrderById(order.id)
+            if (updated) {
+              setSelectedOrderDetail(updated)
+            }
+          }
+          
+          // Update payment history if it's open
+          if (selectedOrderForPayments?.id === order.id && order.id) {
+            const updated = await orderService.getOrderById(order.id)
+            if (updated) {
+              setSelectedOrderForPayments(updated)
+            }
+          }
+          
+          return // Exit early since we've already handled the payment
+        } catch (error: any) {
+          console.error('Error reducing ledger payments:', error)
+          showToast(error.message || 'Failed to reduce ledger payments', 'error')
+          return
+        }
+      } else if (wouldOverpay && !hasLedgerPayments) {
+        // Overpayment but no ledger payments - just warn
+        const confirmed = await sweetAlert.confirm({
+          title: 'Overpayment Warning',
+          message: `Adding this payment would result in overpayment of ${formatIndianCurrency(overpaymentAmount)}.\n\nTotal payments: ${formatIndianCurrency(newTotalPaid)}\nOriginal total: ${formatIndianCurrency(expenseAmount)}\n\nContinue anyway?`,
+          icon: 'warning',
+          confirmText: 'Continue',
+          cancelText: 'Cancel'
+        })
+        if (!confirmed) {
+          return
+        }
+      }
+      // If order is already paid or would overpay (without ledger payments to reduce), skip the "mark as paid" dialog
+      // and automatically allow the payment
+      let markAsPaid = false
+      if (!isPaid && !wouldOverpay) {
+        // Only ask "mark as paid" if order is not paid and won't overpay
+        // Check if this payment would make the order paid (within tolerance)
+        const newTotalAfterPayment = totalPaid + amount
+        const wouldBecomePaid = newTotalAfterPayment >= (expenseAmount - 100)
+        
+        if (wouldBecomePaid) {
+          const actionChoice = await sweetAlert.confirm({
+            title: 'Add Payment',
+            message: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nThis payment will mark the order as paid. Continue?`,
+            icon: 'question',
+            confirmText: 'Add Payment',
+            cancelText: 'Cancel',
+          })
+          if (!actionChoice) {
+            return
+          }
+          markAsPaid = true
+        }
+      } else if (isPaid || (wouldOverpay && !hasLedgerPayments)) {
+        // Order is already paid or would overpay without ledger payments - automatically allow with markAsPaid
+        markAsPaid = true
+      }
       
       await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid)
       showToast('Payment added successfully!', 'success')
@@ -464,10 +701,7 @@ export default function OrdersPage() {
 
   const handleEditPayment = (order: Order, paymentId: string) => {
     const payment = order.partialPayments?.find(p => p.id === paymentId)
-    if (payment?.ledgerEntryId) {
-      showToast('This payment was created from a ledger entry and cannot be edited', 'error')
-      return
-    }
+    // Allow editing ledger payments - they will be redistributed
     setEditingPayment({ order, paymentId })
   }
 
@@ -475,7 +709,21 @@ export default function OrdersPage() {
     if (!editingPayment || !editingPayment.order.id) return
     
     try {
-      await orderService.updatePartialPayment(editingPayment.order.id, editingPayment.paymentId, data)
+      const payment = editingPayment.order.partialPayments?.find(p => p.id === editingPayment.paymentId)
+      const isLedgerPayment = !!payment?.ledgerEntryId
+      
+      // Update the payment on the order (preserving ledgerEntryId if it exists)
+      await orderService.updatePartialPayment(
+        editingPayment.order.id, 
+        editingPayment.paymentId, 
+        data,
+        payment?.ledgerEntryId // Preserve ledgerEntryId
+      )
+      
+      // If this is a ledger payment, redistribute the ledger entry
+      if (isLedgerPayment && payment.ledgerEntryId) {
+        await redistributeLedgerEntry(payment.ledgerEntryId, data.date)
+      }
       
       // Reload orders
       await loadOrders()
@@ -499,7 +747,168 @@ export default function OrdersPage() {
       setEditingPayment(null)
     } catch (error: any) {
       console.error('Failed to update payment:', error)
+      showToast(error.message || 'Failed to update payment', 'error')
       setEditingPayment(null)
+    }
+  }
+
+  // Redistribute ledger entry when a payment amount changes
+  const redistributeLedgerEntry = async (ledgerEntryId: string, expenseDate: string) => {
+    try {
+      console.log(`🔄 Redistributing ledger entry ${ledgerEntryId} (date: ${expenseDate})`)
+      
+      // Get the ledger entry
+      const ledgerEntry = await ledgerService.getEntryById(ledgerEntryId)
+      if (!ledgerEntry) {
+        console.warn(`❌ Ledger entry ${ledgerEntryId} not found`)
+        return
+      }
+      if (ledgerEntry.type !== 'debit' || !ledgerEntry.supplier) {
+        console.warn(`❌ Ledger entry is not an expense with supplier (type: ${ledgerEntry.type}, supplier: ${ledgerEntry.supplier})`)
+        return
+      }
+
+      console.log(`📦 Getting orders for supplier: ${ledgerEntry.supplier}`)
+      
+      // Get all orders for this supplier
+      const allOrders = await orderService.getAllOrders({ supplier: ledgerEntry.supplier })
+      
+      console.log(`📦 Found ${allOrders.length} orders for supplier ${ledgerEntry.supplier}`)
+      
+      // Calculate total amount currently allocated to orders from this ledger entry
+      let totalAllocated = 0
+      allOrders.forEach(order => {
+        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
+        const orderAllocated = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        totalAllocated += orderAllocated
+        if (orderAllocated > 0) {
+          console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): allocated ${orderAllocated} from this ledger entry`)
+        }
+      })
+      
+      console.log(`💰 Total allocated to orders: ${totalAllocated}, Ledger entry amount: ${ledgerEntry.amount}`)
+
+      // Update ledger entry amount to match the total allocated
+      if (Math.abs(totalAllocated - ledgerEntry.amount) > 0.01) {
+        const db = getDb()
+        if (db) {
+          await updateDoc(doc(db, 'ledgerEntries', ledgerEntryId), {
+            amount: totalAllocated,
+            date: expenseDate,
+            updatedAt: new Date().toISOString()
+          })
+          console.log(`✅ Updated ledger entry ${ledgerEntryId} amount to ${totalAllocated}`)
+        }
+      }
+
+      // Redistribute the total allocated amount across orders
+      const supplier = ledgerEntry.supplier
+      const ordersWithOutstanding = allOrders
+        .map(order => {
+          const existingPayments = order.partialPayments || []
+          // Exclude payments from this ledger entry
+          const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
+          const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+          const originalTotal = Number(order.originalTotal || 0)
+          const remaining = Math.max(0, originalTotal - totalPaid)
+          
+          const tempOrder: Order = {
+            ...order,
+            partialPayments: paymentsExcludingThis
+          }
+          
+          const isPaid = isOrderPaid(tempOrder)
+          
+          return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid, totalPaid, originalTotal }
+        })
+        .filter(({ remaining, isPaid, order, totalPaid, originalTotal }) => {
+          const shouldInclude = remaining > 0 && !isPaid
+          if (!shouldInclude) {
+            if (remaining <= 0) {
+              console.log(`  ⏭️  Skipping order ${order.id} (${order.siteName || 'N/A'}): remaining=${remaining} <= 0 (originalTotal=${originalTotal}, totalPaid=${totalPaid})`)
+            } else if (isPaid) {
+              console.log(`  ⏭️  Skipping order ${order.id} (${order.siteName || 'N/A'}): marked as PAID (remaining=${remaining}, originalTotal=${originalTotal}, totalPaid=${totalPaid})`)
+            }
+          } else {
+            console.log(`  ✅ Including order ${order.id} (${order.siteName || 'N/A'}): remaining=${remaining}, originalTotal=${originalTotal}, totalPaid=${totalPaid}`)
+          }
+          return shouldInclude
+        })
+        .sort((a, b) => {
+          const aDate = new Date(a.order.date).getTime()
+          const bDate = new Date(b.order.date).getTime()
+          if (aDate !== bDate) return aDate - bDate
+          const aTime = new Date(a.order.createdAt || a.order.updatedAt || a.order.date).getTime()
+          const bTime = new Date(b.order.createdAt || b.order.updatedAt || b.order.date).getTime()
+          return aTime - bTime
+        })
+
+      console.log(`✅ Found ${ordersWithOutstanding.length} orders with outstanding payments for redistribution`)
+      
+      if (ordersWithOutstanding.length === 0) {
+        console.warn(`⚠️ No orders with outstanding payments for supplier ${supplier}`)
+        return
+      }
+
+      let remainingExpense = totalAllocated
+      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
+
+      console.log(`💰 Starting redistribution: totalAllocated=${totalAllocated}`)
+
+      // Distribute expense across orders (oldest first)
+      for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
+        if (remainingExpense <= 0) break
+        
+        if (!order.id) continue
+        
+        const paymentAmount = Math.min(remainingExpense, remaining)
+        
+        let paymentDate = expenseDate
+        if (paymentDate && !paymentDate.includes('T')) {
+          paymentDate = new Date(paymentDate + 'T00:00:00').toISOString()
+        }
+        
+        const payment: PaymentRecord = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          amount: paymentAmount,
+          date: paymentDate,
+          note: `From ledger entry`,
+          ledgerEntryId: ledgerEntryId,
+        }
+        
+        const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
+        const updatedPayments = [...paymentsWithoutThisEntry, payment]
+        
+        paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
+        remainingExpense -= paymentAmount
+        
+        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (order remaining: ${remaining - paymentAmount}, expense remaining: ${remainingExpense})`)
+      }
+
+      console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingExpense} remaining undistributed`)
+
+      // Update orders with new payment distributions
+      for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
+        await orderService.updateOrder(orderId, {
+          partialPayments: updatedPayments,
+        })
+        console.log(`  ✅ Updated order ${orderId} with redistributed payment`)
+      }
+      
+      if (remainingExpense > 0) {
+        console.warn(`⚠️ Could not fully redistribute. Remaining undistributed: ${remainingExpense}`)
+      } else {
+        console.log(`✅ Successfully redistributed ledger entry ${ledgerEntryId}`)
+      }
+
+      if (remainingExpense > 0) {
+        console.warn(`⚠️ Could not fully distribute expense. Remaining undistributed: ${remainingExpense}`)
+      } else {
+        console.log(`✅ Successfully redistributed ledger entry ${ledgerEntryId}`)
+      }
+    } catch (error) {
+      console.error('❌ Error redistributing ledger entry:', error)
+      throw error
     }
   }
 
@@ -838,19 +1247,31 @@ export default function OrdersPage() {
       // Calculate total amount to be paid: for each order, originalTotal - non-ledger partial payments
       // This represents the amount that still needs to be paid (excluding ledger payments)
       // Formula: totalAmount = sum of (originalTotal - non-ledger partial payments) for each order
+      // 
+      // Payment Structure:
+      // - Direct Payments (non-ledger): Payments to driver/other parties added directly to order
+      // - Supplier Payments (ledger): Payments to supplier via ledger expense entries
       let totalAmount = 0
       let totalPaid = 0
+      let totalPaidDirectly = 0  // Sum of all direct (non-ledger) payments
+      let totalPaidToSupplier = 0  // Sum of all supplier (ledger) payments
+      
       supplierOrders.forEach(order => {
         const orderOriginalTotal = Number(order.originalTotal || 0)
         const partialPayments = order.partialPayments || []
         
-        // Calculate non-ledger partial payments (manual payments only)
+        // Calculate non-ledger partial payments (manual payments only - to driver, etc.)
         // These are payments added directly to the order, not from ledger entries
         const nonLedgerPayments = partialPayments.filter(p => !p.ledgerEntryId)
         const nonLedgerPaid = nonLedgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
         
+        // Calculate ledger payments (payments to supplier via ledger expense entries)
+        const ledgerPayments = partialPayments.filter(p => p.ledgerEntryId)
+        const ledgerPaid = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        
         // Amount still to be paid for this order = originalTotal - non-ledger payments
         // This is the amount that needs to be paid for this specific order
+        // (Direct payments to driver don't reduce the amount owed to supplier)
         const orderRemaining = orderOriginalTotal - nonLedgerPaid
         
         // Only add positive remaining amounts (if order is overpaid with non-ledger, it's 0)
@@ -858,6 +1279,10 @@ export default function OrdersPage() {
         
         // Total paid includes all payments (ledger + manual) for display purposes
         totalPaid += partialPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        
+        // Track payment breakdown
+        totalPaidDirectly += nonLedgerPaid
+        totalPaidToSupplier += ledgerPaid
       })
 
       // Get ledger expense entries for this supplier (for display/reference only)
@@ -884,11 +1309,25 @@ export default function OrdersPage() {
         })
       })
       
-      const totalLedgerEntryAmount = supplierLedgerEntries.reduce((sum, e) => sum + e.amount, 0)
+      const totalLedgerEntryAmount = supplierLedgerEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
       
       // Log warning if there's a mismatch (ledger entries should match partial payments with ledgerEntryId)
       if (Math.abs(totalLedgerEntryAmount - totalPaidFromLedgerPayments) > 0.01) {
         console.warn(`⚠️ Supplier ${supplierName}: Ledger entry total (${totalLedgerEntryAmount}) doesn't match partial payments with ledgerEntryId (${totalPaidFromLedgerPayments})`)
+      }
+      
+      // Verification: Ensure calculations are correct
+      // totalPaid should equal totalPaidDirectly + totalPaidToSupplier
+      const calculatedTotalPaid = totalPaidDirectly + totalPaidToSupplier
+      if (Math.abs(totalPaid - calculatedTotalPaid) > 0.01) {
+        console.warn(`⚠️ Supplier ${supplierName}: Payment totals mismatch! totalPaid (${totalPaid}) != direct (${totalPaidDirectly}) + supplier (${totalPaidToSupplier}) = ${calculatedTotalPaid}`)
+      }
+      
+      // Verification: remainingAmount should equal totalAmount - totalPaidToSupplier
+      // (because totalAmount already excludes direct payments)
+      const calculatedRemaining = totalAmount - totalPaidToSupplier
+      if (Math.abs(remainingAmount - calculatedRemaining) > 0.01) {
+        console.warn(`⚠️ Supplier ${supplierName}: Remaining amount mismatch! remainingAmount (${remainingAmount}) != totalAmount (${totalAmount}) - supplier payments (${totalPaidToSupplier}) = ${calculatedRemaining}`)
       }
 
       // Track last payment date and amount
@@ -2014,16 +2453,16 @@ export default function OrdersPage() {
                                     </div>
                                   )}
                                 </div>
-                                {!isFromLedger && (
-                                  <div className="flex items-center gap-2 ml-3">
-                                    <button
-                                      onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
-                                      className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
-                                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                                      title="Edit payment"
-                                    >
-                                      <Edit size={16} />
-                                    </button>
+                                <div className="flex items-center gap-2 ml-3">
+                                  <button
+                                    onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
+                                    className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                                    title={isFromLedger ? "Edit payment (from ledger)" : "Edit payment"}
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  {!isFromLedger && (
                                     <button
                                       onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
                                       className="p-1.5 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
@@ -2032,8 +2471,8 @@ export default function OrdersPage() {
                                     >
                                       <Trash2 size={16} />
                                     </button>
-                                  </div>
-                                )}
+                                  )}
+                                </div>
                               </div>
                             )
                           })}
