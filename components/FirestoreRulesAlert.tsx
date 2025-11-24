@@ -61,7 +61,7 @@ service cloud.firestore {
 }`}
           </pre>
           <p className="text-xs text-yellow-700 mt-2">
-            <strong>5.</strong> Click <strong>"Publish"</strong> and wait for confirmation
+            <strong>5.</strong> Click <strong>&quot;Publish&quot;</strong> and wait for confirmation
           </p>
         </div>
 
@@ -79,7 +79,7 @@ service cloud.firestore {
             onClick={() => setShowAlert(false)}
             className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300"
           >
-            I'll Fix It Later
+            I&apos;ll Fix It Later
           </button>
         </div>
       </div>
