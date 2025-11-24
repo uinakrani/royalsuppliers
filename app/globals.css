@@ -423,6 +423,102 @@ table tbody button {
   animation: slide-in 0.3s ease-out;
 }
 
+@keyframes slide-up {
+  from {
+    transform: translate3d(0, 100%, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+
+/* Step content fade and slide */
+@keyframes step-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-step-enter {
+  animation: step-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes step-exit {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+.animate-step-exit {
+  animation: step-exit 0.15s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Smooth scale for buttons */
+@keyframes button-press {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-button-press {
+  animation: button-press 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Progress bar fill animation */
+@keyframes progress-fill {
+  from {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  to {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+.animate-progress-fill {
+  animation: progress-fill 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Value display fade in */
+@keyframes value-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-value-appear {
+  animation: value-appear 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* SweetAlert2 Mobile Styles */
 .swal2-popup-mobile {
   font-size: 16px !important;
