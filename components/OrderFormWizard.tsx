@@ -1050,7 +1050,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           </div>
 
           {/* Navigation */}
-          {STEP_ORDER[currentStep] !== 'review' && STEP_ORDER[currentStep] !== 'confirm' && (
+          {STEP_ORDER[currentStep] !== 'review' && STEP_ORDER[currentStep] !== 'confirm' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
             <div className="flex-shrink-0 p-4 border-t border-gray-200">
               <button
                 onClick={handleNext}
@@ -1064,7 +1064,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             </div>
           )}
 
-          {STEP_ORDER[currentStep] === 'review' && (
+          {STEP_ORDER[currentStep] === 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
             <div className="flex-shrink-0 p-4 border-t border-gray-200">
               <button
                 onClick={handleNext}
