@@ -33,7 +33,6 @@ type Step =
   | 'originalRate'
   | 'additionalCost'
   | 'review'
-  | 'confirm'
 
 const STEP_ORDER: Step[] = [
   'date',
@@ -48,8 +47,7 @@ const STEP_ORDER: Step[] = [
   'originalWeight',
   'originalRate',
   'additionalCost',
-  'review',
-  'confirm'
+  'review'
 ]
 
 export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWizardProps) {
@@ -117,8 +115,8 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
   useEffect(() => {
     const step = STEP_ORDER[currentStep]
     
-    // Skip auto-open for review and confirm steps
-    if (step === 'review' || step === 'confirm') {
+    // Skip auto-open for review step
+    if (step === 'review') {
       setShowNumberPad(false)
       setShowTextPad(false)
       setShowSelectList(false)
@@ -219,7 +217,6 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       originalRate: 'Original Rate',
       additionalCost: 'Additional Cost',
       review: 'Review',
-      confirm: 'Confirm'
     }
     return labels[step]
   }
@@ -238,8 +235,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       originalWeight: Weight,
       originalRate: DollarSign,
       additionalCost: DollarSign,
-      review: Check,
-      confirm: Check
+      review: Check
     }
     return icons[step]
   }
@@ -271,8 +267,6 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       case 'additionalCost':
         return true // Optional
       case 'review':
-        return true
-      case 'confirm':
         return true
       default:
         return false
@@ -645,75 +639,9 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       case 'review':
         return renderReviewStep()
 
-      case 'confirm':
-        return renderConfirmStep()
-
       default:
         return null
     }
-  }
-
-  const renderConfirmStep = () => {
-    const total = formData.weight * formData.rate
-    const originalTotal = formData.originalWeight * formData.originalRate
-    const profit = total - (originalTotal + formData.additionalCost)
-
-    return (
-      <div className="py-6">
-        <div className="text-center mb-6">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Check size={40} className="text-green-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Confirm Order</h2>
-          <p className="text-gray-600 mb-6">Are you sure you want to save this order?</p>
-        </div>
-
-        {/* Summary Card */}
-        <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-4 border border-primary-200 mb-6">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Total:</span>
-              <span className="font-bold text-gray-900">{formatIndianCurrency(total)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Original Total:</span>
-              <span className="font-bold text-gray-900">{formatIndianCurrency(originalTotal)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Additional Cost:</span>
-              <span className="font-bold text-gray-900">{formatIndianCurrency(formData.additionalCost)}</span>
-            </div>
-            <div className="pt-2 border-t border-primary-200 flex justify-between">
-              <span className="text-base font-semibold text-gray-700">Profit:</span>
-              <span className={`text-base font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatIndianCurrency(profit)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="space-y-3">
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="w-full h-14 bg-green-600 text-white rounded-xl font-semibold active:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            {saving ? 'Saving...' : 'Yes, Save Order'}
-            {!saving && <Check size={20} />}
-          </button>
-          <button
-            onClick={() => handleStepClick(STEP_ORDER.indexOf('review'))}
-            disabled={saving}
-            className="w-full h-12 bg-gray-100 text-gray-700 rounded-xl font-semibold active:bg-gray-200 transition-colors disabled:opacity-50"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            No, Go Back
-          </button>
-        </div>
-      </div>
-    )
   }
 
   const renderReviewStep = () => {
@@ -810,8 +738,6 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         return formData.originalRate > 0 ? formatIndianCurrency(formData.originalRate) : 'Not set'
       case 'additionalCost':
         return formData.additionalCost > 0 ? formatIndianCurrency(formData.additionalCost) : '₹0'
-      case 'confirm':
-        return 'Confirm Order'
       default:
         return ''
     }
@@ -1018,13 +944,13 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           </div>
 
           {/* Previous Answers Summary */}
-          {currentStep > 0 && STEP_ORDER[currentStep] !== 'review' && STEP_ORDER[currentStep] !== 'confirm' && (
+          {currentStep > 0 && STEP_ORDER[currentStep] !== 'review' && (
             <div className="flex-shrink-0 px-6 pt-4 border-t border-gray-100 bg-gray-50">
               <div className="text-xs text-gray-500 mb-2">Previous Answers:</div>
               <div className="flex flex-wrap gap-2">
                 {STEP_ORDER.slice(0, currentStep).map((step, idx) => {
                   const value = getStepValue(step)
-                  if (value === 'Not set' || value === '₹0' || step === 'confirm') return null
+                  if (value === 'Not set' || value === '₹0') return null
                   return (
                     <button
                       key={step}
@@ -1050,7 +976,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           </div>
 
           {/* Navigation */}
-          {STEP_ORDER[currentStep] !== 'review' && STEP_ORDER[currentStep] !== 'confirm' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
+          {STEP_ORDER[currentStep] !== 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
             <div className="flex-shrink-0 p-4 border-t border-gray-200">
               <button
                 onClick={handleNext}
@@ -1067,13 +993,13 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           {STEP_ORDER[currentStep] === 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
             <div className="flex-shrink-0 p-4 border-t border-gray-200">
               <button
-                onClick={handleNext}
-                disabled={!canProceed()}
+                onClick={handleSubmit}
+                disabled={saving || !canProceed()}
                 className="w-full h-12 bg-green-600 text-white rounded-xl font-semibold active:bg-green-700 transition-transform duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-green-600/30"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
-                Confirm & Save
-                <ChevronRight size={20} className="transition-transform duration-200 group-hover:translate-x-1" />
+                {saving ? 'Saving...' : 'Confirm & Save'}
+                {!saving && <ChevronRight size={20} className="transition-transform duration-200 group-hover:translate-x-1" />}
               </button>
             </div>
           )}

@@ -975,38 +975,17 @@ export default function OrdersPage() {
       console.log('SweetAlert confirmed:', confirmed)
 
       if (confirmed) {
-        try {
-          await orderService.deleteOrder(id)
-          showToast('Order deleted successfully!', 'success')
-          await loadOrders()
-          await loadInvoices()
-          await loadPartyPayments()
-        } catch (error: any) {
-          console.error('Error deleting order:', error)
-          showToast(`Failed to delete order: ${error?.message || 'Unknown error'}`, 'error')
-        }
+        await orderService.deleteOrder(id)
+        showToast('Order deleted successfully!', 'success')
+        await loadOrders()
+        await loadInvoices()
+        await loadPartyPayments()
       }
     } catch (error: any) {
-      console.error('Error showing SweetAlert:', error)
-      // Fallback to SweetAlert confirm
-      const confirmed = await sweetAlert.confirm({
-        title: 'Delete Order?',
-        message: 'Are you sure you want to delete this order? This action cannot be undone.',
-        icon: 'warning',
-        confirmText: 'Delete',
-        cancelText: 'Cancel'
-      })
-      if (confirmed) {
-        try {
-          await orderService.deleteOrder(id)
-          showToast('Order deleted successfully!', 'success')
-          await loadOrders()
-          await loadInvoices()
-          await loadPartyPayments()
-        } catch (err: any) {
-          console.error('Error deleting order:', err)
-          showToast(`Failed to delete order: ${err?.message || 'Unknown error'}`, 'error')
-        }
+      console.error('Error deleting order:', error)
+      // Only show error if it's not a cancellation (SweetAlert cancellation throws an error)
+      if (error?.message && !error.message.includes('SweetAlert')) {
+        showToast(`Failed to delete order: ${error?.message || 'Unknown error'}`, 'error')
       }
     }
   }
@@ -2094,8 +2073,15 @@ export default function OrdersPage() {
 
                     {/* Date Column */}
                     <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-600 text-[11px] leading-tight font-medium">
-                        {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
+                      <div className="flex items-center gap-1">
+                        <div className="text-gray-600 text-[11px] leading-tight font-medium">
+                          {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
+                        </div>
+                        {order.invoiced && (
+                          <span title="Invoiced">
+                            <FileText size={12} className="text-blue-600 flex-shrink-0" />
+                          </span>
+                        )}
                       </div>
                       <div className="text-gray-500 text-[10px] leading-tight mt-0.5">
                         {orderDate ? format(orderDate, 'hh:mm a') : ''}

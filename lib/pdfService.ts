@@ -214,11 +214,6 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 100, 100)
   doc.text(royalTimestamp, pageWidth - margin, yPos, { align: 'right', charSpace: 0 })
-  yPos += 6
-
-  // Date on left
-  doc.setFontSize(11)
-  doc.text(`Date: ${format(orderDate, 'dd MMMM, yyyy')}`, contentX, yPos, { charSpace: 0 })
   yPos += 12
 
   // Billed to and From sections side by side
@@ -315,6 +310,12 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
     // Render text with explicit options to prevent letter spacing
     const textOptions = { charSpace: 0 }
     const rowStartY = yPos
+    
+    // Add order date
+    const orderDateObj = new Date(order.date)
+    const formattedDate = format(orderDateObj, 'dd MMM yyyy')
+    doc.text(formattedDate, dateX, yPos, textOptions)
+    
     if (Array.isArray(materialLines)) {
       materialLines.forEach((line: string, index: number) => {
         doc.text(line, materialX, yPos + (index * 7), textOptions)
@@ -417,11 +418,6 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 100, 100)
   doc.text(royalTimestamp, pageWidth - margin, yPos, { align: 'right', charSpace: 0 })
-  yPos += 6
-
-  // Date on left
-  doc.setFontSize(11)
-  doc.text(`Date: ${format(firstOrderDate, 'dd MMMM, yyyy')}`, contentX, yPos, { charSpace: 0 })
   yPos += 12
 
   // Billed to and From sections side by side
@@ -528,6 +524,12 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
     // Render text with explicit options to prevent letter spacing
     const textOptions = { charSpace: 0 }
     const rowStartY = yPos
+    
+    // Add order date
+    const orderDateObj = new Date(order.date)
+    const formattedDate = format(orderDateObj, 'dd MMM yyyy')
+    doc.text(formattedDate, dateX, yPos, textOptions)
+    
     if (Array.isArray(materialLines)) {
       materialLines.forEach((line: string, index: number) => {
         doc.text(line, materialX, yPos + (index * 7), textOptions)
