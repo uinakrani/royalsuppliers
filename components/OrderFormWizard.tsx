@@ -17,7 +17,6 @@ import { showToast } from '@/components/Toast'
 import { ledgerService } from '@/lib/ledgerService'
 import { getDb } from '@/lib/firebase'
 import { updateDoc, doc } from 'firebase/firestore'
-import { Order, PaymentRecord } from '@/types/order'
 
 interface OrderFormWizardProps {
   order?: Order | null
@@ -764,7 +763,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           inputPlaceholder: 'Enter amount',
           inputType: 'text',
           formatCurrencyInr: true,
-          defaultValue: payment.amount.toString(),
+          inputValue: payment.amount.toString(),
           confirmText: 'Save',
           cancelText: 'Cancel',
         })
@@ -788,7 +787,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           inputPlaceholder: 'e.g. Cash payment / Bank transfer',
           inputType: 'text',
           required: false,
-          defaultValue: payment.note || '',
+          inputValue: payment.note || '',
           confirmText: 'Save',
           cancelText: 'Skip',
         })

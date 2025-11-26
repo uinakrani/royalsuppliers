@@ -499,7 +499,6 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                   lastEnteredValue.current = null
                 }}
                 label="Enter Note"
-                multiline={true}
               />
             )}
           </div>
