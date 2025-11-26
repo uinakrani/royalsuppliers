@@ -1250,16 +1250,37 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
 
   const handleSubmit = async () => {
     // Validate material
-    if (formData.material.length === 0) {
+    if (!formData.material || formData.material.length === 0) {
       alert('Please select at least one material')
+      return
+    }
+
+    // Validate required fields
+    if (!formData.partyName.trim()) {
+      alert('Please enter a party name')
+      return
+    }
+
+    if (!formData.siteName.trim()) {
+      alert('Please enter a site name')
+      return
+    }
+
+    if (Number(formData.weight) <= 0) {
+      alert('Please enter a valid weight')
+      return
+    }
+
+    if (Number(formData.rate) <= 0) {
+      alert('Please enter a valid rate')
       return
     }
 
     setSaving(true)
     try {
-      const total = formData.weight * formData.rate
-      const originalTotal = formData.originalWeight * formData.originalRate
-      const profit = total - (originalTotal + formData.additionalCost)
+      const total = Number(formData.weight) * Number(formData.rate)
+      const originalTotal = Number(formData.originalWeight) * Number(formData.originalRate)
+      const profit = total - (originalTotal + Number(formData.additionalCost))
 
       // Ensure all payments have valid dates and amounts
       const validatedPayments = (formData.partialPayments || [])
@@ -1301,12 +1322,27 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         ? formData.date 
         : `${formData.date}T00:00:00.000Z`
 
+      // Normalize material - ensure it's never empty
+      let normalizedMaterial: string | string[]
+      if (Array.isArray(formData.material)) {
+        if (formData.material.length === 0) {
+          throw new Error('Material cannot be empty')
+        }
+        // Keep as array (even if single item) for consistency
+        normalizedMaterial = formData.material
+      } else if (formData.material) {
+        // If it's a string, convert to array for consistency
+        normalizedMaterial = [formData.material]
+      } else {
+        throw new Error('Material cannot be empty')
+      }
+
       // Build order data explicitly to ensure all fields are correct
       const orderData: Omit<Order, 'id'> = {
         date: orderDate,
         partyName: formData.partyName.trim(),
         siteName: formData.siteName.trim(),
-        material: formData.material.length > 0 ? formData.material : [],
+        material: normalizedMaterial,
         weight: Number(formData.weight) || 0,
         rate: Number(formData.rate) || 0,
         total,

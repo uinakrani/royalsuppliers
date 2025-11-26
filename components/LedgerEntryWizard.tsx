@@ -107,6 +107,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
   const [currentInput, setCurrentInput] = useState<string>('')
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [partyNames, setPartyNames] = useState<string[]>([])
+  const selectListManuallyOpenedRef = useRef<boolean>(false)
   const lastEnteredValue = useRef<number | string | null>(null)
   const isClosingRef = useRef(false)
 
@@ -199,9 +200,17 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }, [saving, handleClose])
 
+  // Track previous step to detect step changes
+  const prevStepRef = useRef<number>(currentStep)
+  
   // Auto-show input when step changes
   useEffect(() => {
     const step = stepOrder[currentStep]
+    const prevStep = stepOrder[prevStepRef.current]
+    const stepChanged = prevStepRef.current !== currentStep
+    
+    // Update ref for next time
+    prevStepRef.current = currentStep
     
     // Skip auto-open for review step
     if (step === 'review') {
@@ -209,7 +218,19 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       setShowTextPad(false)
       setShowSelectList(false)
       setShowDatePicker(false)
+      selectListManuallyOpenedRef.current = false
       return
+    }
+    
+    // Only close SelectList if we're moving FROM supplier/partyName TO a different step
+    // AND SelectList wasn't manually opened
+    if (stepChanged && (prevStep === 'supplier' || prevStep === 'partyName')) {
+      if (step !== 'supplier' && step !== 'partyName') {
+        // Moving away from supplier/partyName step - close SelectList
+        setShowSelectList(false)
+        setCurrentInput('')
+        selectListManuallyOpenedRef.current = false
+      }
     }
     
     // Immediately open the appropriate input for the current step
@@ -218,29 +239,32 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       setShowDatePicker(true)
       setShowNumberPad(false)
       setShowTextPad(false)
-      setShowSelectList(false)
+      if (!selectListManuallyOpenedRef.current) {
+        setShowSelectList(false)
+      }
     } else if (step === 'amount') {
       setCurrentInput('amount')
       setShowNumberPad(true)
       setShowDatePicker(false)
       setShowTextPad(false)
-      setShowSelectList(false)
-    } else if (step === 'supplier' || step === 'partyName') {
-      // Don't auto-open SelectList for optional steps - let user click button
-      // Only close SelectList if we're moving FROM a different step TO this step
-      // Don't close if SelectList is already open for this step (user clicked button)
-      if (currentInput !== step) {
+      if (!selectListManuallyOpenedRef.current) {
         setShowSelectList(false)
       }
-      // Don't set currentInput here - let the button click handle it
+    } else if (step === 'supplier' || step === 'partyName') {
+      // Don't auto-open SelectList for optional steps - let user click button
+      // Don't interfere with SelectList if user manually opened it
+      // Only close other inputs
       setShowNumberPad(false)
       setShowTextPad(false)
       setShowDatePicker(false)
+      // Don't touch showSelectList or currentInput here - let button handle it
     } else if (step === 'note') {
       setCurrentInput('note')
       setShowTextPad(true)
       setShowNumberPad(false)
-      setShowSelectList(false)
+      if (!selectListManuallyOpenedRef.current) {
+        setShowSelectList(false)
+      }
       setShowDatePicker(false)
     }
   }, [currentStep, stepOrder])
@@ -398,6 +422,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
             {!showSelectList && (
               <button
                 onClick={() => {
+                  selectListManuallyOpenedRef.current = true
                   setCurrentInput('supplier')
                   setShowSelectList(true)
                 }}
@@ -415,11 +440,13 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                   setFormData({ ...formData, supplier: val })
                   setShowSelectList(false)
                   setCurrentInput('') // Clear currentInput to prevent conflicts
+                  selectListManuallyOpenedRef.current = false
                   setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => {
                   setShowSelectList(false)
                   setCurrentInput('') // Clear currentInput when closing
+                  selectListManuallyOpenedRef.current = false
                   // Don't auto-advance when closing without selection - let user click Continue
                 }}
                 label="Select Supplier"
@@ -448,6 +475,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
             {!showSelectList && (
               <button
                 onClick={() => {
+                  selectListManuallyOpenedRef.current = true
                   setCurrentInput('partyName')
                   setShowSelectList(true)
                 }}
@@ -464,10 +492,14 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                 onChange={(val) => {
                   setFormData({ ...formData, partyName: val })
                   setShowSelectList(false)
+                  setCurrentInput('')
+                  selectListManuallyOpenedRef.current = false
                   setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => {
                   setShowSelectList(false)
+                  setCurrentInput('')
+                  selectListManuallyOpenedRef.current = false
                   // Don't auto-advance when closing without selection - let user click Continue
                 }}
                 label="Select Party Name"
