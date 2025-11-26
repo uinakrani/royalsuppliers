@@ -334,13 +334,22 @@ export default function OrdersPage() {
           if (oldPayment.ledgerEntryId) {
             const newPayment = newPayments.find(p => p.id === oldPayment.id)
             if (!newPayment) {
-              // Payment was removed
+              // Payment was removed - need to redistribute
               console.log(`  ❌ Ledger payment ${oldPayment.id} was removed (ledgerEntryId: ${oldPayment.ledgerEntryId})`)
               ledgerEntryIdsToRedistribute.add(oldPayment.ledgerEntryId)
-            } else if (Math.abs(Number(newPayment.amount) - Number(oldPayment.amount)) > 0.01 || newPayment.date !== oldPayment.date) {
-              // Payment was modified
-              console.log(`  ✏️  Ledger payment ${oldPayment.id} was modified: ${oldPayment.amount} → ${newPayment.amount} (ledgerEntryId: ${oldPayment.ledgerEntryId})`)
-              ledgerEntryIdsToRedistribute.add(oldPayment.ledgerEntryId)
+            } else {
+              // Payment was modified - only amount changes should trigger redistribution
+              const amountChanged = Math.abs(Number(newPayment.amount) - Number(oldPayment.amount)) > 0.01
+              
+              if (amountChanged) {
+                console.log(`  ✏️  Ledger payment ${oldPayment.id} amount changed: ${oldPayment.amount} → ${newPayment.amount} (ledgerEntryId: ${oldPayment.ledgerEntryId})`)
+                
+                // Only amount changes trigger redistribution
+                // Date and note changes don't affect the distribution
+                ledgerEntryIdsToRedistribute.add(oldPayment.ledgerEntryId)
+              } else {
+                console.log(`  ℹ️  Ledger payment ${oldPayment.id} modified (date/note only, no redistribution needed)`)
+              }
             }
           }
         })
@@ -350,16 +359,11 @@ export default function OrdersPage() {
           if (newPayment.ledgerEntryId) {
             const oldPayment = oldPayments.find(p => p.id === newPayment.id)
             if (!oldPayment) {
-              // New ledger payment
+              // New ledger payment added - need to redistribute
               console.log(`  ➕ New ledger payment ${newPayment.id} added (ledgerEntryId: ${newPayment.ledgerEntryId})`)
               ledgerEntryIdsToRedistribute.add(newPayment.ledgerEntryId)
-            } else if (Math.abs(Number(newPayment.amount) - Number(oldPayment.amount)) > 0.01 || newPayment.date !== oldPayment.date) {
-              // Modified ledger payment (already handled above, but double-check)
-              if (!ledgerEntryIdsToRedistribute.has(newPayment.ledgerEntryId)) {
-                console.log(`  ✏️  Ledger payment ${newPayment.id} was modified: ${oldPayment.amount} → ${newPayment.amount} (ledgerEntryId: ${newPayment.ledgerEntryId})`)
-                ledgerEntryIdsToRedistribute.add(newPayment.ledgerEntryId)
-              }
             }
+            // Modified payments are already handled above
           }
         })
         
@@ -714,6 +718,11 @@ export default function OrdersPage() {
       const payment = editingPayment.order.partialPayments?.find(p => p.id === editingPayment.paymentId)
       const isLedgerPayment = !!payment?.ledgerEntryId
       
+      // Check if amount changed (only for ledger payments)
+      const amountChanged = isLedgerPayment && payment 
+        ? Math.abs(Number(data.amount) - Number(payment.amount)) > 0.01
+        : false
+      
       // Update the payment on the order (preserving ledgerEntryId if it exists)
       await orderService.updatePartialPayment(
         editingPayment.order.id, 
@@ -722,8 +731,8 @@ export default function OrdersPage() {
         payment?.ledgerEntryId // Preserve ledgerEntryId
       )
       
-      // If this is a ledger payment, redistribute the ledger entry
-      if (isLedgerPayment && payment.ledgerEntryId) {
+      // If this is a ledger payment AND the amount changed, redistribute the ledger entry
+      if (isLedgerPayment && payment.ledgerEntryId && amountChanged) {
         await redistributeLedgerEntry(payment.ledgerEntryId, data.date)
       }
       
@@ -790,20 +799,12 @@ export default function OrdersPage() {
       
       console.log(`💰 Total allocated to orders: ${totalAllocated}, Ledger entry amount: ${ledgerEntry.amount}`)
 
-      // Update ledger entry amount to match the total allocated
-      if (Math.abs(totalAllocated - ledgerEntry.amount) > 0.01) {
-        const db = getDb()
-        if (db) {
-          await updateDoc(doc(db, 'ledgerEntries', ledgerEntryId), {
-            amount: totalAllocated,
-            date: expenseDate,
-            updatedAt: new Date().toISOString()
-          })
-          console.log(`✅ Updated ledger entry ${ledgerEntryId} amount to ${totalAllocated}`)
-        }
-      }
+      // NOTE: We do NOT automatically update the ledger entry amount
+      // The ledger entry amount should only be changed manually by the user
+      // We use the original ledger entry amount for redistribution
 
-      // Redistribute the total allocated amount across orders
+      // Redistribute using the original ledger entry amount (not the calculated totalAllocated)
+      // This ensures we redistribute the actual ledger entry amount, not what's currently allocated
       const supplier = ledgerEntry.supplier
       const ordersWithOutstanding = allOrders
         .map(order => {
@@ -852,10 +853,12 @@ export default function OrdersPage() {
         return
       }
 
-      let remainingExpense = totalAllocated
+      // Use the original ledger entry amount for redistribution, not the calculated totalAllocated
+      // This ensures we redistribute the actual ledger entry amount
+      let remainingExpense = ledgerEntry.amount
       const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
 
-      console.log(`💰 Starting redistribution: totalAllocated=${totalAllocated}`)
+      console.log(`💰 Starting redistribution: ledger entry amount=${ledgerEntry.amount}, currently allocated=${totalAllocated}`)
 
       // Distribute expense across orders (oldest first)
       for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
@@ -918,15 +921,14 @@ export default function OrdersPage() {
     if (!order.id) return
     
     const payment = order.partialPayments?.find(p => p.id === paymentId)
-    if (payment?.ledgerEntryId) {
-      showToast('This payment was created from a ledger entry and cannot be removed', 'error')
-      return
-    }
+    const isLedgerPayment = !!payment?.ledgerEntryId
     
     try {
       const confirmed = await sweetAlert.confirm({
         title: 'Remove Payment?',
-        message: 'Are you sure you want to remove this payment? This action cannot be undone.',
+        message: isLedgerPayment 
+          ? 'This payment is from a ledger entry. Removing it will trigger redistribution of the ledger entry. Continue?'
+          : 'Are you sure you want to remove this payment? This action cannot be undone.',
         icon: 'warning',
         confirmText: 'Remove',
         cancelText: 'Cancel'
@@ -935,7 +937,21 @@ export default function OrdersPage() {
       if (!confirmed) return
 
       await orderService.removePartialPayment(order.id, paymentId)
-      showToast('Payment removed successfully!', 'success')
+      
+      // If this was a ledger payment, redistribute the ledger entry
+      if (isLedgerPayment && payment.ledgerEntryId) {
+        try {
+          // Get the order date or use current date for redistribution
+          const paymentDate = order.date || new Date().toISOString()
+          await redistributeLedgerEntry(payment.ledgerEntryId, paymentDate)
+          showToast('Payment removed and ledger entry redistributed!', 'success')
+        } catch (error) {
+          console.error('Error redistributing ledger entry:', error)
+          showToast('Payment removed, but redistribution failed', 'error')
+        }
+      } else {
+        showToast('Payment removed successfully!', 'success')
+      }
       
       // Reload orders
       await loadOrders()
@@ -1861,91 +1877,120 @@ export default function OrdersPage() {
           })}
         </div>
       ) : viewMode === 'suppliers' ? (
-        // Suppliers View
-        <div className="p-2 space-y-2">
-          {getSupplierGroups().map((group, index) => {
-            const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
-            const paymentPercentage = group.totalAmount > 0 ? (group.totalPaid / group.totalAmount) * 100 : 0
-            
-            return (
-              <div 
-                key={group.supplierName} 
-                className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:border-orange-300 active:scale-[0.99] native-press"
-                style={{
-                  animation: `fadeInUp 0.3s ease-out ${index * 0.04}s both`,
-                  WebkitTapHighlightColor: 'transparent',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('button')) return
-                  createRipple(e)
-                  handleSupplierGroupClick(group)
-                }}
-              >
-                <div className="p-2.5">
-                  {/* Header Row */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Package size={13} className="text-orange-600 flex-shrink-0" />
-                        <h3 className="font-bold text-sm text-gray-900 truncate">{group.supplierName}</h3>
+        // Suppliers View - Two Column Grid
+        <div className="p-3">
+          <div className="grid grid-cols-2 gap-3">
+            {getSupplierGroups().map((group, index) => {
+              const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+              const paymentPercentage = group.totalAmount > 0 ? (group.totalPaid / group.totalAmount) * 100 : 0
+              
+              return (
+                <div 
+                  key={group.supplierName} 
+                  className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:border-orange-400 hover:shadow-md active:scale-[0.98] native-press group"
+                  style={{
+                    animation: `fadeInUp 0.3s ease-out ${index * 0.03}s both`,
+                    WebkitTapHighlightColor: 'transparent',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button')) return
+                    createRipple(e)
+                    handleSupplierGroupClick(group)
+                  }}
+                >
+                  {/* Gradient Header Background */}
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 px-3 py-2.5 border-b border-orange-200/50">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <div className="p-1.5 bg-orange-500 rounded-lg shadow-sm group-hover:scale-110 transition-transform duration-200">
+                          <Package size={14} className="text-white" />
+                        </div>
+                        <h3 className="font-bold text-sm text-gray-900 truncate leading-tight">{group.supplierName}</h3>
                       </div>
+                      <ChevronRight size={16} className="text-orange-500 flex-shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform duration-200" />
                     </div>
-                    <ChevronRight size={16} className="text-gray-400 flex-shrink-0 ml-2" />
                   </div>
 
-                  {/* Summary Row */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-600">Total Amount:</span>
-                      <span className="font-semibold text-gray-900">{formatIndianCurrency(group.totalAmount)}</span>
+                  <div className="p-3">
+                    {/* Amount Cards */}
+                    <div className="space-y-2 mb-3">
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-2 border border-gray-200/50">
+                        <div className="text-[10px] text-gray-600 mb-0.5 font-medium">Total Amount</div>
+                        <div className="text-sm font-bold text-gray-900 truncate">{formatIndianCurrency(group.totalAmount)}</div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-2 border border-green-200/50">
+                          <div className="text-[10px] text-green-700 mb-0.5 font-medium">Paid</div>
+                          <div className="text-xs font-bold text-green-700 truncate">{formatIndianCurrency(group.totalPaid)}</div>
+                        </div>
+                        
+                        <div className={`rounded-lg p-2 border ${
+                          group.remainingAmount > 0 
+                            ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200/50' 
+                            : 'bg-gradient-to-br from-green-50 to-green-100 border-green-200/50'
+                        }`}>
+                          <div className={`text-[10px] mb-0.5 font-medium ${
+                            group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'
+                          }`}>Remaining</div>
+                          <div className={`text-xs font-bold truncate ${
+                            group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'
+                          }`}>{formatIndianCurrency(Math.abs(group.remainingAmount))}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-600">Paid:</span>
-                      <span className="font-semibold text-green-600">{formatIndianCurrency(group.totalPaid)}</span>
+
+                    {/* Progress Bar */}
+                    {group.totalAmount > 0 && (
+                      <div className="mb-3">
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                          <div 
+                            className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700 ease-out shadow-sm"
+                            style={{ width: `${Math.min(100, paymentPercentage)}%` }}
+                          />
+                        </div>
+                        <div className="text-[9px] text-gray-500 mt-1 text-center font-medium">
+                          {paymentPercentage.toFixed(1)}% Paid
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Stats */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                        <span className="text-[10px] text-gray-600 font-medium">{group.orders.length} {group.orders.length === 1 ? 'Order' : 'Orders'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                        <span className="text-[10px] text-gray-600 font-medium">{group.ledgerPayments.length} {group.ledgerPayments.length === 1 ? 'Payment' : 'Payments'}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-600">Remaining:</span>
-                      <span className={`font-semibold ${group.remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {formatIndianCurrency(group.remainingAmount)}
-                      </span>
-                    </div>
+
+                    {/* Last Payment */}
                     {lastPaymentDateObj && group.lastPaymentAmount !== null && (
-                      <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-100">
-                        <span className="text-gray-500">Last Payment:</span>
-                        <span className="text-gray-700">
-                          {format(lastPaymentDateObj, 'dd MMM yyyy')} - {formatIndianCurrency(group.lastPaymentAmount)}
-                        </span>
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <Calendar size={10} className="text-gray-400" />
+                          <span className="text-gray-600 font-medium">Last:</span>
+                          <span className="text-gray-700 font-semibold">{format(lastPaymentDateObj, 'dd MMM')}</span>
+                          <span className="text-gray-500">•</span>
+                          <span className="text-gray-700 font-semibold">{formatIndianCurrency(group.lastPaymentAmount)}</span>
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Progress Bar */}
-                  {group.totalAmount > 0 && (
-                    <div className="mt-2">
-                      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500 transition-all duration-500 ease-out"
-                          style={{ width: `${Math.min(100, paymentPercentage)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Quick Stats */}
-                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500">
-                    <span>{group.orders.length} {group.orders.length === 1 ? 'Order' : 'Orders'}</span>
-                    <span>•</span>
-                    <span>{group.ledgerPayments.length} {group.ledgerPayments.length === 1 ? 'Payment' : 'Payments'}</span>
-                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
           {getSupplierGroups().length === 0 && (
-            <div className="p-4 text-center text-sm text-gray-500">
-              No suppliers found
+            <div className="col-span-2 p-8 text-center">
+              <Package size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-sm font-medium text-gray-500">No suppliers found</p>
+              <p className="text-xs text-gray-400 mt-1">Suppliers will appear here when you create orders</p>
             </div>
           )}
         </div>

@@ -4,6 +4,20 @@ import { useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, getDay } from 'date-fns'
 
+// Helper function to format date as YYYY-MM-DD in local time (not UTC)
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Helper function to parse YYYY-MM-DD string to Date in local time
+const parseLocalDate = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 interface DatePickerProps {
   value: string // ISO date string
   onChange: (value: string) => void
@@ -17,7 +31,8 @@ export default function DatePicker({
   onClose, 
   label = 'Select Date'
 }: DatePickerProps) {
-  const selectedDate = value ? new Date(value) : new Date()
+  // Parse date string in local time to avoid timezone issues
+  const selectedDate = value ? parseLocalDate(value) : new Date()
   const [currentMonth, setCurrentMonth] = useState(selectedDate)
 
   const monthStart = startOfMonth(currentMonth)
@@ -32,7 +47,7 @@ export default function DatePicker({
   const allDays = [...emptyDays, ...daysInMonth]
 
   const handleDateSelect = (date: Date) => {
-    onChange(date.toISOString().split('T')[0])
+    onChange(formatLocalDate(date))
     onClose()
   }
 
@@ -46,7 +61,7 @@ export default function DatePicker({
 
   const handleToday = () => {
     const today = new Date()
-    onChange(today.toISOString().split('T')[0])
+    onChange(formatLocalDate(today))
     onClose()
   }
 

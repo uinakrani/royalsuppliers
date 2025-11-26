@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { format } from 'date-fns'
-import { PlusCircle, MinusCircle, Wallet, Plus } from 'lucide-react'
+import { PlusCircle, MinusCircle, Wallet, Plus, History, Calendar, X } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import NavBar from '@/components/NavBar'
-import LedgerEntryPopup from '@/components/LedgerEntryPopup'
+import LedgerEntryWizard from '@/components/LedgerEntryWizard'
 import BottomSheet from '@/components/BottomSheet'
-import LedgerEntryModal from '@/components/LedgerEntryModal'
 import { createRipple } from '@/lib/rippleEffect'
 import TruckLoading from '@/components/TruckLoading'
 import { orderService, isOrderPaid } from '@/lib/orderService'
@@ -17,20 +16,27 @@ import { getDb } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore'
 import { nativePopup } from '@/components/NativePopup'
 import { showToast } from '@/components/Toast'
+import { ledgerActivityService, LedgerActivity } from '@/lib/ledgerActivityService'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'entries' | 'activity'>('entries')
+  
+  // Activity log state
+  const [activities, setActivities] = useState<LedgerActivity[]>([])
+  const [activitiesLoading, setActivitiesLoading] = useState(true)
+  const [showDateFilter, setShowDateFilter] = useState(false)
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerType, setDrawerType] = useState<'credit' | 'debit'>('credit')
   const [drawerMode, setDrawerMode] = useState<'add' | 'edit'>('add')
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null)
-  
-  // Modal state
-  const [modalOpen, setModalOpen] = useState(false)
-  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null)
   
   // Bottom sheet state
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false)
@@ -97,9 +103,42 @@ export default function LedgerPage() {
     return () => unsub()
   }, [])
 
+  // Load activities
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      setActivitiesLoading(true)
+      const loadActivities = async () => {
+        try {
+          const items = await ledgerActivityService.getActivities(
+            startDate || undefined,
+            endDate || undefined
+          )
+          setActivities(items)
+        } catch (error) {
+          console.error('Failed to load activities:', error)
+          setActivities([])
+        } finally {
+          setActivitiesLoading(false)
+        }
+      }
+      loadActivities()
+      
+      // Subscribe to real-time updates
+      const unsub = ledgerActivityService.subscribe(
+        (items) => {
+          setActivities(items)
+          setActivitiesLoading(false)
+        },
+        startDate || undefined,
+        endDate || undefined
+      )
+      return () => unsub()
+    }
+  }, [activeTab, startDate, endDate])
+
   const handleEntryClick = (entry: LedgerEntry) => {
-    setSelectedEntry(entry)
-    setModalOpen(true)
+    // Directly open the wizard in edit mode (showing review page)
+    handleEditEntry(entry)
   }
 
   const handleAddEntry = (type: 'credit' | 'debit') => {
@@ -114,7 +153,6 @@ export default function LedgerPage() {
     setDrawerType(entry.type)
     setDrawerMode('edit')
     setDrawerOpen(true)
-    setModalOpen(false)
   }
 
   const handleSaveEntry = async (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => {
@@ -445,7 +483,6 @@ export default function LedgerPage() {
   const handleDeleteClick = (entryId: string) => {
     setEntryToDelete(entryId)
     setDeleteSheetOpen(true)
-    setModalOpen(false)
   }
 
   const handleDeleteConfirm = async () => {
@@ -611,6 +648,151 @@ export default function LedgerPage() {
     )
   }
 
+  const renderActivity = (activity: LedgerActivity) => {
+    const getActivityColor = () => {
+      switch (activity.activityType) {
+        case 'created':
+          return 'bg-green-50 border-green-200'
+        case 'updated':
+          return 'bg-blue-50 border-blue-200'
+        case 'deleted':
+          return 'bg-red-50 border-red-200'
+        default:
+          return 'bg-gray-50 border-gray-200'
+      }
+    }
+
+    const getActivityIcon = () => {
+      switch (activity.activityType) {
+        case 'created':
+          return <PlusCircle size={16} className="text-green-600" />
+        case 'updated':
+          return <MinusCircle size={16} className="text-blue-600" />
+        case 'deleted':
+          return <X size={16} className="text-red-600" />
+        default:
+          return null
+      }
+    }
+
+    const getActivityLabel = () => {
+      switch (activity.activityType) {
+        case 'created':
+          return 'Created'
+        case 'updated':
+          return 'Updated'
+        case 'deleted':
+          return 'Deleted'
+        default:
+          return 'Activity'
+      }
+    }
+
+    const formatTimestamp = (timestamp: string) => {
+      const date = new Date(timestamp)
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffMins = Math.floor(diffMs / 60000)
+      const diffHours = Math.floor(diffMs / 3600000)
+      const diffDays = Math.floor(diffMs / 86400000)
+
+      if (diffMins < 1) return 'Just now'
+      if (diffMins < 60) return `${diffMins}m ago`
+      if (diffHours < 24) return `${diffHours}h ago`
+      if (diffDays < 7) return `${diffDays}d ago`
+      return format(date, 'dd MMM yyyy, hh:mm a')
+    }
+
+    const renderChange = (label: string, oldValue: any, newValue: any, formatter?: (val: any) => string) => {
+      if (activity.activityType === 'created') {
+        if (newValue === undefined || newValue === null || newValue === '') return null
+        return (
+          <div className="mt-1.5">
+            <span className="text-gray-600 text-xs">{label}:</span>
+            <span className="ml-1.5 text-gray-800 font-medium text-xs">
+              {formatter ? formatter(newValue) : String(newValue)}
+            </span>
+          </div>
+        )
+      }
+      if (activity.activityType === 'deleted') {
+        if (oldValue === undefined || oldValue === null || oldValue === '') return null
+        return (
+          <div className="mt-1.5">
+            <span className="text-gray-600 text-xs">{label}:</span>
+            <span className="ml-1.5 text-gray-800 font-medium text-xs line-through">
+              {formatter ? formatter(oldValue) : String(oldValue)}
+            </span>
+          </div>
+        )
+      }
+      // Updated - only show if value actually changed
+      if (oldValue !== newValue && (oldValue !== undefined || newValue !== undefined)) {
+        return (
+          <div className="mt-1.5">
+            <span className="text-gray-600 text-xs">{label}:</span>
+            <div className="ml-1.5 flex items-center gap-1.5 flex-wrap">
+              {oldValue !== undefined && oldValue !== null && oldValue !== '' && (
+                <>
+                  <span className="text-red-600 text-xs line-through">
+                    {formatter ? formatter(oldValue) : String(oldValue)}
+                  </span>
+                  <span className="text-gray-400 text-xs">→</span>
+                </>
+              )}
+              {newValue !== undefined && newValue !== null && newValue !== '' && (
+                <span className="text-green-600 text-xs font-medium">
+                  {formatter ? formatter(newValue) : String(newValue)}
+                </span>
+              )}
+              {oldValue !== undefined && newValue === undefined && (
+                <span className="text-gray-500 text-xs italic">(removed)</span>
+              )}
+            </div>
+          </div>
+        )
+      }
+      return null
+    }
+
+    return (
+      <div
+        key={activity.id}
+        className={`rounded-xl border p-3 ${getActivityColor()} transition-all duration-200`}
+        style={{
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {getActivityIcon()}
+            <span className="font-semibold text-gray-800" style={{ fontSize: '13px' }}>
+              {getActivityLabel()}
+            </span>
+            {activity.type && (
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                activity.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {activity.type === 'credit' ? 'Income' : 'Expense'}
+              </span>
+            )}
+          </div>
+          <span className="text-gray-500 text-xs flex-shrink-0">
+            {formatTimestamp(activity.timestamp)}
+          </span>
+        </div>
+
+        <div className="space-y-1">
+          {renderChange('Amount', activity.previousAmount, activity.amount, (val) => formatIndianCurrency(val || 0))}
+          {renderChange('Date', activity.previousDate, activity.date, (val) => val ? format(new Date(val), 'dd MMM yyyy') : 'N/A')}
+          {renderChange('Note', activity.previousNote, activity.note)}
+          {renderChange('Supplier', activity.previousSupplier, activity.supplier)}
+          {renderChange('Party', activity.previousPartyName, activity.partyName)}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-gray-50" style={{ 
       height: '100dvh',
@@ -626,13 +808,100 @@ export default function LedgerPage() {
             <Wallet size={18} />
             <h1 className="text-lg font-bold truncate">Ledger</h1>
           </div>
+          {activeTab === 'activity' && (
+            <button
+              onClick={(e) => {
+                createRipple(e)
+                setShowDateFilter(!showDateFilter)
+              }}
+              className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg active:bg-white/30 transition-colors touch-manipulation"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Calendar size={16} />
+            </button>
+          )}
         </div>
-        <div className="bg-white rounded-lg p-2 text-gray-800 flex items-center justify-between">
-          <span className="font-medium" style={{ fontSize: '12px' }}>Balance</span>
-          <span className={`font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`} style={{ fontSize: '12px' }}>
-            {formatIndianCurrency(Math.abs(balance))} {balance >= 0 ? '' : '(Dr)'}
-          </span>
+        {activeTab === 'entries' && (
+          <div className="bg-white rounded-lg p-2 text-gray-800 flex items-center justify-between">
+            <span className="font-medium" style={{ fontSize: '12px' }}>Balance</span>
+            <span className={`font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`} style={{ fontSize: '12px' }}>
+              {formatIndianCurrency(Math.abs(balance))} {balance >= 0 ? '' : '(Dr)'}
+            </span>
+          </div>
+        )}
+        
+        {/* Tabs */}
+        <div className="flex gap-1 mt-2">
+          <button
+            onClick={(e) => {
+              createRipple(e)
+              setActiveTab('entries')
+            }}
+            className={`flex-1 py-2 rounded-lg font-medium transition-all duration-200 touch-manipulation ${
+              activeTab === 'entries'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'bg-white/20 text-white/80 active:bg-white/30'
+            }`}
+            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
+          >
+            Entries
+          </button>
+          <button
+            onClick={(e) => {
+              createRipple(e)
+              setActiveTab('activity')
+            }}
+            className={`flex-1 py-2 rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${
+              activeTab === 'activity'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'bg-white/20 text-white/80 active:bg-white/30'
+            }`}
+            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
+          >
+            <History size={14} />
+            Activity Log
+          </button>
         </div>
+
+        {/* Date Filter */}
+        {showDateFilter && activeTab === 'activity' && (
+          <div className="mt-2 bg-white/95 backdrop-blur-xl rounded-lg p-2 space-y-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-gray-800 font-medium" style={{ fontSize: '12px' }}>Date Range</span>
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  setStartDate('')
+                  setEndDate('')
+                }}
+                className="text-primary-600 text-xs font-medium active:opacity-70 touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content Area - Fixed height, fits between header and buttons */}
@@ -643,65 +912,92 @@ export default function LedgerPage() {
         flexDirection: 'column',
         paddingBottom: '9.25rem' // NavBar (~4.75rem) + Buttons bar (~4rem) + spacing
       }}>
-        {loading ? (
-          <TruckLoading size={100} />
-        ) : (
-          <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
-            {/* Income Column */}
-            <div className="bg-green-50 rounded-lg p-1.5 border border-green-200 flex flex-col" style={{ minHeight: 0 }}>
-              <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
-                <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
-                  <PlusCircle size={14} />
-                  Income
-                </h2>
-              </div>
-              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300 flex-shrink-0">
-                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
-                <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
-                {incomeEntries.length === 0 ? (
-                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
-                ) : (
-                  incomeEntries.map(renderEntry)
-                )}
-              </div>
+        {activeTab === 'entries' ? (
+          loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <TruckLoading size={100} />
             </div>
+          ) : (
+            <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
+              {/* Income Column */}
+              <div className="bg-green-50 rounded-lg p-1.5 border border-green-200 flex flex-col" style={{ minHeight: 0 }}>
+                <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                  <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                    <PlusCircle size={14} />
+                    Income
+                  </h2>
+                </div>
+                <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300 flex-shrink-0">
+                  <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                  <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+                  {incomeEntries.length === 0 ? (
+                    <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                  ) : (
+                    incomeEntries.map(renderEntry)
+                  )}
+                </div>
+              </div>
 
-            {/* Expenses Column */}
-            <div className="bg-red-50 rounded-lg p-1.5 border border-red-200 flex flex-col" style={{ minHeight: 0 }}>
-              <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
-                <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
-                  <MinusCircle size={14} />
-                  Expenses
-                </h2>
-              </div>
-              <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300 flex-shrink-0">
-                <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
-                <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
-                {expenseEntries.length === 0 ? (
-                  <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
-                ) : (
-                  expenseEntries.map(renderEntry)
-                )}
+              {/* Expenses Column */}
+              <div className="bg-red-50 rounded-lg p-1.5 border border-red-200 flex flex-col" style={{ minHeight: 0 }}>
+                <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                  <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                    <MinusCircle size={14} />
+                    Expenses
+                  </h2>
+                </div>
+                <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300 flex-shrink-0">
+                  <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                  <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+                  {expenseEntries.length === 0 ? (
+                    <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                  ) : (
+                    expenseEntries.map(renderEntry)
+                  )}
+                </div>
               </div>
             </div>
+          )
+        ) : (
+          /* Activity Log */
+          <div className="flex-1 overflow-y-auto p-1.5" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {activitiesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <TruckLoading size={80} />
+              </div>
+            ) : activities.length === 0 ? (
+              <div className="text-center text-gray-400 py-12" style={{ fontSize: '13px' }}>
+                No activity logs found
+                {(startDate || endDate) && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    Try adjusting the date range
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activities.map((activity) => renderActivity(activity))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Add Buttons Bar - Floating at bottom, above NavBar */}
-      <div 
-        className="fixed left-0 right-0 z-30 flex items-end justify-center"
-        style={{ 
-          bottom: '5.25rem',
-          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-          pointerEvents: 'none',
-        }}
-      >
+      {/* Add Buttons Bar - Floating at bottom, above NavBar - Only show on entries tab */}
+      {activeTab === 'entries' && (
+        <div 
+          className="fixed left-0 right-0 z-30 flex items-end justify-center"
+          style={{ 
+            bottom: '5.25rem',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+            pointerEvents: 'none',
+          }}
+        >
         <div 
           className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
           style={{ 
@@ -750,34 +1046,21 @@ export default function LedgerPage() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Entry Drawer */}
-      <LedgerEntryPopup
-        isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        onSave={handleSaveEntry}
-        type={drawerType}
-        mode={drawerMode}
-        initialData={editingEntry ? {
-          amount: editingEntry.amount,
-          date: editingEntry.date,
-          note: editingEntry.note,
-          supplier: editingEntry.supplier,
-          partyName: editingEntry.partyName,
-        } : undefined}
-      />
-
-      {/* Entry Details Modal */}
-      <LedgerEntryModal
-        entry={selectedEntry}
-        isOpen={modalOpen}
-        onClose={() => {
-          setModalOpen(false)
-          setSelectedEntry(null)
-        }}
-        onEdit={handleEditEntry}
-        onDelete={handleDeleteClick}
-      />
+      {/* Entry Wizard */}
+      {drawerOpen && (
+        <LedgerEntryWizard
+          entry={editingEntry || null}
+          type={drawerType}
+          onClose={() => {
+            setDrawerOpen(false)
+            setEditingEntry(null)
+          }}
+          onSave={handleSaveEntry}
+          onDelete={handleDeleteClick}
+        />
+      )}
 
       {/* Delete Confirmation Bottom Sheet */}
       <BottomSheet

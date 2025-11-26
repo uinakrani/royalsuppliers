@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Order, PaymentRecord } from '@/types/order'
-import { X, ChevronLeft, ChevronRight, Check, Edit2, Calendar, User, MapPin, Package, Weight, DollarSign, Truck, ShoppingCart, Plus } from 'lucide-react'
-import { orderService } from '@/lib/orderService'
+import { X, ChevronLeft, ChevronRight, Check, Edit2, Calendar, User, MapPin, Package, Weight, DollarSign, Truck, ShoppingCart, Plus, Trash2 } from 'lucide-react'
+import { orderService, isOrderPaid } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
 import NumberPad from '@/components/NumberPad'
@@ -12,6 +12,12 @@ import TextInputPad from '@/components/TextInputPad'
 import SelectList from '@/components/SelectList'
 import DatePicker from '@/components/DatePicker'
 import { MATERIAL_OPTIONS } from '@/lib/constants'
+import { sweetAlert } from '@/lib/sweetalert'
+import { showToast } from '@/components/Toast'
+import { ledgerService } from '@/lib/ledgerService'
+import { getDb } from '@/lib/firebase'
+import { updateDoc, doc } from 'firebase/firestore'
+import { Order, PaymentRecord } from '@/types/order'
 
 interface OrderFormWizardProps {
   order?: Order | null
@@ -32,6 +38,7 @@ type Step =
   | 'originalWeight'
   | 'originalRate'
   | 'additionalCost'
+  | 'payment'
   | 'review'
 
 const STEP_ORDER: Step[] = [
@@ -47,11 +54,15 @@ const STEP_ORDER: Step[] = [
   'originalWeight',
   'originalRate',
   'additionalCost',
+  'payment',
   'review'
 ]
 
 export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWizardProps) {
-  const [currentStep, setCurrentStep] = useState<number>(0)
+  // If editing (order has id), start at review step, otherwise start at step 0
+  const isEditMode = !!(order?.id)
+  const initialStep = isEditMode ? STEP_ORDER.length - 1 : 0 // Review step is last step
+  const [currentStep, setCurrentStep] = useState<number>(initialStep)
   const [isClosing, setIsClosing] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -90,7 +101,14 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     })
     loadOptions()
     
-    // Auto-open first step input immediately
+    // If in edit mode, we start at review step, so don't auto-open any input
+    if (isEditMode) {
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+    
+    // Auto-open first step input immediately (only for new orders)
     const firstStep = STEP_ORDER[0]
     if (firstStep === 'date') {
       setCurrentInput('date')
@@ -109,14 +127,14 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     return () => {
       document.body.style.overflow = ''
     }
-  }, [])
+  }, [isEditMode])
 
   // Auto-show input when step changes
   useEffect(() => {
     const step = STEP_ORDER[currentStep]
     
-    // Skip auto-open for review step
-    if (step === 'review') {
+    // Skip auto-open for review and payment steps
+    if (step === 'review' || step === 'payment') {
       setShowNumberPad(false)
       setShowTextPad(false)
       setShowSelectList(false)
@@ -190,6 +208,16 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     }
   }
 
+  // Helper to navigate after editing a field - in edit mode, go to review, otherwise continue
+  const handleAfterEdit = () => {
+    if (isEditMode) {
+      // Go to review step (last step)
+      setCurrentStep(STEP_ORDER.length - 1)
+    } else {
+      handleNext()
+    }
+  }
+
   const handlePrevious = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1)
@@ -216,6 +244,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       originalWeight: 'Original Weight',
       originalRate: 'Original Rate',
       additionalCost: 'Additional Cost',
+      payment: 'Payment',
       review: 'Review',
     }
     return labels[step]
@@ -235,6 +264,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       originalWeight: Weight,
       originalRate: DollarSign,
       additionalCost: DollarSign,
+      payment: DollarSign,
       review: Check
     }
     return icons[step]
@@ -266,6 +296,8 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         return formData.originalRate > 0
       case 'additionalCost':
         return true // Optional
+      case 'payment':
+        return true // Optional - can skip payments
       case 'review':
         return true
       default:
@@ -294,7 +326,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 onChange={(val) => {
                   setFormData({ ...formData, date: val })
                   setShowDatePicker(false)
-                  setTimeout(() => handleNext(), 100)
+                  setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => setShowDatePicker(false)}
                 label="Select Date"
@@ -316,7 +348,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 onChange={(val) => {
                   setFormData({ ...formData, partyName: val })
                   setShowSelectList(false)
-                  setTimeout(() => handleNext(), 100)
+                  setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => setShowSelectList(false)}
                 label="Select Party Name"
@@ -342,7 +374,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 onChange={(val) => {
                   setFormData({ ...formData, siteName: val })
                   setShowSelectList(false)
-                  setTimeout(() => handleNext(), 100)
+                  setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => setShowSelectList(false)}
                 label="Select Site Name"
@@ -370,7 +402,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                   setShowSelectList(false)
                   // Only advance if materials are selected and user clicked Done
                   if (formData.material.length > 0) {
-                    setTimeout(() => handleNext(), 100)
+                    setTimeout(() => handleAfterEdit(), 100)
                   }
                 }}
                 label="Select Material"
@@ -409,7 +441,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                   setShowNumberPad(false)
                   const enteredValue = lastEnteredValue.current as number
                   if (enteredValue > 0) {
-                    setTimeout(() => handleNext(), 100)
+                    setTimeout(() => handleAfterEdit(), 100)
                   }
                   lastEnteredValue.current = null
                 }}
@@ -443,7 +475,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                   setShowNumberPad(false)
                   const enteredValue = lastEnteredValue.current as number
                   if (enteredValue > 0) {
-                    setTimeout(() => handleNext(), 100)
+                    setTimeout(() => handleAfterEdit(), 100)
                   }
                   lastEnteredValue.current = null
                 }}
@@ -466,7 +498,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 onChange={(val) => {
                   setFormData({ ...formData, truckOwner: val })
                   setShowSelectList(false)
-                  setTimeout(() => handleNext(), 100)
+                  setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => setShowSelectList(false)}
                 label="Select Truck Owner"
@@ -503,7 +535,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                   setShowTextPad(false)
                   const enteredValue = lastEnteredValue.current as string
                   if (enteredValue && enteredValue.trim()) {
-                    setTimeout(() => handleNext(), 100)
+                    setTimeout(() => handleAfterEdit(), 100)
                   }
                   lastEnteredValue.current = null
                 }}
@@ -526,7 +558,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 onChange={(val) => {
                   setFormData({ ...formData, supplier: val })
                   setShowSelectList(false)
-                  setTimeout(() => handleNext(), 100)
+                  setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => setShowSelectList(false)}
                 label="Select Supplier"
@@ -563,7 +595,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                   setShowNumberPad(false)
                   const enteredValue = lastEnteredValue.current as number
                   if (enteredValue > 0) {
-                    setTimeout(() => handleNext(), 100)
+                    setTimeout(() => handleAfterEdit(), 100)
                   }
                   lastEnteredValue.current = null
                 }}
@@ -597,7 +629,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                   setShowNumberPad(false)
                   const enteredValue = lastEnteredValue.current as number
                   if (enteredValue > 0) {
-                    setTimeout(() => handleNext(), 100)
+                    setTimeout(() => handleAfterEdit(), 100)
                   }
                   lastEnteredValue.current = null
                 }}
@@ -628,7 +660,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 }}
                 onClose={() => {
                   setShowNumberPad(false)
-                  setTimeout(() => handleNext(), 100)
+                  setTimeout(() => handleAfterEdit(), 100)
                 }}
                 label="Enter Additional Cost"
               />
@@ -636,12 +668,297 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           </div>
         )
 
+      case 'payment':
+        return renderPaymentStep()
+
       case 'review':
         return renderReviewStep()
 
       default:
         return null
     }
+  }
+
+  const renderPaymentStep = () => {
+    const originalTotal = formData.originalWeight * formData.originalRate
+    const existingPayments = formData.partialPayments || []
+    const totalPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    const remainingAmount = originalTotal - totalPaid
+
+    const handleAddPayment = async () => {
+      if (remainingAmount <= 0) {
+        showToast('Order is already fully paid', 'error')
+        return
+      }
+
+      try {
+        const amountStr = await sweetAlert.prompt({
+          title: 'Add Payment',
+          message: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
+          inputLabel: 'Payment Amount',
+          inputPlaceholder: 'Enter amount',
+          inputType: 'text',
+          formatCurrencyInr: true,
+          confirmText: 'Add Payment',
+          cancelText: 'Cancel',
+        })
+
+        if (!amountStr) return
+
+        const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+        if (!amount || Number.isNaN(amount) || amount <= 0) {
+          showToast('Invalid amount', 'error')
+          return
+        }
+
+        if (amount > remainingAmount) {
+          showToast(`Payment amount cannot exceed remaining amount (${formatIndianCurrency(remainingAmount)})`, 'error')
+          return
+        }
+
+        const note = await sweetAlert.prompt({
+          title: 'Add Note (optional)',
+          inputLabel: 'Note',
+          inputPlaceholder: 'e.g. Cash payment / Bank transfer',
+          inputType: 'text',
+          required: false,
+          confirmText: 'Save',
+          cancelText: 'Skip',
+        })
+
+        const newPayment: PaymentRecord = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          amount,
+          date: new Date().toISOString(),
+          note: note || undefined,
+        }
+
+        setFormData({
+          ...formData,
+          partialPayments: [...existingPayments, newPayment],
+        })
+        showToast('Payment added successfully!', 'success')
+      } catch (error: any) {
+        if (error?.message && !error.message.includes('SweetAlert')) {
+          showToast(error.message || 'Failed to add payment', 'error')
+        }
+      }
+    }
+
+    const handleEditPayment = async (paymentId: string) => {
+      const payment = existingPayments.find(p => p.id === paymentId)
+      if (!payment) return
+
+      const otherPaymentsTotal = existingPayments
+        .filter(p => p.id !== paymentId)
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0)
+      const maxAmount = originalTotal - otherPaymentsTotal
+
+      const isLedgerPayment = !!payment.ledgerEntryId
+
+      try {
+        const amountStr = await sweetAlert.prompt({
+          title: 'Edit Payment',
+          message: `Max amount: ${formatIndianCurrency(maxAmount)}`,
+          inputLabel: 'Payment Amount',
+          inputPlaceholder: 'Enter amount',
+          inputType: 'text',
+          formatCurrencyInr: true,
+          defaultValue: payment.amount.toString(),
+          confirmText: 'Save',
+          cancelText: 'Cancel',
+        })
+
+        if (!amountStr) return
+
+        const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+        if (!amount || Number.isNaN(amount) || amount <= 0) {
+          showToast('Invalid amount', 'error')
+          return
+        }
+
+        if (amount > maxAmount) {
+          showToast(`Payment amount cannot exceed ${formatIndianCurrency(maxAmount)}`, 'error')
+          return
+        }
+
+        const note = await sweetAlert.prompt({
+          title: 'Edit Note (optional)',
+          inputLabel: 'Note',
+          inputPlaceholder: 'e.g. Cash payment / Bank transfer',
+          inputType: 'text',
+          required: false,
+          defaultValue: payment.note || '',
+          confirmText: 'Save',
+          cancelText: 'Skip',
+        })
+
+        // Preserve ledgerEntryId if it exists
+        const updatedPayment = {
+          ...payment,
+          amount,
+          note: note || undefined,
+          ...(isLedgerPayment && { ledgerEntryId: payment.ledgerEntryId }),
+        }
+
+        // Check if amount changed (for ledger payments)
+        const amountChanged = isLedgerPayment && payment
+          ? Math.abs(Number(amount) - Number(payment.amount)) > 0.01
+          : false
+        
+        setFormData({
+          ...formData,
+          partialPayments: existingPayments.map(p =>
+            p.id === paymentId ? updatedPayment : p
+          ),
+        })
+        
+        if (isLedgerPayment && amountChanged) {
+          showToast('Payment amount updated. Ledger entry will be redistributed after saving.', 'success')
+        } else if (isLedgerPayment) {
+          showToast('Payment updated successfully! (Date/note only - no redistribution needed)', 'success')
+        } else {
+          showToast('Payment updated successfully!', 'success')
+        }
+      } catch (error: any) {
+        if (error?.message && !error.message.includes('SweetAlert')) {
+          showToast(error.message || 'Failed to update payment', 'error')
+        }
+      }
+    }
+
+    const handleRemovePayment = async (paymentId: string) => {
+      const payment = existingPayments.find(p => p.id === paymentId)
+      if (!payment) return
+
+      const isLedgerPayment = !!payment.ledgerEntryId
+
+      try {
+        const confirmed = await sweetAlert.confirm({
+          title: 'Remove Payment?',
+          message: `Are you sure you want to remove payment of ${formatIndianCurrency(payment.amount)}?`,
+          icon: 'warning',
+          confirmText: 'Remove',
+          cancelText: 'Cancel',
+        })
+
+        if (!confirmed) return
+
+        setFormData({
+          ...formData,
+          partialPayments: existingPayments.filter(p => p.id !== paymentId),
+        })
+        
+        if (isLedgerPayment) {
+          showToast('Payment removed. Ledger entry will be redistributed after saving.', 'success')
+        } else {
+          showToast('Payment removed successfully!', 'success')
+        }
+      } catch (error: any) {
+        if (error?.message && !error.message.includes('SweetAlert')) {
+          // User cancelled, ignore
+        }
+      }
+    }
+
+    return (
+      <div className="py-6">
+        <div className="text-center mb-6">
+          <DollarSign size={48} className="mx-auto mb-3 text-primary-600" />
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Partial Payment</h2>
+          <p className="text-sm text-gray-600 mb-4">Add payments for raw materials (Optional)</p>
+        </div>
+
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Original Total:</span>
+                <span className="font-bold text-gray-900">{formatIndianCurrency(originalTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Total Paid:</span>
+                <span className="font-bold text-green-600">{formatIndianCurrency(totalPaid)}</span>
+              </div>
+              <div className="pt-2 border-t border-blue-200 flex justify-between">
+                <span className="text-base font-semibold text-gray-700">Remaining:</span>
+                <span className={`text-base font-bold ${remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {formatIndianCurrency(Math.abs(remainingAmount))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payments List */}
+          {existingPayments.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-700">Payment History</h3>
+              {existingPayments.map((payment) => {
+                const paymentDate = payment.date ? new Date(payment.date) : new Date()
+                return (
+                  <div
+                    key={payment.id}
+                    className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-900">{formatIndianCurrency(payment.amount)}</span>
+                        <span className="text-xs text-gray-500">{format(paymentDate, 'dd MMM yyyy')}</span>
+                      </div>
+                      {payment.note && (
+                        <div className="text-xs text-gray-600 mt-1">• {payment.note}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 ml-3">
+                      <button
+                        onClick={() => handleEditPayment(payment.id)}
+                        className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors"
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                        title={payment.ledgerEntryId ? "Edit payment (from ledger)" : "Edit payment"}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleRemovePayment(payment.id)}
+                        className="p-1.5 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors"
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                        title={payment.ledgerEntryId ? "Remove payment (from ledger)" : "Remove payment"}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      {payment.ledgerEntryId && (
+                        <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">
+                          From Ledger
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Add Payment Button */}
+          {remainingAmount > 0 && (
+            <button
+              onClick={handleAddPayment}
+              className="w-full py-3 bg-primary-600 text-white rounded-xl font-semibold active:bg-primary-700 transition-colors flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-primary-600/30"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Plus size={20} />
+              Add Payment
+            </button>
+          )}
+
+          {existingPayments.length === 0 && (
+            <div className="text-center py-8 text-gray-500 text-sm">
+              No payments added yet. You can skip this step or add payments later.
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   const renderReviewStep = () => {
@@ -653,8 +970,12 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       <div className="py-6">
         <div className="text-center mb-6">
           <Check size={64} className="mx-auto mb-4 text-primary-600" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Review Order</h2>
-          <p className="text-gray-600">Review all details before saving</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            {isEditMode ? 'Edit Order' : 'Review Order'}
+          </h2>
+          <p className="text-gray-600">
+            {isEditMode ? 'Click on any field to edit, then save your changes' : 'Review all details before saving'}
+          </p>
         </div>
 
         <div className="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -700,6 +1021,28 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
               <span className="text-gray-600">Additional Cost:</span>
               <span className="font-bold text-gray-900">{formatIndianCurrency(formData.additionalCost)}</span>
             </div>
+            {(() => {
+              const payments = formData.partialPayments || []
+              const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+              const remainingAmount = originalTotal - totalPaid
+              if (payments.length > 0) {
+                return (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Payments:</span>
+                      <span className="font-bold text-green-600">{formatIndianCurrency(totalPaid)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Remaining:</span>
+                      <span className={`font-bold ${remainingAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {formatIndianCurrency(Math.abs(remainingAmount))}
+                      </span>
+                    </div>
+                  </>
+                )
+              }
+              return null
+            })()}
             <div className="pt-2 border-t border-primary-200 flex justify-between">
               <span className="text-base font-semibold text-gray-700">Profit:</span>
               <span className={`text-base font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -738,8 +1081,156 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         return formData.originalRate > 0 ? formatIndianCurrency(formData.originalRate) : 'Not set'
       case 'additionalCost':
         return formData.additionalCost > 0 ? formatIndianCurrency(formData.additionalCost) : '₹0'
+      case 'payment':
+        const payments = formData.partialPayments || []
+        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        return payments.length > 0 
+          ? `${payments.length} payment(s) - ${formatIndianCurrency(totalPaid)}`
+          : 'No payments'
       default:
         return ''
+    }
+  }
+
+  // Redistribute ledger entry when a payment amount changes
+  const redistributeLedgerEntry = async (ledgerEntryId: string, expenseDate: string) => {
+    try {
+      console.log(`🔄 Redistributing ledger entry ${ledgerEntryId} (date: ${expenseDate})`)
+      
+      // Get the ledger entry
+      const ledgerEntry = await ledgerService.getEntryById(ledgerEntryId)
+      if (!ledgerEntry) {
+        console.warn(`❌ Ledger entry ${ledgerEntryId} not found`)
+        return
+      }
+      if (ledgerEntry.type !== 'debit' || !ledgerEntry.supplier) {
+        console.warn(`❌ Ledger entry is not an expense with supplier (type: ${ledgerEntry.type}, supplier: ${ledgerEntry.supplier})`)
+        return
+      }
+
+      console.log(`📦 Getting orders for supplier: ${ledgerEntry.supplier}`)
+      
+      // Get all orders for this supplier
+      const allOrders = await orderService.getAllOrders({ supplier: ledgerEntry.supplier })
+      
+      console.log(`📦 Found ${allOrders.length} orders for supplier ${ledgerEntry.supplier}`)
+      
+      // Calculate total amount currently allocated to orders from this ledger entry
+      let totalAllocated = 0
+      allOrders.forEach(order => {
+        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
+        const orderAllocated = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        totalAllocated += orderAllocated
+        if (orderAllocated > 0) {
+          console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): allocated ${orderAllocated} from this ledger entry`)
+        }
+      })
+      
+      console.log(`💰 Total allocated to orders: ${totalAllocated}, Ledger entry amount: ${ledgerEntry.amount}`)
+
+      // NOTE: We do NOT automatically update the ledger entry amount
+      // The ledger entry amount should only be changed manually by the user
+      // We use the original ledger entry amount for redistribution
+
+      // Redistribute using the original ledger entry amount (not the calculated totalAllocated)
+      // This ensures we redistribute the actual ledger entry amount, not what's currently allocated
+      const supplier = ledgerEntry.supplier
+      const ordersWithOutstanding = allOrders
+        .map(order => {
+          const existingPayments = order.partialPayments || []
+          // Exclude payments from this ledger entry
+          const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
+          const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+          const originalTotal = Number(order.originalTotal || 0)
+          const remaining = Math.max(0, originalTotal - totalPaid)
+          
+          const tempOrder: Order = {
+            ...order,
+            partialPayments: paymentsExcludingThis
+          }
+          
+          const isPaid = isOrderPaid(tempOrder)
+          
+          return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid }
+        })
+        .filter(({ remaining, isPaid, order }) => {
+          const shouldInclude = remaining > 0 && !isPaid
+          if (!shouldInclude) {
+            console.log(`  ⏭️  Skipping order ${order.id}: remaining=${remaining}, isPaid=${isPaid}`)
+          }
+          return shouldInclude
+        })
+        .sort((a, b) => {
+          const aDate = new Date(a.order.date).getTime()
+          const bDate = new Date(b.order.date).getTime()
+          if (aDate !== bDate) return aDate - bDate
+          const aTime = new Date(a.order.createdAt || a.order.updatedAt || a.order.date).getTime()
+          const bTime = new Date(b.order.createdAt || b.order.updatedAt || b.order.date).getTime()
+          return aTime - bTime
+        })
+
+      console.log(`✅ Found ${ordersWithOutstanding.length} orders with outstanding payments for redistribution`)
+      
+      if (ordersWithOutstanding.length === 0) {
+        console.warn(`⚠️ No orders with outstanding payments for supplier ${supplier}`)
+        return
+      }
+
+      // Use the original ledger entry amount for redistribution, not the calculated totalAllocated
+      // This ensures we redistribute the actual ledger entry amount
+      let remainingExpense = ledgerEntry.amount
+      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
+
+      console.log(`💰 Starting redistribution: ledger entry amount=${ledgerEntry.amount}, currently allocated=${totalAllocated}`)
+
+      // Distribute expense across orders (oldest first)
+      for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
+        if (remainingExpense <= 0) break
+        
+        if (!order.id) continue
+        
+        const paymentAmount = Math.min(remainingExpense, remaining)
+        
+        let paymentDate = expenseDate
+        if (paymentDate && !paymentDate.includes('T')) {
+          paymentDate = new Date(paymentDate + 'T00:00:00').toISOString()
+        }
+        
+        const payment: PaymentRecord = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          amount: paymentAmount,
+          date: paymentDate,
+          note: `From ledger entry`,
+          ledgerEntryId: ledgerEntryId,
+        }
+        
+        const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
+        const updatedPayments = [...paymentsWithoutThisEntry, payment]
+        
+        paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
+        remainingExpense -= paymentAmount
+        
+        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (order remaining: ${remaining - paymentAmount}, expense remaining: ${remainingExpense})`)
+      }
+
+      console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingExpense} remaining undistributed`)
+
+      // Update orders with new payment distributions
+      for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
+        await orderService.updateOrder(orderId, {
+          partialPayments: updatedPayments,
+        })
+        console.log(`  ✅ Updated order ${orderId} with redistributed payment`)
+      }
+      
+      if (remainingExpense > 0) {
+        console.warn(`⚠️ Could not fully redistribute. Remaining undistributed: ${remainingExpense}`)
+      } else {
+        console.log(`✅ Successfully redistributed ledger entry ${ledgerEntryId}`)
+      }
+    } catch (error) {
+      console.error('❌ Error redistributing ledger entry:', error)
+      throw error
     }
   }
 
@@ -756,15 +1247,68 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       const originalTotal = formData.originalWeight * formData.originalRate
       const profit = total - (originalTotal + formData.additionalCost)
 
+      // Ensure all payments have valid dates and amounts
+      const validatedPayments = (formData.partialPayments || [])
+        .filter(payment => payment && payment.id) // Filter out null/undefined or payments without id
+        .map(payment => {
+          // Ensure amount is a valid number
+          const amount = typeof payment.amount === 'number' 
+            ? payment.amount 
+            : Number(String(payment.amount).replace(/,/g, '')) || 0
+          
+          // Ensure date is a valid ISO string
+          let date = payment.date
+          if (!date || typeof date !== 'string') {
+            date = new Date().toISOString()
+          } else if (!date.includes('T')) {
+            // If date is just a date string, convert to ISO
+            try {
+              date = new Date(date + 'T00:00:00').toISOString()
+            } catch {
+              date = new Date().toISOString()
+            }
+          }
+          
+          // Build the payment object, preserving all fields
+          const validatedPayment: PaymentRecord = {
+            id: String(payment.id), // Ensure id is a string
+            amount: amount,
+            date: date,
+            ...(payment.note && payment.note.trim() && { note: payment.note.trim() }),
+            ...(payment.ledgerEntryId && { ledgerEntryId: String(payment.ledgerEntryId) }),
+          }
+          
+          return validatedPayment
+        })
+        .filter(payment => payment.amount > 0 && payment.id) // Remove any invalid payments (must have amount > 0 and id)
+
+      // Build order data explicitly to ensure all fields are correct
       const orderData: Omit<Order, 'id'> = {
-        ...formData,
-        material: formData.material,
-        total,
-        originalTotal,
-        profit,
         date: formData.date,
+        partyName: formData.partyName,
+        siteName: formData.siteName,
+        material: formData.material,
+        weight: formData.weight,
+        rate: formData.rate,
+        total,
+        truckOwner: formData.truckOwner,
+        truckNo: formData.truckNo,
+        supplier: formData.supplier,
+        originalWeight: formData.originalWeight,
+        originalRate: formData.originalRate,
+        originalTotal,
+        additionalCost: formData.additionalCost,
+        profit,
+        partialPayments: validatedPayments.length > 0 ? validatedPayments : undefined,
+        // Preserve existing fields if editing
+        ...(order?.invoiced !== undefined && { invoiced: order.invoiced }),
+        ...(order?.invoiceId && { invoiceId: order.invoiceId }),
+        ...(order?.archived !== undefined && { archived: order.archived }),
       }
+
+      // Save the order - handleSaveOrder will handle redistribution
       await onSave(orderData)
+      
       handleClose()
     } catch (error: any) {
       console.error('Error saving order:', error)
@@ -783,7 +1327,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             setFormData({ ...formData, partyName: val })
             setShowSelectList(false)
             if (canProceed()) {
-              setTimeout(() => handleNext(), 300)
+              setTimeout(() => handleAfterEdit(), 300)
             }
           },
           label: 'Select Party Name',
@@ -800,7 +1344,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             setFormData({ ...formData, siteName: val })
             setShowSelectList(false)
             if (canProceed()) {
-              setTimeout(() => handleNext(), 300)
+              setTimeout(() => handleAfterEdit(), 300)
             }
           },
           label: 'Select Site Name',
@@ -823,7 +1367,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             if (vals.length > 0) {
               setTimeout(() => {
                 setShowSelectList(false)
-                setTimeout(() => handleNext(), 300)
+                setTimeout(() => handleAfterEdit(), 300)
               }, 100)
             }
           }
@@ -836,7 +1380,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             setFormData({ ...formData, truckOwner: val })
             setShowSelectList(false)
             if (canProceed()) {
-              setTimeout(() => handleNext(), 300)
+              setTimeout(() => handleAfterEdit(), 300)
             }
           },
           label: 'Select Truck Owner',
@@ -853,7 +1397,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             setFormData({ ...formData, supplier: val })
             setShowSelectList(false)
             if (canProceed()) {
-              setTimeout(() => handleNext(), 300)
+              setTimeout(() => handleAfterEdit(), 300)
             }
           },
           label: 'Select Supplier',
@@ -900,7 +1444,9 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 </button>
               )}
               <div>
-                <div className="text-xs text-gray-500">Step {currentStep + 1} of {STEP_ORDER.length}</div>
+                {!(isEditMode && STEP_ORDER[currentStep] === 'review') && (
+                  <div className="text-xs text-gray-500">Step {currentStep + 1} of {STEP_ORDER.length}</div>
+                )}
                 <h2 className="text-lg font-bold text-gray-900">
                   {getStepLabel(STEP_ORDER[currentStep])}
                 </h2>
@@ -998,7 +1544,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                 className="w-full h-12 bg-green-600 text-white rounded-xl font-semibold active:bg-green-700 transition-transform duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-green-600/30"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
-                {saving ? 'Saving...' : 'Confirm & Save'}
+                {saving ? (isEditMode ? 'Saving changes...' : 'Saving...') : (isEditMode ? 'Save Changes' : 'Confirm & Save')}
                 {!saving && <ChevronRight size={20} className="transition-transform duration-200 group-hover:translate-x-1" />}
               </button>
             </div>

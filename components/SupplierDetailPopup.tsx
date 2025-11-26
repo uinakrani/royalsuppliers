@@ -365,9 +365,9 @@ export default function SupplierDetailPopup({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5">
                               {orderDate && (
-                                <span className="text-xs text-gray-500 font-medium">{format(orderDate, 'dd MMM')}</span>
+                                <span className="text-sm font-bold text-gray-900">{format(orderDate, 'dd MMM')}</span>
                               )}
-                              <span className="text-sm font-semibold text-gray-900 truncate">{order.siteName}</span>
+                              <span className="text-xs text-gray-600 truncate">{order.siteName}</span>
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {materials.slice(0, 2).map((mat, idx) => (

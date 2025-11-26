@@ -13,6 +13,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { getDb } from './firebase'
+import { ledgerActivityService } from './ledgerActivityService'
 
 export type LedgerType = 'credit' | 'debit'
 export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit' | 'orderPaymentUpdate'
@@ -48,8 +49,11 @@ export const ledgerService = {
     // If date is provided, convert it to ISO string with time component
     let dateValue = date || now
     if (date && !date.includes('T')) {
-      // If date is just YYYY-MM-DD, add time component
-      dateValue = new Date(date + 'T00:00:00').toISOString()
+      // If date is just YYYY-MM-DD, parse it as local time (not UTC) to avoid timezone shifts
+      // Parse YYYY-MM-DD in local timezone
+      const [year, month, day] = date.split('-').map(Number)
+      const localDate = new Date(year, month - 1, day, 12, 0, 0) // Use noon to avoid DST issues
+      dateValue = localDate.toISOString()
     }
     const payload: any = {
       type,
@@ -71,6 +75,24 @@ export const ledgerService = {
       ...payload,
       createdAtTs: serverTimestamp(),
     })
+    
+    // Log activity - always try to log, but don't fail the operation if logging fails
+    try {
+      await ledgerActivityService.logActivity({
+        ledgerEntryId: ref.id,
+        activityType: 'created',
+        amount,
+        note,
+        date: dateValue,
+        supplier,
+        partyName,
+        type,
+      })
+    } catch (error) {
+      console.error('Failed to log ledger activity for creation:', error)
+      // Don't throw - entry creation already succeeded
+    }
+    
     return ref.id
   },
 
@@ -179,7 +201,33 @@ export const ledgerService = {
   async remove(id: string): Promise<void> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
+    
+    // Get entry before deleting to log activity
+    let entry: LedgerEntry | null = null
+    try {
+      entry = await this.getEntryById(id)
+    } catch (error) {
+      console.warn('Failed to get entry before deletion for activity logging:', error)
+    }
+    
     await deleteDoc(doc(db, LEDGER_COLLECTION, id))
+    
+    // Log activity - always try to log even if entry fetch failed
+    try {
+      await ledgerActivityService.logActivity({
+        ledgerEntryId: id,
+        activityType: 'deleted',
+        amount: entry?.amount,
+        note: entry?.note,
+        date: entry?.date,
+        supplier: entry?.supplier,
+        partyName: entry?.partyName,
+        type: entry?.type,
+      })
+    } catch (error) {
+      console.error('Failed to log ledger activity for deletion:', error)
+      // Don't throw - deletion already succeeded
+    }
   },
 
   async removeLastEntry(): Promise<void> {
@@ -236,6 +284,10 @@ export const ledgerService = {
   async update(id: string, updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string }): Promise<void> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
+    
+    // Get entry before updating to log activity
+    const oldEntry = await this.getEntryById(id)
+    
     const entryRef = doc(db, LEDGER_COLLECTION, id)
     const updateData: any = {}
     
@@ -277,6 +329,28 @@ export const ledgerService = {
     }
     
     await updateDoc(entryRef, updateData)
+    
+    // Log activity - always try to log even if oldEntry fetch failed
+    try {
+      await ledgerActivityService.logActivity({
+        ledgerEntryId: id,
+        activityType: 'updated',
+        amount: updates.amount !== undefined ? updates.amount : (oldEntry?.amount),
+        previousAmount: oldEntry?.amount,
+        note: updates.note !== undefined ? (updates.note || undefined) : oldEntry?.note,
+        previousNote: oldEntry?.note,
+        date: updates.date !== undefined ? updateData.date : oldEntry?.date,
+        previousDate: oldEntry?.date,
+        supplier: updates.supplier !== undefined ? (updates.supplier || undefined) : oldEntry?.supplier,
+        previousSupplier: oldEntry?.supplier,
+        partyName: updates.partyName !== undefined ? (updates.partyName || undefined) : oldEntry?.partyName,
+        previousPartyName: oldEntry?.partyName,
+        type: oldEntry?.type,
+      })
+    } catch (error) {
+      console.error('Failed to log ledger activity for update:', error)
+      // Don't throw - update already succeeded
+    }
   },
 }
 

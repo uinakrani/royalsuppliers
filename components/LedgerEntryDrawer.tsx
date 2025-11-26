@@ -4,6 +4,25 @@ import { useEffect, useRef, useState } from 'react'
 import { X, ArrowLeft } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 
+// Helper function to format date as YYYY-MM-DD in local time (not UTC)
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Helper function to parse ISO date string or YYYY-MM-DD to YYYY-MM-DD in local time
+const parseToLocalDateString = (dateString: string): string => {
+  // If it's already YYYY-MM-DD, return as is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return dateString
+  }
+  // If it's an ISO string, parse it in local time
+  const date = new Date(dateString)
+  return formatLocalDate(date)
+}
+
 interface LedgerEntryDrawerProps {
   isOpen: boolean
   onClose: () => void
@@ -32,11 +51,11 @@ export default function LedgerEntryDrawer({ isOpen, onClose, onSave, type, initi
       setStep('amount')
       if (mode === 'edit' && initialData) {
         setAmount(initialData.amount.toString())
-        setDate(new Date(initialData.date).toISOString().split('T')[0])
+        setDate(parseToLocalDateString(initialData.date))
         setNote(initialData.note || '')
       } else {
         setAmount('')
-        setDate(new Date().toISOString().split('T')[0])
+        setDate(formatLocalDate(new Date()))
         setNote('')
       }
       setErrors({})
