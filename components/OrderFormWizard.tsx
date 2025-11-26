@@ -1488,30 +1488,61 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             </div>
           </div>
 
-          {/* Previous Answers Summary */}
-          {currentStep > 0 && STEP_ORDER[currentStep] !== 'review' && (
-            <div className="flex-shrink-0 px-6 pt-4 border-t border-gray-100 bg-gray-50">
-              <div className="text-xs text-gray-500 mb-2">Previous Answers:</div>
-              <div className="flex flex-wrap gap-2">
-                {STEP_ORDER.slice(0, currentStep).map((step, idx) => {
-                  const value = getStepValue(step)
-                  if (value === 'Not set' || value === '₹0') return null
-                  return (
-                    <button
-                      key={step}
-                      onClick={() => handleStepClick(idx)}
-                      className="px-2 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 active:bg-gray-100 active:scale-[0.95] transition-transform duration-100 flex items-center gap-1 shadow-sm"
-                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                    >
-                      <span className="font-medium">{getStepLabel(step)}:</span>
-                      <span className="truncate max-w-[100px]">{value}</span>
-                      <Edit2 size={12} className="text-gray-400" />
-                    </button>
-                  )
-                })}
+          {/* All Filled Details Summary - Show on all steps except review */}
+          {STEP_ORDER[currentStep] !== 'review' && (() => {
+            const allSteps = STEP_ORDER.filter(step => step !== 'review')
+            const filledSteps = allSteps.filter((step, idx) => {
+              const value = getStepValue(step)
+              return value !== 'Not set' && value !== '₹0' && value !== '' && value !== 'No payments'
+            })
+            
+            if (filledSteps.length === 0) return null
+            
+            return (
+              <div className="flex-shrink-0 px-4 pt-3 pb-2 border-t border-gray-100 bg-gradient-to-br from-gray-50 to-gray-100/50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Check size={14} className="text-green-600" />
+                    Filled Details
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {filledSteps.length} / {allSteps.length} completed
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  {allSteps.map((step, idx) => {
+                    const value = getStepValue(step)
+                    if (value === 'Not set' || value === '₹0' || value === '' || value === 'No payments') return null
+                    const isCurrentStep = idx === currentStep
+                    const Icon = getStepIcon(step)
+                    return (
+                      <button
+                        key={step}
+                        onClick={() => handleStepClick(idx)}
+                        className={`px-2.5 py-1.5 bg-white border rounded-lg text-xs text-left active:bg-gray-50 active:scale-[0.98] transition-all duration-150 flex items-center gap-1.5 shadow-sm ${
+                          isCurrentStep 
+                            ? 'border-primary-400 bg-primary-50/50' 
+                            : 'border-gray-200'
+                        }`}
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        <Icon size={12} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-600' : 'text-gray-400'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-700 truncate" style={{ fontSize: '10px' }}>
+                            {getStepLabel(step)}
+                          </div>
+                          <div className={`truncate ${isCurrentStep ? 'text-primary-700 font-semibold' : 'text-gray-600'}`} style={{ fontSize: '11px' }}>
+                            {value}
+                          </div>
+                        </div>
+                        <Edit2 size={10} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-500' : 'text-gray-400'}`} />
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Step Content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
