@@ -227,7 +227,12 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       setShowSelectList(false)
     } else if (step === 'supplier' || step === 'partyName') {
       // Don't auto-open SelectList for optional steps - let user click button
-      setShowSelectList(false)
+      // Only close SelectList if we're moving FROM a different step TO this step
+      // Don't close if SelectList is already open for this step (user clicked button)
+      if (currentInput !== step) {
+        setShowSelectList(false)
+      }
+      // Don't set currentInput here - let the button click handle it
       setShowNumberPad(false)
       setShowTextPad(false)
       setShowDatePicker(false)
@@ -409,10 +414,12 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                 onChange={(val) => {
                   setFormData({ ...formData, supplier: val })
                   setShowSelectList(false)
+                  setCurrentInput('') // Clear currentInput to prevent conflicts
                   setTimeout(() => handleAfterEdit(), 100)
                 }}
                 onClose={() => {
                   setShowSelectList(false)
+                  setCurrentInput('') // Clear currentInput when closing
                   // Don't auto-advance when closing without selection - let user click Continue
                 }}
                 label="Select Supplier"
@@ -701,36 +708,65 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
         </div>
       </div>
 
-      {/* Previous Answers Summary */}
-      {currentStep > 0 && stepOrder[currentStep] !== 'review' && (
-        <div className="flex-shrink-0 px-6 pt-4 border-t border-gray-100 bg-gray-50">
-          <div className="text-xs text-gray-500 mb-2">Previous Answers:</div>
-          <div className="flex flex-wrap gap-2">
-            {stepOrder.slice(0, currentStep).map((step, idx) => {
-              const value = getStepValue(step)
-              if (!value || value === 'Not set') return null
-              // Skip empty optional fields
-              if ((step === 'supplier' || step === 'partyName' || step === 'note') && !value) return null
-              return (
-                <button
-                  key={step}
-                  onClick={() => handleStepClick(idx)}
-                  className="px-2 py-1 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 active:bg-gray-100 active:scale-[0.95] transition-transform duration-100 flex items-center gap-1 shadow-sm"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <span className="font-medium">{getStepLabel(step)}:</span>
-                  <span className="truncate max-w-[100px]">{value}</span>
-                  <Edit2 size={12} className="text-gray-400" />
-                </button>
-              )
-            })}
+      {/* All Filled Details Summary - Show on all steps except review */}
+      {stepOrder[currentStep] !== 'review' && (() => {
+        const allSteps = stepOrder.filter(step => step !== 'review')
+        const filledSteps = allSteps.filter((step, idx) => {
+          const value = getStepValue(step)
+          return value && value !== 'Not set' && value !== '₹0' && value !== ''
+        })
+        
+        if (filledSteps.length === 0) return null
+        
+        return (
+          <div className="flex-shrink-0 px-6 pt-4 pb-3 border-t border-gray-100 bg-gradient-to-br from-gray-50 to-gray-100/50">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                <Check size={14} className="text-green-600" />
+                Filled Details
+              </div>
+              <div className="text-xs text-gray-500">
+                {filledSteps.length} / {allSteps.length} completed
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {allSteps.map((step, idx) => {
+                const value = getStepValue(step)
+                if (!value || value === 'Not set' || value === '₹0' || value === '') return null
+                const isCurrentStep = idx === currentStep
+                const Icon = getStepIcon(step)
+                return (
+                  <button
+                    key={step}
+                    onClick={() => handleStepClick(idx)}
+                    className={`px-3 py-2 bg-white border rounded-lg text-xs text-left active:bg-gray-50 active:scale-[0.98] transition-all duration-150 flex items-center gap-1.5 shadow-sm ${
+                      isCurrentStep 
+                        ? 'border-primary-400 bg-primary-50/50' 
+                        : 'border-gray-200'
+                    }`}
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <Icon size={14} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-600' : 'text-gray-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-700 truncate" style={{ fontSize: '11px' }}>
+                        {getStepLabel(step)}
+                      </div>
+                      <div className={`truncate ${isCurrentStep ? 'text-primary-700 font-semibold' : 'text-gray-600'}`} style={{ fontSize: '12px' }}>
+                        {value}
+                      </div>
+                    </div>
+                    <Edit2 size={12} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-500' : 'text-gray-400'}`} />
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Step Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="max-w-3xl mx-auto w-full">
           {renderStep()}
         </div>
       </div>

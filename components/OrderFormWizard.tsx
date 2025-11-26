@@ -66,8 +66,23 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
   const [isMounted, setIsMounted] = useState(false)
   const [saving, setSaving] = useState(false)
   
+  // Helper to normalize date to YYYY-MM-DD format
+  const normalizeDate = (dateStr?: string): string => {
+    if (!dateStr) return new Date().toISOString().split('T')[0]
+    // If it's already YYYY-MM-DD, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+    // If it's an ISO string, extract the date part
+    if (dateStr.includes('T')) return dateStr.split('T')[0]
+    // Try to parse and format
+    try {
+      return new Date(dateStr).toISOString().split('T')[0]
+    } catch {
+      return new Date().toISOString().split('T')[0]
+    }
+  }
+
   const [formData, setFormData] = useState({
-    date: order?.date || new Date().toISOString().split('T')[0],
+    date: normalizeDate(order?.date),
     partyName: order?.partyName || '',
     siteName: order?.siteName || '',
     material: Array.isArray(order?.material) ? order.material : (order?.material ? [order.material] : []),
@@ -1281,22 +1296,27 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         })
         .filter(payment => payment.amount > 0 && payment.id) // Remove any invalid payments (must have amount > 0 and id)
 
+      // Ensure date is in ISO format (can be YYYY-MM-DD or full ISO string)
+      const orderDate = formData.date.includes('T') 
+        ? formData.date 
+        : `${formData.date}T00:00:00.000Z`
+
       // Build order data explicitly to ensure all fields are correct
       const orderData: Omit<Order, 'id'> = {
-        date: formData.date,
-        partyName: formData.partyName,
-        siteName: formData.siteName,
-        material: formData.material,
-        weight: formData.weight,
-        rate: formData.rate,
+        date: orderDate,
+        partyName: formData.partyName.trim(),
+        siteName: formData.siteName.trim(),
+        material: formData.material.length > 0 ? formData.material : [],
+        weight: Number(formData.weight) || 0,
+        rate: Number(formData.rate) || 0,
         total,
-        truckOwner: formData.truckOwner,
-        truckNo: formData.truckNo,
-        supplier: formData.supplier,
-        originalWeight: formData.originalWeight,
-        originalRate: formData.originalRate,
+        truckOwner: formData.truckOwner.trim(),
+        truckNo: formData.truckNo.trim(),
+        supplier: formData.supplier.trim(),
+        originalWeight: Number(formData.originalWeight) || 0,
+        originalRate: Number(formData.originalRate) || 0,
         originalTotal,
-        additionalCost: formData.additionalCost,
+        additionalCost: Number(formData.additionalCost) || 0,
         profit,
         partialPayments: validatedPayments.length > 0 ? validatedPayments : undefined,
         // Preserve existing fields if editing
