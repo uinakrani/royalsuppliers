@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Delete } from 'lucide-react'
+import { X, Delete, RotateCcw } from 'lucide-react'
+import { formatIndianCurrency } from '@/lib/currencyUtils'
 
 interface NumberPadProps {
   value: number | string
@@ -12,6 +13,7 @@ interface NumberPadProps {
   allowNegative?: boolean
   inline?: boolean // If true, render inline instead of as overlay
   hideDoneButton?: boolean // If true, hide the Done button
+  showCurrency?: boolean // If true, show formatted currency in display
 }
 
 export default function NumberPad({ 
@@ -22,7 +24,8 @@ export default function NumberPad({
   maxDecimals = 2,
   allowNegative = false,
   inline = false,
-  hideDoneButton = false
+  hideDoneButton = false,
+  showCurrency = false
 }: NumberPadProps) {
   const getInitialValue = () => {
     if (value === 0 || value === '0' || value === '' || !value) return '0'
@@ -64,6 +67,7 @@ export default function NumberPad({
         return // Already has decimal
       }
     } else {
+      // Remove leading zero if adding a new digit
       if (displayValue === '0' && num !== '.') {
         newDisplayValue = num
       } else {
@@ -89,11 +93,15 @@ export default function NumberPad({
       const newValue = displayValue.slice(0, -1)
       if (newValue.endsWith('.')) {
         setHasDecimal(false)
+        setDisplayValue(newValue.slice(0, -1))
+        onChange(parseFloat(newValue.slice(0, -1)) || 0)
+      } else {
+        setDisplayValue(newValue)
+        onChange(parseFloat(newValue) || 0)
       }
-      setDisplayValue(newValue)
-      onChange(parseFloat(newValue) || 0)
     } else {
       setDisplayValue('0')
+      setHasDecimal(false)
       onChange(0)
     }
   }
@@ -146,35 +154,49 @@ export default function NumberPad({
       )}
 
       {/* Display */}
-      <div className={inline ? "p-3 bg-gray-50" : "p-6 bg-gray-50"}>
+      <div className={inline ? "p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl mb-3" : "p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl mb-2"}>
         <div className="text-right">
-          <div className={inline ? "text-3xl font-bold text-gray-900 font-mono" : "text-4xl font-bold text-gray-900 font-mono"}>
-            {displayValue || '0'}
-          </div>
+          {showCurrency && parseFloat(displayValue) > 0 ? (
+            <>
+              <div className={inline ? "text-xs text-gray-500 mb-1" : "text-sm text-gray-500 mb-1"}>
+                {label}
+              </div>
+              <div className={inline ? "text-2xl font-bold text-primary-600" : "text-3xl font-bold text-primary-600"}>
+                {formatIndianCurrency(parseFloat(displayValue) || 0)}
+              </div>
+              <div className={inline ? "text-sm text-gray-400 mt-1 font-mono" : "text-base text-gray-400 mt-1 font-mono"}>
+                {displayValue || '0'}
+              </div>
+            </>
+          ) : (
+            <div className={inline ? "text-3xl font-bold text-gray-900 font-mono tracking-tight" : "text-4xl font-bold text-gray-900 font-mono tracking-tight"}>
+              {displayValue || '0'}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Keypad */}
       <div className={inline ? "p-2" : "p-4"}>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2.5">
           {/* Row 1 */}
           <button
             onClick={() => handleNumberPress('7')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             7
           </button>
           <button
             onClick={() => handleNumberPress('8')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             8
           </button>
           <button
             onClick={() => handleNumberPress('9')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             9
@@ -183,21 +205,21 @@ export default function NumberPad({
           {/* Row 2 */}
           <button
             onClick={() => handleNumberPress('4')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             4
           </button>
           <button
             onClick={() => handleNumberPress('5')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             5
           </button>
           <button
             onClick={() => handleNumberPress('6')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             6
@@ -206,21 +228,21 @@ export default function NumberPad({
           {/* Row 3 */}
           <button
             onClick={() => handleNumberPress('1')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             1
           </button>
           <button
             onClick={() => handleNumberPress('2')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             2
           </button>
           <button
             onClick={() => handleNumberPress('3')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             3
@@ -230,7 +252,7 @@ export default function NumberPad({
           {allowNegative ? (
             <button
               onClick={handleToggleNegative}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-xl font-semibold text-gray-700 active:bg-gray-100 transition-colors"
+              className="h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl text-xl font-bold text-gray-700 active:bg-gray-100 active:scale-[0.95] transition-all duration-150 shadow-sm touch-manipulation"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               ±
@@ -238,22 +260,22 @@ export default function NumberPad({
           ) : (
             <button
               onClick={handleClear}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-xl font-semibold text-gray-700 active:bg-gray-100 transition-colors"
+              className="h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl flex items-center justify-center active:bg-gray-100 active:scale-[0.95] transition-all duration-150 shadow-sm touch-manipulation"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              C
+              <RotateCcw size={22} className="text-gray-700" />
             </button>
           )}
           <button
             onClick={() => handleNumberPress('0')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             0
           </button>
           <button
             onClick={() => handleNumberPress('.')}
-            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            className="h-16 bg-white border-2 border-gray-200 rounded-2xl text-2xl font-bold text-gray-900 active:bg-gray-50 active:scale-[0.95] active:border-primary-300 transition-all duration-150 shadow-sm hover:shadow-md touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             .
@@ -262,15 +284,15 @@ export default function NumberPad({
           {/* Row 5 - Actions */}
           <button
             onClick={handleBackspace}
-            className="h-14 bg-gray-100 border border-gray-200 rounded-xl flex items-center justify-center active:bg-gray-200 transition-colors"
+            className="h-16 bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-gray-300 rounded-2xl flex items-center justify-center active:from-gray-200 active:to-gray-300 active:scale-[0.95] transition-all duration-150 shadow-sm touch-manipulation"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <Delete size={20} className="text-gray-700" />
+            <Delete size={22} className="text-gray-700" />
           </button>
           {!hideDoneButton && (
             <button
               onClick={handleDone}
-              className={inline ? "h-11 bg-primary-600 text-white rounded-lg text-base font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30" : "h-14 bg-primary-600 text-white rounded-xl text-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30"}
+              className={inline ? "h-14 bg-gradient-to-br from-primary-600 to-primary-700 text-white rounded-xl text-base font-bold active:from-primary-700 active:to-primary-800 active:scale-[0.97] transition-all duration-150 col-span-2 shadow-lg shadow-primary-600/40 touch-manipulation" : "h-16 bg-gradient-to-br from-primary-600 to-primary-700 text-white rounded-2xl text-lg font-bold active:from-primary-700 active:to-primary-800 active:scale-[0.97] transition-all duration-150 col-span-2 shadow-lg shadow-primary-600/40 touch-manipulation"}
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               Done

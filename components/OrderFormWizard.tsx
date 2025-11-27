@@ -347,7 +347,12 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             value={formData.weight}
             onChange={(val) => {
               lastEnteredValue.current = val
-              setFormData({ ...formData, weight: val })
+              // Auto-fill originalWeight with weight value when creating a new order
+              const updatedData: any = { ...formData, weight: val }
+              if (!isEditMode && val > 0) {
+                updatedData.originalWeight = val
+              }
+              setFormData(updatedData)
             }}
             onClose={() => {
               const enteredValue = lastEnteredValue.current as number
