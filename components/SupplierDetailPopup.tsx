@@ -388,14 +388,29 @@ export default function SupplierDetailPopup({
                         {expenseAmount > 0 && (
                           <div className="pt-2 mt-2 border-t border-gray-100">
                             <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-xs text-gray-600">Paid</span>
-                              <span className={`text-sm font-semibold ${totalPaid > 0 ? 'text-green-600' : 'text-gray-500'}`}>
-                                {formatIndianCurrency(totalPaid)}
+                              <span className="text-xs text-gray-600">Raw Material Expense</span>
+                              <span className="text-sm font-semibold text-gray-900">
+                                {formatIndianCurrency(expenseAmount)}
                               </span>
                             </div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs text-gray-600">Direct Payments</span>
+                              <span className={`text-sm font-semibold ${paidDirectly > 0 ? 'text-blue-600' : 'text-gray-500'}`}>
+                                {formatIndianCurrency(paidDirectly)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs font-medium text-gray-700">Payment from Ledger</span>
+                              <span className={`text-sm font-bold ${(expenseAmount - paidDirectly) > 0 ? 'text-purple-600' : 'text-gray-500'}`}>
+                                {formatIndianCurrency(Math.max(0, expenseAmount - paidDirectly))}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1 px-2 py-1 bg-purple-50 rounded">
+                              (Raw Material Expense - Direct Payments)
+                            </div>
                             {remainingAmount > 0 && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Remaining</span>
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
+                                <span className="text-xs font-medium text-gray-700">Remaining Unpaid</span>
                                 <span className="text-sm font-semibold text-red-600">{formatIndianCurrency(remainingAmount)}</span>
                               </div>
                             )}

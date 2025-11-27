@@ -44,11 +44,13 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
     stats.rawMaterialPaymentsOutstanding += rawMaterialOutstanding
 
     // Determine order payment status based on partialPayments
-    if (totalRawMaterialPaid >= order.originalTotal && order.originalTotal > 0) {
-      // Fully paid if total payments >= original total
+    // Order is considered paid if total payments are within 250 of original total
+    const tolerance = 250
+    if (totalRawMaterialPaid >= (order.originalTotal - tolerance) && order.originalTotal > 0) {
+      // Fully paid if total payments are within 250 of original total
       stats.paidOrders++
     } else if (totalRawMaterialPaid > 0) {
-      // Partially paid if there are payments but less than original total
+      // Partially paid if there are payments but less than (original total - tolerance)
       stats.partialOrders++
       stats.unpaidOrders++
     } else {

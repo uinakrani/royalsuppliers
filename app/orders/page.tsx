@@ -449,7 +449,7 @@ export default function OrdersPage() {
     if (isPaid) {
       const confirmed = await sweetAlert.confirm({
         title: 'Order Already Paid',
-        message: `This order is already marked as paid (within ₹100 tolerance). Adding more payments may cause overpayment. Continue?`,
+        message: `This order is already marked as paid (within ₹250 tolerance). Adding more payments may cause overpayment. Continue?`,
         icon: 'warning',
         confirmText: 'Continue',
         cancelText: 'Cancel'
@@ -648,7 +648,7 @@ export default function OrdersPage() {
         // Only ask "mark as paid" if order is not paid and won't overpay
         // Check if this payment would make the order paid (within tolerance)
         const newTotalAfterPayment = totalPaid + amount
-        const wouldBecomePaid = newTotalAfterPayment >= (expenseAmount - 100)
+        const wouldBecomePaid = newTotalAfterPayment >= (expenseAmount - 250)
         
         if (wouldBecomePaid) {
           const actionChoice = await sweetAlert.confirm({

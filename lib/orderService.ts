@@ -17,7 +17,7 @@ import { ledgerService } from './ledgerService'
 
 const ORDERS_COLLECTION = 'orders'
 
-// Helper function to check if an order is paid (within 100 of originalTotal)
+// Helper function to check if an order is paid (within 250 of originalTotal)
 export const isOrderPaid = (order: Order): boolean => {
   const expenseAmount = Number(order.originalTotal || 0)
   if (expenseAmount <= 0) return false
@@ -25,8 +25,8 @@ export const isOrderPaid = (order: Order): boolean => {
   const partialPayments = order.partialPayments || []
   const totalPaid = partialPayments.reduce((sum, p) => sum + p.amount, 0)
   
-  // Order is paid if total payments are within 100 of original total
-  return totalPaid >= (expenseAmount - 100)
+  // Order is paid if total payments are within 250 of original total
+  return totalPaid >= (expenseAmount - 250)
 }
 
 export const orderService = {
@@ -301,7 +301,7 @@ export const orderService = {
     // Calculate current total from existing payments
     const currentTotal = existingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
     
-    // Check if order is already paid (within 100 of original total)
+    // Check if order is already paid (within 250 of original total)
     // Allow adding payments to paid orders if markAsPaid is true, otherwise warn (but don't block)
     const isPaid = isOrderPaid(order)
     if (isPaid && !markAsPaid) {
@@ -312,7 +312,7 @@ export const orderService = {
     
     // Calculate remaining amount
     const remainingAmount = expenseAmount - currentTotal
-    const tolerance = 100 // Orders are considered paid if within 100 of original total
+    const tolerance = 250 // Orders are considered paid if within 250 of original total
     
     if (paymentAmount <= 0) {
       throw new Error('Payment amount must be greater than 0')
