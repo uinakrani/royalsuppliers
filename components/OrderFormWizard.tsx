@@ -8,7 +8,7 @@ import { orderService, isOrderPaid } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
 import NumberPad from '@/components/NumberPad'
-import TextInputPad from '@/components/TextInputPad'
+// TextInputPad removed - using native textarea for truck number
 import SelectList from '@/components/SelectList'
 import DatePicker from '@/components/DatePicker'
 import { MATERIAL_OPTIONS } from '@/lib/constants'
@@ -97,11 +97,8 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     partialPayments: order?.partialPayments || [],
   })
 
-  const [showNumberPad, setShowNumberPad] = useState(false)
-  const [showTextPad, setShowTextPad] = useState(false)
-  const [showSelectList, setShowSelectList] = useState(false)
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [currentInput, setCurrentInput] = useState<string>('')
+  // Removed showNumberPad, showTextPad, showSelectList, showDatePicker, currentInput
+  // All inputs are now always visible inline
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [siteNames, setSiteNames] = useState<string[]>([])
   const [truckOwners, setTruckOwners] = useState<string[]>([])
@@ -122,73 +119,14 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       }
     }
     
-    // Auto-open first step input immediately (only for new orders)
-    const firstStep = STEP_ORDER[0]
-    if (firstStep === 'date') {
-      setCurrentInput('date')
-      setShowDatePicker(true)
-    } else if (['partyName', 'siteName', 'truckOwner', 'supplier', 'material'].includes(firstStep)) {
-      setCurrentInput(firstStep)
-      setShowSelectList(true)
-    } else if (firstStep === 'truckNo') {
-      setCurrentInput('truckNo')
-      setShowTextPad(true)
-    } else if (['weight', 'rate', 'originalWeight', 'originalRate', 'additionalCost'].includes(firstStep)) {
-      setCurrentInput(firstStep)
-      setShowNumberPad(true)
-    }
+    // Inputs are now always visible inline, no need to auto-open
     
     return () => {
       document.body.style.overflow = ''
     }
   }, [isEditMode])
 
-  // Auto-show input when step changes
-  useEffect(() => {
-    const step = STEP_ORDER[currentStep]
-    
-    // Skip auto-open for review and payment steps
-    if (step === 'review' || step === 'payment') {
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      setShowSelectList(false)
-      setShowDatePicker(false)
-      return
-    }
-    
-    // Immediately open the appropriate input for the current step
-    if (step === 'date') {
-      setCurrentInput('date')
-      setShowDatePicker(true)
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      setShowSelectList(false)
-    } else if (step === 'partyName' || step === 'siteName' || step === 'truckOwner' || step === 'supplier') {
-      setCurrentInput(step)
-      setShowSelectList(true)
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      setShowDatePicker(false)
-    } else if (step === 'material') {
-      setCurrentInput('material')
-      setShowSelectList(true)
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      setShowDatePicker(false)
-    } else if (step === 'truckNo') {
-      setCurrentInput('truckNo')
-      setShowTextPad(true)
-      setShowNumberPad(false)
-      setShowSelectList(false)
-      setShowDatePicker(false)
-    } else if (['weight', 'rate', 'originalWeight', 'originalRate', 'additionalCost'].includes(step)) {
-      setCurrentInput(step)
-      setShowNumberPad(true)
-      setShowTextPad(false)
-      setShowSelectList(false)
-      setShowDatePicker(false)
-    }
-  }, [currentStep])
+  // Inputs are now always visible inline, no need for auto-show logic
 
   const loadOptions = async () => {
     try {
@@ -330,356 +268,238 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     switch (step) {
       case 'date':
         return (
-          <div className="text-center py-2">
-            <Calendar size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Select Date</h2>
-            <p className="text-sm text-gray-600 mb-4">When was this order placed?</p>
-            {showDatePicker && (
-              <DatePicker
-                value={formData.date}
-                onChange={(val) => {
-                  setFormData({ ...formData, date: val })
-                  setShowDatePicker(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => setShowDatePicker(false)}
-                label="Select Date"
-              />
-            )}
-          </div>
+          <DatePicker
+            value={formData.date}
+            onChange={(val) => {
+              setFormData({ ...formData, date: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Date"
+            inline={true}
+          />
         )
 
       case 'partyName':
         return (
-          <div className="text-center py-2">
-            <User size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Party Name</h2>
-            <p className="text-sm text-gray-600 mb-4">Who is the customer for this order?</p>
-            {showSelectList && currentInput === 'partyName' && (
-              <SelectList
-                options={partyNames}
-                value={formData.partyName}
-                onChange={(val) => {
-                  setFormData({ ...formData, partyName: val })
-                  setShowSelectList(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => setShowSelectList(false)}
-                label="Select Party Name"
-                allowCustom={true}
-                onCustomAdd={(val) => {
-                  setPartyNames([...partyNames, val])
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={partyNames}
+            value={formData.partyName}
+            onChange={(val) => {
+              setFormData({ ...formData, partyName: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Party Name"
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setPartyNames([...partyNames, val])
+            }}
+            inline={true}
+          />
         )
 
       case 'siteName':
         return (
-          <div className="text-center py-2">
-            <MapPin size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Site Name</h2>
-            <p className="text-sm text-gray-600 mb-4">Where is the delivery location?</p>
-            {showSelectList && currentInput === 'siteName' && (
-              <SelectList
-                options={siteNames}
-                value={formData.siteName}
-                onChange={(val) => {
-                  setFormData({ ...formData, siteName: val })
-                  setShowSelectList(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => setShowSelectList(false)}
-                label="Select Site Name"
-                allowCustom={true}
-                onCustomAdd={(val) => {
-                  setSiteNames([...siteNames, val])
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={siteNames}
+            value={formData.siteName}
+            onChange={(val) => {
+              setFormData({ ...formData, siteName: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Site Name"
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setSiteNames([...siteNames, val])
+            }}
+            inline={true}
+          />
         )
 
       case 'material':
         return (
-          <div className="text-center py-2">
-            <Package size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Material</h2>
-            <p className="text-sm text-gray-600 mb-4">Select the material(s) for this order</p>
-            {showSelectList && currentInput === 'material' && (
-              <SelectList
-                options={[...MATERIAL_OPTIONS]}
-                value=""
-                onChange={() => {}}
-                onClose={() => {
-                  setShowSelectList(false)
-                  // Only advance if materials are selected and user clicked Done
-                  if (formData.material.length > 0) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                }}
-                label="Select Material"
-                multiSelect={true}
-                selectedValues={formData.material}
-                onMultiChange={(vals) => {
-                  setFormData({ ...formData, material: vals })
-                  // Don't auto-advance, wait for Done button
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={[...MATERIAL_OPTIONS]}
+            value=""
+            onChange={() => {}}
+            onClose={() => {
+              // Only advance if materials are selected and user clicked Done
+              if (formData.material.length > 0) {
+                setTimeout(() => handleAfterEdit(), 100)
+              }
+            }}
+            label="Select Material"
+            multiSelect={true}
+            selectedValues={formData.material}
+            onMultiChange={(vals) => {
+              setFormData({ ...formData, material: vals })
+              // Don't auto-advance, wait for Done button
+            }}
+            inline={true}
+          />
         )
 
       case 'weight':
         return (
-          <div className="text-center py-2">
-            <Weight size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Weight</h2>
-            <p className="text-sm text-gray-600 mb-4">Enter the weight in tons</p>
-            {formData.weight > 0 && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formData.weight} tons</span>
-                </div>
-              </div>
-            )}
-            {showNumberPad && currentInput === 'weight' && (
-              <NumberPad
-                value={formData.weight}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, weight: val })
-                }}
-                onClose={() => {
-                  setShowNumberPad(false)
-                  const enteredValue = lastEnteredValue.current as number
-                  if (enteredValue > 0) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                  lastEnteredValue.current = null
-                }}
-                label="Enter Weight (tons)"
-              />
-            )}
-          </div>
+          <NumberPad
+            value={formData.weight}
+            onChange={(val) => {
+              lastEnteredValue.current = val
+              setFormData({ ...formData, weight: val })
+            }}
+            onClose={() => {
+              const enteredValue = lastEnteredValue.current as number
+              if (enteredValue > 0) {
+                setTimeout(() => handleAfterEdit(), 100)
+              }
+              lastEnteredValue.current = null
+            }}
+            label="Enter Weight (tons)"
+            inline={true}
+            hideDoneButton={true}
+          />
         )
 
       case 'rate':
         return (
-          <div className="text-center py-2">
-            <DollarSign size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Rate</h2>
-            <p className="text-sm text-gray-600 mb-4">Enter the rate per ton</p>
-            {formData.rate > 0 && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formatIndianCurrency(formData.rate)}</span>
-                </div>
-              </div>
-            )}
-            {showNumberPad && currentInput === 'rate' && (
-              <NumberPad
-                value={formData.rate}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, rate: val })
-                }}
-                onClose={() => {
-                  setShowNumberPad(false)
-                  const enteredValue = lastEnteredValue.current as number
-                  if (enteredValue > 0) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                  lastEnteredValue.current = null
-                }}
-                label="Enter Rate"
-              />
-            )}
-          </div>
+          <NumberPad
+            value={formData.rate}
+            onChange={(val) => {
+              lastEnteredValue.current = val
+              setFormData({ ...formData, rate: val })
+            }}
+            onClose={() => {
+              const enteredValue = lastEnteredValue.current as number
+              if (enteredValue > 0) {
+                setTimeout(() => handleAfterEdit(), 100)
+              }
+              lastEnteredValue.current = null
+            }}
+            label="Enter Rate"
+            inline={true}
+            hideDoneButton={true}
+          />
         )
 
       case 'truckOwner':
         return (
-          <div className="text-center py-2">
-            <Truck size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Truck Owner</h2>
-            <p className="text-sm text-gray-600 mb-4">Who owns the delivery truck?</p>
-            {showSelectList && currentInput === 'truckOwner' && (
-              <SelectList
-                options={truckOwners}
-                value={formData.truckOwner}
-                onChange={(val) => {
-                  setFormData({ ...formData, truckOwner: val })
-                  setShowSelectList(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => setShowSelectList(false)}
-                label="Select Truck Owner"
-                allowCustom={true}
-                onCustomAdd={(val) => {
-                  setTruckOwners([...truckOwners, val])
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={truckOwners}
+            value={formData.truckOwner}
+            onChange={(val) => {
+              setFormData({ ...formData, truckOwner: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Truck Owner"
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setTruckOwners([...truckOwners, val])
+            }}
+            inline={true}
+          />
         )
 
       case 'truckNo':
         return (
-          <div className="text-center py-2">
-            <Truck size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Truck Number</h2>
-            <p className="text-sm text-gray-600 mb-4">Enter the truck registration number</p>
-            {formData.truckNo && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formData.truckNo}</span>
-                </div>
-              </div>
-            )}
-            {showTextPad && currentInput === 'truckNo' && (
-              <TextInputPad
-                value={formData.truckNo}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, truckNo: val })
-                }}
-                onClose={() => {
-                  setShowTextPad(false)
-                  const enteredValue = lastEnteredValue.current as string
-                  if (enteredValue && enteredValue.trim()) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                  lastEnteredValue.current = null
-                }}
-                label="Enter Truck Number"
-              />
-            )}
+          <div className="w-full">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Truck Number
+            </label>
+            <textarea
+              value={formData.truckNo}
+              onChange={(e) => {
+                setFormData({ ...formData, truckNo: e.target.value })
+              }}
+              placeholder="Enter truck registration number"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              rows={2}
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                fontFamily: 'inherit'
+              }}
+              autoFocus
+            />
           </div>
         )
 
       case 'supplier':
         return (
-          <div className="text-center py-2">
-            <ShoppingCart size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Supplier</h2>
-            <p className="text-sm text-gray-600 mb-4">Who is the raw material supplier?</p>
-            {showSelectList && currentInput === 'supplier' && (
-              <SelectList
-                options={suppliers}
-                value={formData.supplier}
-                onChange={(val) => {
-                  setFormData({ ...formData, supplier: val })
-                  setShowSelectList(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => setShowSelectList(false)}
-                label="Select Supplier"
-                allowCustom={true}
-                onCustomAdd={(val) => {
-                  setSuppliers([...suppliers, val])
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={suppliers}
+            value={formData.supplier}
+            onChange={(val) => {
+              setFormData({ ...formData, supplier: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Supplier"
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setSuppliers([...suppliers, val])
+            }}
+            inline={true}
+          />
         )
 
       case 'originalWeight':
         return (
-          <div className="text-center py-2">
-            <Weight size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Original Weight</h2>
-            <p className="text-sm text-gray-600 mb-4">Enter the original weight from supplier</p>
-            {formData.originalWeight > 0 && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formData.originalWeight} tons</span>
-                </div>
-              </div>
-            )}
-            {showNumberPad && currentInput === 'originalWeight' && (
-              <NumberPad
-                value={formData.originalWeight}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, originalWeight: val })
-                }}
-                onClose={() => {
-                  setShowNumberPad(false)
-                  const enteredValue = lastEnteredValue.current as number
-                  if (enteredValue > 0) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                  lastEnteredValue.current = null
-                }}
-                label="Enter Original Weight (tons)"
-              />
-            )}
-          </div>
+          <NumberPad
+            value={formData.originalWeight}
+            onChange={(val) => {
+              lastEnteredValue.current = val
+              setFormData({ ...formData, originalWeight: val })
+            }}
+            onClose={() => {
+              const enteredValue = lastEnteredValue.current as number
+              if (enteredValue > 0) {
+                setTimeout(() => handleAfterEdit(), 100)
+              }
+              lastEnteredValue.current = null
+            }}
+            label="Enter Original Weight (tons)"
+            inline={true}
+            hideDoneButton={true}
+          />
         )
 
       case 'originalRate':
         return (
-          <div className="text-center py-2">
-            <DollarSign size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Original Rate</h2>
-            <p className="text-sm text-gray-600 mb-4">Enter the original rate per ton from supplier</p>
-            {formData.originalRate > 0 && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formatIndianCurrency(formData.originalRate)}</span>
-                </div>
-              </div>
-            )}
-            {showNumberPad && currentInput === 'originalRate' && (
-              <NumberPad
-                value={formData.originalRate}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, originalRate: val })
-                }}
-                onClose={() => {
-                  setShowNumberPad(false)
-                  const enteredValue = lastEnteredValue.current as number
-                  if (enteredValue > 0) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                  lastEnteredValue.current = null
-                }}
-                label="Enter Original Rate"
-              />
-            )}
-          </div>
+          <NumberPad
+            value={formData.originalRate}
+            onChange={(val) => {
+              lastEnteredValue.current = val
+              setFormData({ ...formData, originalRate: val })
+            }}
+            onClose={() => {
+              const enteredValue = lastEnteredValue.current as number
+              if (enteredValue > 0) {
+                setTimeout(() => handleAfterEdit(), 100)
+              }
+              lastEnteredValue.current = null
+            }}
+            label="Enter Original Rate"
+            inline={true}
+            hideDoneButton={true}
+          />
         )
 
       case 'additionalCost':
         return (
-          <div className="text-center py-2">
-            <DollarSign size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Additional Cost</h2>
-            <p className="text-sm text-gray-600 mb-4">Any additional costs? (Optional)</p>
-            {formData.additionalCost > 0 && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formatIndianCurrency(formData.additionalCost)}</span>
-                </div>
-              </div>
-            )}
-            {showNumberPad && currentInput === 'additionalCost' && (
-              <NumberPad
-                value={formData.additionalCost}
-                onChange={(val) => {
-                  setFormData({ ...formData, additionalCost: val })
-                }}
-                onClose={() => {
-                  setShowNumberPad(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                label="Enter Additional Cost"
-              />
-            )}
-          </div>
+          <NumberPad
+            value={formData.additionalCost}
+            onChange={(val) => {
+              setFormData({ ...formData, additionalCost: val })
+            }}
+            onClose={() => {
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            label="Enter Additional Cost"
+            inline={true}
+            hideDoneButton={true}
+          />
         )
 
       case 'payment':
@@ -1565,7 +1385,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                     {filledSteps.length} / {allSteps.length} completed
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <div className="grid grid-cols-3 gap-1.5 max-h-32 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                   {allSteps.map((step, idx) => {
                     const value = getStepValue(step)
                     if (value === 'Not set' || value === '₹0' || value === '' || value === 'No payments') return null
@@ -1575,23 +1395,22 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
                       <button
                         key={step}
                         onClick={() => handleStepClick(idx)}
-                        className={`px-2.5 py-1.5 bg-white border rounded-lg text-xs text-left active:bg-gray-50 active:scale-[0.98] transition-all duration-150 flex items-center gap-1.5 shadow-sm ${
+                        className={`px-1.5 py-1 bg-white border rounded text-[10px] text-left active:bg-gray-50 active:scale-[0.98] transition-all duration-150 flex items-center gap-1 shadow-sm ${
                           isCurrentStep 
                             ? 'border-primary-400 bg-primary-50/50' 
                             : 'border-gray-200'
                         }`}
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
-                        <Icon size={12} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-600' : 'text-gray-400'}`} />
+                        <Icon size={10} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-600' : 'text-gray-400'}`} />
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-700 truncate" style={{ fontSize: '10px' }}>
+                          <div className="font-medium text-gray-700 truncate" style={{ fontSize: '9px' }}>
                             {getStepLabel(step)}
                           </div>
-                          <div className={`truncate ${isCurrentStep ? 'text-primary-700 font-semibold' : 'text-gray-600'}`} style={{ fontSize: '11px' }}>
+                          <div className={`truncate ${isCurrentStep ? 'text-primary-700 font-semibold' : 'text-gray-600'}`} style={{ fontSize: '10px' }}>
                             {value}
                           </div>
                         </div>
-                        <Edit2 size={10} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-500' : 'text-gray-400'}`} />
                       </button>
                     )
                   })}
@@ -1608,7 +1427,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           </div>
 
           {/* Navigation */}
-          {STEP_ORDER[currentStep] !== 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
+          {STEP_ORDER[currentStep] !== 'review' && (
             <div className="flex-shrink-0 p-4 border-t border-gray-200">
               <button
                 onClick={handleNext}
@@ -1622,7 +1441,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             </div>
           )}
 
-          {STEP_ORDER[currentStep] === 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
+          {STEP_ORDER[currentStep] === 'review' && (
             <div className="flex-shrink-0 p-4 border-t border-gray-200">
               <button
                 onClick={handleSubmit}

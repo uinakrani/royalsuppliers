@@ -91,7 +91,7 @@ export default function DatePicker({
       )}
 
       {/* Month Navigation */}
-      <div className={`flex items-center justify-between p-3 ${inline ? '' : 'border-b border-gray-200'}`}>
+      <div className={`flex items-center justify-between ${inline ? 'p-2' : 'p-3'} ${inline ? '' : 'border-b border-gray-200'}`}>
         <button
           onClick={handlePrevMonth}
           className="p-1.5 active:bg-gray-100 rounded-lg"
@@ -112,18 +112,18 @@ export default function DatePicker({
       </div>
 
       {/* Calendar */}
-      <div className="p-3">
+      <div className={inline ? "p-2" : "p-3"}>
         {/* Week Days Header */}
-        <div className="grid grid-cols-7 gap-1 mb-1.5">
+        <div className={`grid grid-cols-7 ${inline ? 'gap-0.5 mb-1' : 'gap-1 mb-1.5'}`}>
           {weekDays.map((day) => (
-            <div key={day} className="text-center text-xs font-medium text-gray-500 py-1.5">
+            <div key={day} className={`text-center ${inline ? 'text-[10px] py-1' : 'text-xs py-1.5'} font-medium text-gray-500`}>
               {day}
             </div>
           ))}
         </div>
 
         {/* Calendar Days */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className={`grid grid-cols-7 ${inline ? 'gap-0.5' : 'gap-1'}`}>
           {allDays.map((day, idx) => {
             if (!day) {
               return <div key={`empty-${idx}`} className="aspect-square" />
@@ -137,7 +137,7 @@ export default function DatePicker({
               <button
                 key={day.toISOString()}
                 onClick={() => handleDateSelect(day)}
-                className={`aspect-square rounded-lg text-xs font-medium transition-all duration-100 ${
+                className={`aspect-square ${inline ? 'rounded-md text-[11px]' : 'rounded-lg text-xs'} font-medium transition-all duration-100 ${
                   isSelected
                     ? 'bg-primary-600 text-white shadow-lg scale-110'
                     : isToday
@@ -156,13 +156,13 @@ export default function DatePicker({
       </div>
 
       {/* Today Button */}
-      <div className="p-3 border-t border-gray-200">
+      <div className={inline ? "p-2 border-t border-gray-200" : "p-3 border-t border-gray-200"}>
           <button
             onClick={handleToday}
-            className="w-full h-10 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30 text-sm"
+            className={inline ? "w-full h-9 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30 text-xs" : "w-full h-10 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30 text-sm"}
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <Calendar size={16} />
+            <Calendar size={inline ? 14 : 16} />
             Select Today
           </button>
       </div>

@@ -146,16 +146,16 @@ export default function NumberPad({
       )}
 
       {/* Display */}
-      <div className="p-6 bg-gray-50">
+      <div className={inline ? "p-3 bg-gray-50" : "p-6 bg-gray-50"}>
         <div className="text-right">
-          <div className="text-4xl font-bold text-gray-900 font-mono">
+          <div className={inline ? "text-3xl font-bold text-gray-900 font-mono" : "text-4xl font-bold text-gray-900 font-mono"}>
             {displayValue || '0'}
           </div>
         </div>
       </div>
 
       {/* Keypad */}
-      <div className="p-4">
+      <div className={inline ? "p-2" : "p-4"}>
         <div className="grid grid-cols-3 gap-2">
           {/* Row 1 */}
           <button
@@ -270,7 +270,7 @@ export default function NumberPad({
           {!hideDoneButton && (
             <button
               onClick={handleDone}
-              className="h-14 bg-primary-600 text-white rounded-xl text-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30"
+              className={inline ? "h-11 bg-primary-600 text-white rounded-lg text-base font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30" : "h-14 bg-primary-600 text-white rounded-xl text-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30"}
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               Done

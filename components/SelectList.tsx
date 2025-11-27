@@ -84,16 +84,16 @@ export default function SelectList({
 
         {/* Search */}
         {!showCustomInput && (
-          <div className={`p-4 flex-shrink-0 ${inline ? '' : 'border-b border-gray-200'}`}>
+          <div className={`${inline ? 'p-2' : 'p-4'} flex-shrink-0 ${inline ? '' : 'border-b border-gray-200'}`}>
             <div className="relative">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={inline ? 16 : 18} className={`absolute ${inline ? 'left-2' : 'left-3'} top-1/2 -translate-y-1/2 text-gray-400`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
-                style={{ fontSize: '16px' }}
+                className={`w-full ${inline ? 'pl-8 pr-3 py-2' : 'pl-10 pr-4 py-2.5'} bg-gray-50 border border-gray-200 ${inline ? 'rounded-lg' : 'rounded-xl'} focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                style={{ fontSize: inline ? '14px' : '16px' }}
                 autoFocus
               />
             </div>
@@ -140,7 +140,7 @@ export default function SelectList({
             {/* Options List */}
             <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
               {filteredOptions.length > 0 ? (
-                <div className="p-2">
+                <div className={inline ? "p-1.5" : "p-2"}>
                   {/* Clear/None option for single select when a value is selected */}
                   {!multiSelect && value && (
                     <button
@@ -148,12 +148,12 @@ export default function SelectList({
                         onChange('')
                         if (!inline) onClose()
                       }}
-                      className="w-full text-left px-4 py-3 rounded-xl mb-1 transition-all duration-100 bg-gray-50 border border-gray-300 text-gray-600 active:bg-gray-100 active:scale-[0.98]"
+                      className={`w-full text-left ${inline ? 'px-3 py-2 rounded-lg mb-0.5' : 'px-4 py-3 rounded-xl mb-1'} transition-all duration-100 bg-gray-50 border border-gray-300 text-gray-600 active:bg-gray-100 active:scale-[0.98]`}
                       style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-base font-medium">Clear selection</span>
-                        <X size={18} className="text-gray-400" />
+                        <span className={inline ? "text-sm font-medium" : "text-base font-medium"}>Clear selection</span>
+                        <X size={inline ? 16 : 18} className="text-gray-400" />
                       </div>
                     </button>
                   )}
@@ -165,7 +165,7 @@ export default function SelectList({
                       <button
                         key={option}
                         onClick={() => handleSelect(option)}
-                        className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-all duration-100 ${
+                        className={`w-full text-left ${inline ? 'px-3 py-2 rounded-lg mb-0.5' : 'px-4 py-3 rounded-xl mb-1'} transition-all duration-100 ${
                           isSelected
                             ? 'bg-primary-50 border-2 border-primary-500 text-primary-700 shadow-sm'
                             : 'bg-white border border-gray-200 text-gray-900 active:bg-gray-50 active:scale-[0.98]'
@@ -173,9 +173,9 @@ export default function SelectList({
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-base font-medium">{option}</span>
+                          <span className={inline ? "text-sm font-medium" : "text-base font-medium"}>{option}</span>
                           {isSelected && (
-                            <div className="w-5 h-5 bg-primary-600 rounded-full flex items-center justify-center">
+                            <div className={`${inline ? "w-4 h-4" : "w-5 h-5"} bg-primary-600 rounded-full flex items-center justify-center`}>
                               <span className="text-white text-xs">✓</span>
                             </div>
                           )}
