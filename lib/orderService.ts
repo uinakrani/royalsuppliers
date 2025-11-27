@@ -120,11 +120,27 @@ export const orderService = {
         throw new Error('Order not found')
       }
 
-      // Prepare update data
+      // Prepare update data - remove undefined values to avoid Firestore errors
       const updateData: any = {
-        ...order,
         updatedAt: new Date().toISOString(),
       }
+      
+      // Only include fields that are defined and not undefined
+      Object.keys(order).forEach(key => {
+        const value = (order as any)[key]
+        // Skip undefined values and handle partialPayments specially
+        if (value !== undefined) {
+          // For partialPayments, only include if it's a non-empty array
+          if (key === 'partialPayments') {
+            if (Array.isArray(value) && value.length > 0) {
+              updateData[key] = value
+            }
+            // If empty array or undefined, don't include it (preserves existing value)
+          } else {
+            updateData[key] = value
+          }
+        }
+      })
       
       // Actually update the document in Firestore
       const orderRef = doc(db, ORDERS_COLLECTION, id)

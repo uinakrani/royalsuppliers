@@ -1174,7 +1174,8 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         originalTotal,
         additionalCost: Number(formData.additionalCost) || 0,
         profit,
-        partialPayments: validatedPayments.length > 0 ? validatedPayments : undefined,
+        // Only include partialPayments if there are payments, otherwise omit the field
+        ...(validatedPayments.length > 0 && { partialPayments: validatedPayments }),
         // Preserve existing fields if editing
         ...(order?.invoiced !== undefined && { invoiced: order.invoiced }),
         ...(order?.invoiceId && { invoiceId: order.invoiceId }),
