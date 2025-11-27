@@ -805,6 +805,33 @@ export default function LedgerPage() {
         }}
         onSave={handleSaveEntry}
         onDelete={handleDeleteClick}
+        onDeleteConfirm={async (entryId: string) => {
+          try {
+            // Get the entry before deleting to check its type and supplier/party
+            const entryToDeleteObj = entries.find(e => e.id === entryId)
+            
+            // Before deleting ledger entry, clean up related data
+            if (entryToDeleteObj) {
+              // Delete linked party payment if it's an income entry
+              if (entryToDeleteObj.type === 'credit' && entryToDeleteObj.partyName) {
+                await deleteLinkedPartyPayment(entryId)
+              }
+              
+              // Revert expense distribution if it's an expense entry with supplier
+              if (entryToDeleteObj.type === 'debit' && entryToDeleteObj.supplier) {
+                await revertExpenseDistribution(entryId, entryToDeleteObj.supplier)
+              }
+            }
+            
+            await ledgerService.remove(entryId)
+            // Close wizard after successful deletion
+            setDrawerOpen(false)
+            setEditingEntry(null)
+          } catch (error: any) {
+            console.error('Failed to delete entry:', error)
+            throw error
+          }
+        }}
       />
     )
   }

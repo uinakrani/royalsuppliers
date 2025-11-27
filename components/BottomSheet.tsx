@@ -79,7 +79,7 @@ export default function BottomSheet({
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black z-[90] ${
+        className={`fixed inset-0 bg-black z-[99990] ${
           isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
         }`}
         style={{ WebkitTapHighlightColor: 'transparent' }}
@@ -88,7 +88,7 @@ export default function BottomSheet({
       {/* Bottom Sheet */}
       <div
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100] ${
+        className={`fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100000] ${
           isClosing ? 'native-bottom-sheet-exit' : isMounted ? 'native-bottom-sheet-enter' : 'translate-y-full'
         }`}
         style={{ 

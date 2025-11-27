@@ -72,24 +72,26 @@ export default function DatePicker({
   const renderContent = () => {
     return (
       <div 
-        className={inline ? "bg-white rounded-xl w-full shadow-lg" : "bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"}
+        className={inline ? "w-full" : "bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"}
         onClick={(e) => e.stopPropagation()}
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200">
-        <h3 className="text-base font-semibold text-gray-900">{label}</h3>
-        <button
-          onClick={onClose}
-          className="p-1.5 active:bg-gray-100 rounded-lg"
-          style={{ WebkitTapHighlightColor: 'transparent' }}
-        >
-          <X size={18} className="text-gray-500" />
-        </button>
-      </div>
+      {/* Header - Only show when not inline */}
+      {!inline && (
+        <div className="flex items-center justify-between p-3 border-b border-gray-200">
+          <h3 className="text-base font-semibold text-gray-900">{label}</h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 active:bg-gray-100 rounded-lg"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            <X size={18} className="text-gray-500" />
+          </button>
+        </div>
+      )}
 
       {/* Month Navigation */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200">
+      <div className={`flex items-center justify-between p-3 ${inline ? '' : 'border-b border-gray-200'}`}>
         <button
           onClick={handlePrevMonth}
           className="p-1.5 active:bg-gray-100 rounded-lg"

@@ -127,21 +127,23 @@ export default function NumberPad({
   const renderContent = () => {
     return (
       <div 
-        className={inline ? "bg-white rounded-xl w-full shadow-lg" : "bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"}
+        className={inline ? "w-full" : "bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"}
         onClick={(e) => e.stopPropagation()}
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-        <button
-          onClick={onClose}
-          className="p-2 active:bg-gray-100 rounded-lg"
-          style={{ WebkitTapHighlightColor: 'transparent' }}
-        >
-          <X size={20} className="text-gray-500" />
-        </button>
-      </div>
+      {/* Header - Only show when not inline */}
+      {!inline && (
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
+          <button
+            onClick={onClose}
+            className="p-2 active:bg-gray-100 rounded-lg"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            <X size={20} className="text-gray-500" />
+          </button>
+        </div>
+      )}
 
       {/* Display */}
       <div className="p-6 bg-gray-50">

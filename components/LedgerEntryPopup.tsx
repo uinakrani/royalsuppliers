@@ -425,27 +425,40 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
                   </label>
                   {!showCustomSupplier ? (
                     <div className="space-y-2">
-                      <select
-                        value={supplier}
-                        onChange={(e) => {
-                          if (e.target.value === '__custom__') {
-                            setShowCustomSupplier(true)
-                          } else {
-                            setSupplier(e.target.value)
-                          }
-                        }}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        style={{ fontSize: '16px' }}
-                        autoFocus
-                      >
-                        <option value="">Select a supplier</option>
-                        {suppliers.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                        <option value="__custom__">+ Add New Supplier</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={supplier}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') {
+                              setShowCustomSupplier(true)
+                            } else {
+                              setSupplier(e.target.value)
+                            }
+                          }}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent pr-10"
+                          style={{ fontSize: '16px' }}
+                          autoFocus
+                        >
+                          <option value="">Select a supplier</option>
+                          {suppliers.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                          <option value="__custom__">+ Add New Supplier</option>
+                        </select>
+                        {supplier && (
+                          <button
+                            type="button"
+                            onClick={() => setSupplier('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 active:text-gray-700 rounded"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
+                            aria-label="Clear selection"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -494,27 +507,40 @@ export default function LedgerEntryPopup({ isOpen, onClose, onSave, type, initia
                   </label>
                   {!showCustomPartyName ? (
                     <div className="space-y-2">
-                      <select
-                        value={partyName}
-                        onChange={(e) => {
-                          if (e.target.value === '__custom__') {
-                            setShowCustomPartyName(true)
-                          } else {
-                            setPartyName(e.target.value)
-                          }
-                        }}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        style={{ fontSize: '16px' }}
-                        autoFocus
-                      >
-                        <option value="">Select a party name</option>
-                        {partyNames.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                        <option value="__custom__">+ Add New Party Name</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={partyName}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') {
+                              setShowCustomPartyName(true)
+                            } else {
+                              setPartyName(e.target.value)
+                            }
+                          }}
+                          className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent pr-10"
+                          style={{ fontSize: '16px' }}
+                          autoFocus
+                        >
+                          <option value="">Select a party name</option>
+                          {partyNames.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                          <option value="__custom__">+ Add New Party Name</option>
+                        </select>
+                        {partyName && (
+                          <button
+                            type="button"
+                            onClick={() => setPartyName('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 active:text-gray-700 rounded"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
+                            aria-label="Clear selection"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-2">

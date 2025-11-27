@@ -61,25 +61,30 @@ export default function SelectList({
   const renderContent = () => {
     return (
       <div
-        className={inline ? "bg-white rounded-xl w-full max-h-[80vh] flex flex-col shadow-lg" : "bg-white rounded-t-3xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up shadow-2xl"}
+        className={inline ? "w-full flex flex-col" : "bg-white rounded-t-3xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up shadow-2xl"}
+        style={{ 
+          WebkitTapHighlightColor: 'transparent',
+          ...(inline ? { maxHeight: '60vh' } : {})
+        }}
         onClick={(e) => e.stopPropagation()}
-        style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
-          <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-          <button
-            onClick={onClose}
-            className="p-2 active:bg-gray-100 rounded-lg"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
-        </div>
+        {/* Header - Only show when not inline */}
+        {!inline && (
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
+            <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
+            <button
+              onClick={onClose}
+              className="p-2 active:bg-gray-100 rounded-lg"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <X size={20} className="text-gray-500" />
+            </button>
+          </div>
+        )}
 
         {/* Search */}
         {!showCustomInput && (
-          <div className="p-4 border-b border-gray-200 flex-shrink-0">
+          <div className={`p-4 flex-shrink-0 ${inline ? '' : 'border-b border-gray-200'}`}>
             <div className="relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -133,9 +138,25 @@ export default function SelectList({
         ) : (
           <>
             {/* Options List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
               {filteredOptions.length > 0 ? (
                 <div className="p-2">
+                  {/* Clear/None option for single select when a value is selected */}
+                  {!multiSelect && value && (
+                    <button
+                      onClick={() => {
+                        onChange('')
+                        if (!inline) onClose()
+                      }}
+                      className="w-full text-left px-4 py-3 rounded-xl mb-1 transition-all duration-100 bg-gray-50 border border-gray-300 text-gray-600 active:bg-gray-100 active:scale-[0.98]"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-base font-medium">Clear selection</span>
+                        <X size={18} className="text-gray-400" />
+                      </div>
+                    </button>
+                  )}
                   {filteredOptions.map((option) => {
                     const isSelected = multiSelect
                       ? selectedValues.includes(option)
@@ -170,9 +191,9 @@ export default function SelectList({
               )}
             </div>
 
-            {/* Add Custom Button */}
-            {allowCustom && (
-              <div className="p-4 border-t border-gray-200 flex-shrink-0">
+            {/* Add Custom Button - Only show when allowCustom is true and not inline */}
+            {allowCustom && !showCustomInput && !inline && (
+              <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-white">
                 <button
                   onClick={() => setShowCustomInput(true)}
                   className="w-full h-12 bg-gray-100 border border-gray-200 rounded-xl font-semibold text-gray-700 active:bg-gray-200 transition-colors flex items-center justify-center gap-2"

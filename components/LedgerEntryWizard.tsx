@@ -9,6 +9,7 @@ import { format } from 'date-fns'
 import NumberPad from '@/components/NumberPad'
 import SelectList from '@/components/SelectList'
 import DatePicker from '@/components/DatePicker'
+import BottomSheet from '@/components/BottomSheet'
 
 // Helper function to format date as YYYY-MM-DD in local time (not UTC)
 const formatLocalDate = (date: Date): string => {
@@ -48,6 +49,7 @@ interface LedgerEntryWizardProps {
   onClose: () => void
   onSave: (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => Promise<void>
   onDelete?: (entryId: string) => void
+  onDeleteConfirm?: (entryId: string) => Promise<void>
 }
 
 type Step = 
@@ -67,13 +69,14 @@ const getStepOrder = (type: 'credit' | 'debit'): Step[] => {
   }
 }
 
-export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDelete }: LedgerEntryWizardProps) {
+export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDelete, onDeleteConfirm }: LedgerEntryWizardProps) {
   const stepOrder = getStepOrder(type)
   // If editing (entry has id), start at first step, otherwise start at step 0
   const isEditMode = !!(entry?.id)
   const initialStep = 0
   const [currentStep, setCurrentStep] = useState<number>(initialStep)
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
   const [formData, setFormData] = useState({
     amount: entry?.amount || 0,
@@ -415,18 +418,36 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               </div>
             </div>
           </div>
-          {/* Quick Save Button - Show when required fields are filled */}
-          {canSave() && currentStepData === 'note' && (
-            <button
-              onClick={handleSubmit}
-              disabled={saving}
-              className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg active:bg-green-700 transition-all disabled:opacity-50 flex items-center gap-1.5"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <Check size={14} />
-              Save
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Delete Button - Show in header when editing on all steps */}
+            {isEditMode && entry?.id && (
+              <button
+                onClick={() => {
+                  if (entry?.id) {
+                    setShowDeleteConfirm(true)
+                  }
+                }}
+                disabled={saving}
+                className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-lg active:bg-red-100 active:border-red-300 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            )}
+            {/* Quick Save Button - Show when required fields are filled */}
+            {canSave() && currentStepData === 'note' && (
+              <button
+                onClick={handleSubmit}
+                disabled={saving}
+                className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg active:bg-green-700 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <Check size={14} />
+                Save
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Compact Filled Details Summary - Always visible */}
@@ -522,21 +543,6 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                     Back
                   </button>
                 )}
-                {isEditMode && onDelete && entry?.id && (
-                  <button
-                    onClick={() => {
-                      if (entry?.id) {
-                        onDelete(entry.id)
-                      }
-                    }}
-                    disabled={saving}
-                    className="flex-1 h-10 bg-red-50 border border-red-200 text-red-600 rounded-lg font-medium active:bg-red-100 active:border-red-300 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm"
-                    style={{ WebkitTapHighlightColor: 'transparent' }}
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </button>
-                )}
               </div>
             </div>
           ) : (
@@ -575,6 +581,29 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Bottom Sheet */}
+      {isEditMode && entry?.id && (
+        <BottomSheet
+          isOpen={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+          onConfirm={async () => {
+            if (entry?.id) {
+              if (onDeleteConfirm) {
+                await onDeleteConfirm(entry.id)
+              } else if (onDelete) {
+                onDelete(entry.id)
+              }
+              setShowDeleteConfirm(false)
+            }
+          }}
+          title="Delete Entry?"
+          message="This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmColor="red"
+        />
+      )}
     </div>
   )
 }
