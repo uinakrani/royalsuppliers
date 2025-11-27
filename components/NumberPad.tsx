@@ -10,6 +10,8 @@ interface NumberPadProps {
   label?: string
   maxDecimals?: number
   allowNegative?: boolean
+  inline?: boolean // If true, render inline instead of as overlay
+  hideDoneButton?: boolean // If true, hide the Done button
 }
 
 export default function NumberPad({ 
@@ -18,7 +20,9 @@ export default function NumberPad({
   onClose, 
   label = 'Enter Amount',
   maxDecimals = 2,
-  allowNegative = false 
+  allowNegative = false,
+  inline = false,
+  hideDoneButton = false
 }: NumberPadProps) {
   const getInitialValue = () => {
     if (value === 0 || value === '0' || value === '' || !value) return '0'
@@ -120,6 +124,169 @@ export default function NumberPad({
     }, 50)
   }
 
+  const renderContent = () => {
+    return (
+      <div 
+        className={inline ? "bg-white rounded-xl w-full shadow-lg" : "bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"}
+        onClick={(e) => e.stopPropagation()}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
+        <button
+          onClick={onClose}
+          className="p-2 active:bg-gray-100 rounded-lg"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+          <X size={20} className="text-gray-500" />
+        </button>
+      </div>
+
+      {/* Display */}
+      <div className="p-6 bg-gray-50">
+        <div className="text-right">
+          <div className="text-4xl font-bold text-gray-900 font-mono">
+            {displayValue || '0'}
+          </div>
+        </div>
+      </div>
+
+      {/* Keypad */}
+      <div className="p-4">
+        <div className="grid grid-cols-3 gap-2">
+          {/* Row 1 */}
+          <button
+            onClick={() => handleNumberPress('7')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            7
+          </button>
+          <button
+            onClick={() => handleNumberPress('8')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            8
+          </button>
+          <button
+            onClick={() => handleNumberPress('9')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            9
+          </button>
+
+          {/* Row 2 */}
+          <button
+            onClick={() => handleNumberPress('4')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            4
+          </button>
+          <button
+            onClick={() => handleNumberPress('5')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            5
+          </button>
+          <button
+            onClick={() => handleNumberPress('6')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            6
+          </button>
+
+          {/* Row 3 */}
+          <button
+            onClick={() => handleNumberPress('1')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            1
+          </button>
+          <button
+            onClick={() => handleNumberPress('2')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            2
+          </button>
+          <button
+            onClick={() => handleNumberPress('3')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            3
+          </button>
+
+          {/* Row 4 */}
+          {allowNegative ? (
+            <button
+              onClick={handleToggleNegative}
+              className="h-14 bg-white border border-gray-200 rounded-xl text-xl font-semibold text-gray-700 active:bg-gray-100 transition-colors"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              ±
+            </button>
+          ) : (
+            <button
+              onClick={handleClear}
+              className="h-14 bg-white border border-gray-200 rounded-xl text-xl font-semibold text-gray-700 active:bg-gray-100 transition-colors"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              C
+            </button>
+          )}
+          <button
+            onClick={() => handleNumberPress('0')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            0
+          </button>
+          <button
+            onClick={() => handleNumberPress('.')}
+            className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            .
+          </button>
+
+          {/* Row 5 - Actions */}
+          <button
+            onClick={handleBackspace}
+            className="h-14 bg-gray-100 border border-gray-200 rounded-xl flex items-center justify-center active:bg-gray-200 transition-colors"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            <Delete size={20} className="text-gray-700" />
+          </button>
+          {!hideDoneButton && (
+            <button
+              onClick={handleDone}
+              className="h-14 bg-primary-600 text-white rounded-xl text-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              Done
+            </button>
+          )}
+          {hideDoneButton && (
+            <div className="col-span-2" />
+          )}
+        </div>
+      </div>
+    </div>
+    )
+  }
+
+  if (inline) {
+    return renderContent()
+  }
+
   return (
     <div 
       className="fixed inset-0 bg-black/50 z-[100000] flex items-end justify-center backdrop-blur-sm"
@@ -129,154 +296,7 @@ export default function NumberPad({
         }
       }}
     >
-      <div 
-        className="bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-          <button
-            onClick={onClose}
-            className="p-2 active:bg-gray-100 rounded-lg"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
-        </div>
-
-        {/* Display */}
-        <div className="p-6 bg-gray-50">
-          <div className="text-right">
-            <div className="text-4xl font-bold text-gray-900 font-mono">
-              {displayValue || '0'}
-            </div>
-          </div>
-        </div>
-
-        {/* Keypad */}
-        <div className="p-4">
-          <div className="grid grid-cols-3 gap-2">
-            {/* Row 1 */}
-            <button
-              onClick={() => handleNumberPress('7')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              7
-            </button>
-            <button
-              onClick={() => handleNumberPress('8')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              8
-            </button>
-            <button
-              onClick={() => handleNumberPress('9')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              9
-            </button>
-
-            {/* Row 2 */}
-            <button
-              onClick={() => handleNumberPress('4')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              4
-            </button>
-            <button
-              onClick={() => handleNumberPress('5')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              5
-            </button>
-            <button
-              onClick={() => handleNumberPress('6')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              6
-            </button>
-
-            {/* Row 3 */}
-            <button
-              onClick={() => handleNumberPress('1')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              1
-            </button>
-            <button
-              onClick={() => handleNumberPress('2')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              2
-            </button>
-            <button
-              onClick={() => handleNumberPress('3')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              3
-            </button>
-
-            {/* Row 4 */}
-            {allowNegative ? (
-              <button
-                onClick={handleToggleNegative}
-                className="h-14 bg-white border border-gray-200 rounded-xl text-xl font-semibold text-gray-700 active:bg-gray-100 transition-colors"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                ±
-              </button>
-            ) : (
-              <button
-                onClick={handleClear}
-                className="h-14 bg-white border border-gray-200 rounded-xl text-xl font-semibold text-gray-700 active:bg-gray-100 transition-colors"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                C
-              </button>
-            )}
-            <button
-              onClick={() => handleNumberPress('0')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              0
-            </button>
-            <button
-              onClick={() => handleNumberPress('.')}
-              className="h-14 bg-white border border-gray-200 rounded-xl text-2xl font-semibold text-gray-900 active:bg-gray-100 active:scale-[0.97] transition-transform duration-100 shadow-sm"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              .
-            </button>
-
-            {/* Row 5 - Actions */}
-            <button
-              onClick={handleBackspace}
-              className="h-14 bg-gray-100 border border-gray-200 rounded-xl flex items-center justify-center active:bg-gray-200 transition-colors"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <Delete size={20} className="text-gray-700" />
-            </button>
-            <button
-              onClick={handleDone}
-              className="h-14 bg-primary-600 text-white rounded-xl text-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 col-span-2 shadow-lg shadow-primary-600/30"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
+      {renderContent()}
     </div>
   )
 }

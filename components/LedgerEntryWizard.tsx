@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { LedgerEntry } from '@/lib/ledgerService'
 import { X, ChevronLeft, ChevronRight, Check, Edit2, Calendar, DollarSign, ShoppingCart, User, FileText, Trash2 } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
 import NumberPad from '@/components/NumberPad'
-import TextInputPad from '@/components/TextInputPad'
 import SelectList from '@/components/SelectList'
 import DatePicker from '@/components/DatePicker'
 
@@ -63,20 +61,18 @@ type Step =
 const getStepOrder = (type: 'credit' | 'debit'): Step[] => {
   const baseSteps: Step[] = ['amount', 'date']
   if (type === 'debit') {
-    return [...baseSteps, 'supplier', 'note', 'review']
+    return [...baseSteps, 'supplier', 'note']
   } else {
-    return [...baseSteps, 'partyName', 'note', 'review']
+    return [...baseSteps, 'partyName', 'note']
   }
 }
 
 export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDelete }: LedgerEntryWizardProps) {
   const stepOrder = getStepOrder(type)
-  // If editing (entry has id), start at review step, otherwise start at step 0
+  // If editing (entry has id), start at first step, otherwise start at step 0
   const isEditMode = !!(entry?.id)
-  const initialStep = isEditMode ? stepOrder.length - 1 : 0 // Review step is last step
+  const initialStep = 0
   const [currentStep, setCurrentStep] = useState<number>(initialStep)
-  const [isClosing, setIsClosing] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
   const [saving, setSaving] = useState(false)
   
   const [formData, setFormData] = useState({
@@ -100,16 +96,9 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }, [entry?.id, entry?.date, entry?.amount, entry?.note, entry?.supplier, entry?.partyName])
 
-  const [showNumberPad, setShowNumberPad] = useState(false)
-  const [showTextPad, setShowTextPad] = useState(false)
-  const [showSelectList, setShowSelectList] = useState(false)
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [currentInput, setCurrentInput] = useState<string>('')
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [partyNames, setPartyNames] = useState<string[]>([])
-  const selectListManuallyOpenedRef = useRef<boolean>(false)
   const lastEnteredValue = useRef<number | string | null>(null)
-  const isClosingRef = useRef(false)
 
   const loadOptions = async () => {
     try {
@@ -128,64 +117,12 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     // Don't allow closing while saving
     if (saving) return
     
-    // Mark that we're closing to prevent reopening
-    isClosingRef.current = true
-    
-    // Close any open overlays first
-    setShowNumberPad(false)
-    setShowTextPad(false)
-    setShowSelectList(false)
-    setShowDatePicker(false)
-    
-    setIsClosing(true)
-    setIsMounted(false)
-    setTimeout(() => {
-      onClose()
-      setIsClosing(false)
-      // Reset after delay to allow component to unmount
-      setTimeout(() => {
-        isClosingRef.current = false
-      }, 100)
-    }, 300)
+    onClose()
   }, [saving, onClose])
 
   useEffect(() => {
-    // Don't mount if we're in the process of closing
-    if (isClosingRef.current) return
-    
-    document.body.style.overflow = 'hidden'
-    requestAnimationFrame(() => {
-      if (!isClosingRef.current) {
-        setIsMounted(true)
-      }
-    })
     loadOptions()
-    
-    // If in edit mode, we start at review step, so don't auto-open any input
-    if (isEditMode) {
-      return () => {
-        document.body.style.overflow = ''
-      }
-    }
-    
-    // Auto-open first step input immediately (only for new entries)
-    // Skip optional steps (supplier, partyName) - they have buttons instead
-    const firstStep = stepOrder[0]
-    if (firstStep === 'date') {
-      setCurrentInput('date')
-      setShowDatePicker(true)
-    } else if (firstStep === 'amount') {
-      setCurrentInput('amount')
-      setShowNumberPad(true)
-    }
-    // supplier and partyName don't auto-open - user clicks button to select
-    
-    return () => {
-      document.body.style.overflow = ''
-      // Reset closing flag on unmount
-      isClosingRef.current = false
-    }
-  }, [isEditMode, stepOrder])
+  }, [])
 
   // Add Escape key handler
   useEffect(() => {
@@ -200,74 +137,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }, [saving, handleClose])
 
-  // Track previous step to detect step changes
-  const prevStepRef = useRef<number>(currentStep)
-  
-  // Auto-show input when step changes
-  useEffect(() => {
-    const step = stepOrder[currentStep]
-    const prevStep = stepOrder[prevStepRef.current]
-    const stepChanged = prevStepRef.current !== currentStep
-    
-    // Update ref for next time
-    prevStepRef.current = currentStep
-    
-    // Skip auto-open for review step
-    if (step === 'review') {
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      setShowSelectList(false)
-      setShowDatePicker(false)
-      selectListManuallyOpenedRef.current = false
-      return
-    }
-    
-    // Only close SelectList if we're moving FROM supplier/partyName TO a different step
-    // AND SelectList wasn't manually opened
-    if (stepChanged && (prevStep === 'supplier' || prevStep === 'partyName')) {
-      if (step !== 'supplier' && step !== 'partyName') {
-        // Moving away from supplier/partyName step - close SelectList
-        setShowSelectList(false)
-        setCurrentInput('')
-        selectListManuallyOpenedRef.current = false
-      }
-    }
-    
-    // Immediately open the appropriate input for the current step
-    if (step === 'date') {
-      setCurrentInput('date')
-      setShowDatePicker(true)
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      if (!selectListManuallyOpenedRef.current) {
-        setShowSelectList(false)
-      }
-    } else if (step === 'amount') {
-      setCurrentInput('amount')
-      setShowNumberPad(true)
-      setShowDatePicker(false)
-      setShowTextPad(false)
-      if (!selectListManuallyOpenedRef.current) {
-        setShowSelectList(false)
-      }
-    } else if (step === 'supplier' || step === 'partyName') {
-      // Don't auto-open SelectList for optional steps - let user click button
-      // Don't interfere with SelectList if user manually opened it
-      // Only close other inputs
-      setShowNumberPad(false)
-      setShowTextPad(false)
-      setShowDatePicker(false)
-      // Don't touch showSelectList or currentInput here - let button handle it
-    } else if (step === 'note') {
-      setCurrentInput('note')
-      setShowTextPad(true)
-      setShowNumberPad(false)
-      if (!selectListManuallyOpenedRef.current) {
-        setShowSelectList(false)
-      }
-      setShowDatePicker(false)
-    }
-  }, [currentStep, stepOrder])
+  // No need for auto-show logic since inputs are always visible on their steps
 
   const handleNext = () => {
     if (currentStep < stepOrder.length - 1) {
@@ -281,14 +151,36 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }
 
-  // Helper to navigate after editing a field - in edit mode, go to review, otherwise continue
+  // Helper to navigate after editing a field - auto-advance for required fields
   const handleAfterEdit = () => {
-    if (isEditMode) {
-      // Go to review step (last step)
-      setCurrentStep(stepOrder.length - 1)
-    } else {
-      handleNext()
+    // Auto-advance for required fields (amount, date) if they're complete
+    const step = stepOrder[currentStep]
+    if (step === 'amount' && formData.amount > 0) {
+      // Small delay to show the value before advancing
+      setTimeout(() => {
+        if (currentStep < stepOrder.length - 1) {
+          setCurrentStep(currentStep + 1)
+        }
+      }, 300)
+    } else if (step === 'date' && formData.date) {
+      // Small delay to show the value before advancing
+      setTimeout(() => {
+        if (currentStep < stepOrder.length - 1) {
+          setCurrentStep(currentStep + 1)
+        }
+      }, 300)
     }
+  }
+
+  const handleSkip = () => {
+    // Skip optional steps
+    if (currentStep < stepOrder.length - 1) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const canSave = (): boolean => {
+    return formData.amount > 0 && !!formData.date
   }
 
   const handleStepClick = (stepIndex: number) => {
@@ -304,7 +196,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       supplier: 'Supplier',
       partyName: 'Party Name',
       note: 'Note',
-      review: 'Review',
+      review: 'Review', // Kept for type compatibility but not used
     }
     return labels[step]
   }
@@ -316,7 +208,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       supplier: ShoppingCart,
       partyName: User,
       note: FileText,
-      review: Check
+      review: Check // Kept for type compatibility but not used
     }
     return icons[step]
   }
@@ -351,264 +243,99 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     switch (step) {
       case 'amount':
         return (
-          <div className="text-center py-2">
-            <DollarSign size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Amount</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              {type === 'credit' ? 'How much did you receive?' : 'How much did you spend?'}
-            </p>
-            {formData.amount > 0 && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-lg font-semibold text-primary-700">{formatIndianCurrency(formData.amount)}</span>
-                </div>
-              </div>
-            )}
-            {showNumberPad && currentInput === 'amount' && (
-              <NumberPad
-                value={formData.amount}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, amount: val })
-                }}
-                onClose={() => {
-                  setShowNumberPad(false)
-                  const enteredValue = lastEnteredValue.current as number
-                  if (enteredValue > 0) {
-                    setTimeout(() => handleAfterEdit(), 100)
-                  }
-                  lastEnteredValue.current = null
-                }}
-                label={`Enter ${type === 'credit' ? 'Income' : 'Expense'} Amount`}
-              />
-            )}
-          </div>
+          <NumberPad
+            value={formData.amount}
+            onChange={(val) => {
+              lastEnteredValue.current = val
+              setFormData({ ...formData, amount: val })
+            }}
+            onClose={() => {
+              // Don't auto-advance on first step - user will use Continue button
+              lastEnteredValue.current = null
+            }}
+            label={`Enter ${type === 'credit' ? 'Income' : 'Expense'} Amount`}
+            inline={true}
+            hideDoneButton={true}
+          />
         )
 
       case 'date':
         return (
-          <div className="text-center py-2">
-            <Calendar size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Select Date</h2>
-            <p className="text-sm text-gray-600 mb-4">When did this transaction occur?</p>
-            {showDatePicker && (
-              <DatePicker
-                value={formData.date}
-                onChange={(val) => {
-                  setFormData({ ...formData, date: val })
-                  setShowDatePicker(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => setShowDatePicker(false)}
-                label="Select Date"
-              />
-            )}
-          </div>
+          <DatePicker
+            value={formData.date}
+            onChange={(val) => {
+              setFormData({ ...formData, date: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Date"
+            inline={true}
+          />
         )
 
       case 'supplier':
         return (
-          <div className="text-center py-2">
-            <ShoppingCart size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Supplier (Optional)</h2>
-            <p className="text-sm text-gray-600 mb-4">Which supplier did you pay for raw materials?</p>
-            {formData.supplier && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-sm font-semibold text-primary-700">{formData.supplier}</span>
-                </div>
-              </div>
-            )}
-            {!showSelectList && (
-              <button
-                onClick={() => {
-                  selectListManuallyOpenedRef.current = true
-                  setCurrentInput('supplier')
-                  setShowSelectList(true)
-                }}
-                className="px-6 py-3 bg-primary-50 border-2 border-primary-200 rounded-xl text-primary-700 font-semibold active:bg-primary-100 active:scale-95 transition-all duration-150"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                {formData.supplier ? 'Change Supplier' : 'Select Supplier (Optional)'}
-              </button>
-            )}
-            {showSelectList && currentInput === 'supplier' && (
-              <SelectList
-                options={suppliers}
-                value={formData.supplier}
-                onChange={(val) => {
-                  setFormData({ ...formData, supplier: val })
-                  setShowSelectList(false)
-                  setCurrentInput('') // Clear currentInput to prevent conflicts
-                  selectListManuallyOpenedRef.current = false
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => {
-                  setShowSelectList(false)
-                  setCurrentInput('') // Clear currentInput when closing
-                  selectListManuallyOpenedRef.current = false
-                  // Don't auto-advance when closing without selection - let user click Continue
-                }}
-                label="Select Supplier"
-                allowCustom={true}
-                onCustomAdd={(val) => {
-                  setSuppliers([...suppliers, val])
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={suppliers}
+            value={formData.supplier}
+            onChange={(val) => {
+              setFormData({ ...formData, supplier: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Supplier"
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setSuppliers([...suppliers, val])
+            }}
+            inline={true}
+          />
         )
 
       case 'partyName':
         return (
-          <div className="text-center py-2">
-            <User size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Party Name (Optional)</h2>
-            <p className="text-sm text-gray-600 mb-4">Which party did you receive payment from?</p>
-            {formData.partyName && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-sm font-semibold text-primary-700">{formData.partyName}</span>
-                </div>
-              </div>
-            )}
-            {!showSelectList && (
-              <button
-                onClick={() => {
-                  selectListManuallyOpenedRef.current = true
-                  setCurrentInput('partyName')
-                  setShowSelectList(true)
-                }}
-                className="px-6 py-3 bg-primary-50 border-2 border-primary-200 rounded-xl text-primary-700 font-semibold active:bg-primary-100 active:scale-95 transition-all duration-150"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                {formData.partyName ? 'Change Party Name' : 'Select Party Name (Optional)'}
-              </button>
-            )}
-            {showSelectList && currentInput === 'partyName' && (
-              <SelectList
-                options={partyNames}
-                value={formData.partyName}
-                onChange={(val) => {
-                  setFormData({ ...formData, partyName: val })
-                  setShowSelectList(false)
-                  setCurrentInput('')
-                  selectListManuallyOpenedRef.current = false
-                  setTimeout(() => handleAfterEdit(), 100)
-                }}
-                onClose={() => {
-                  setShowSelectList(false)
-                  setCurrentInput('')
-                  selectListManuallyOpenedRef.current = false
-                  // Don't auto-advance when closing without selection - let user click Continue
-                }}
-                label="Select Party Name"
-                allowCustom={true}
-                onCustomAdd={(val) => {
-                  setPartyNames([...partyNames, val])
-                }}
-              />
-            )}
-          </div>
+          <SelectList
+            options={partyNames}
+            value={formData.partyName}
+            onChange={(val) => {
+              setFormData({ ...formData, partyName: val })
+              setTimeout(() => handleAfterEdit(), 100)
+            }}
+            onClose={() => {}}
+            label="Select Party Name"
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setPartyNames([...partyNames, val])
+            }}
+            inline={true}
+          />
         )
 
       case 'note':
         return (
-          <div className="text-center py-2">
-            <FileText size={48} className="mx-auto mb-3 text-primary-600" />
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Note (Optional)</h2>
-            <p className="text-sm text-gray-600 mb-4">Add any additional details about this transaction</p>
-            {formData.note && (
-              <div className="mb-4 animate-value-appear">
-                <div className="inline-block px-4 py-2 bg-primary-50 border border-primary-200 rounded-xl shadow-sm">
-                  <span className="text-sm font-semibold text-primary-700">{formData.note}</span>
-                </div>
-              </div>
-            )}
-            {showTextPad && currentInput === 'note' && (
-              <TextInputPad
-                value={formData.note}
-                onChange={(val) => {
-                  lastEnteredValue.current = val
-                  setFormData({ ...formData, note: val })
-                }}
-                onClose={() => {
-                  setShowTextPad(false)
-                  setTimeout(() => handleAfterEdit(), 100)
-                  lastEnteredValue.current = null
-                }}
-                label="Enter Note"
-              />
-            )}
+          <div className="w-full">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Note (Optional)
+            </label>
+            <textarea
+              value={formData.note}
+              onChange={(e) => {
+                setFormData({ ...formData, note: e.target.value })
+              }}
+              placeholder="Add a note (optional)"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              rows={4}
+              style={{ 
+                WebkitTapHighlightColor: 'transparent',
+                fontFamily: 'inherit'
+              }}
+            />
           </div>
         )
-
-      case 'review':
-        return renderReviewStep()
 
       default:
         return null
     }
-  }
-
-  const renderReviewStep = () => {
-    return (
-      <div className="py-6">
-        <div className="text-center mb-6">
-          <Check size={64} className="mx-auto mb-4 text-primary-600" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {isEditMode ? 'Edit Entry' : 'Review Entry'}
-          </h2>
-          <p className="text-gray-600">
-            {isEditMode ? 'Click on any field to edit, then save your changes' : 'Review all details before saving'}
-          </p>
-        </div>
-
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {stepOrder.slice(0, -1).map((step, idx) => {
-            const Icon = getStepIcon(step)
-            const value = getStepValue(step)
-            // Skip empty optional fields in review
-            if ((step === 'supplier' || step === 'partyName' || step === 'note') && !value) {
-              return null
-            }
-            return (
-              <button
-                key={step}
-                onClick={() => handleStepClick(idx)}
-                className="w-full text-left bg-white border border-gray-200 rounded-xl p-4 active:bg-gray-50 transition-colors"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary-50 rounded-lg">
-                      <Icon size={20} className="text-primary-600" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 mb-0.5">{getStepLabel(step)}</div>
-                      <div className="text-sm font-semibold text-gray-900">{value}</div>
-                    </div>
-                  </div>
-                  <Edit2 size={18} className="text-gray-400" />
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Summary */}
-        <div className="mt-6 bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-4 border border-primary-200">
-          <div className="flex justify-between items-center">
-            <span className="text-base font-semibold text-gray-700">
-              {type === 'credit' ? 'Income' : 'Expense'}:
-            </span>
-            <span className={`text-xl font-bold ${type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-              {formatIndianCurrency(formData.amount)}
-            </span>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   const getStepValue = (step: Step): string => {
@@ -651,205 +378,204 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }
 
-  const wizardContent = (
+  const currentStepData = stepOrder[currentStep]
+  const currentStepLabel = getStepLabel(currentStepData)
+  const currentStepIcon = getStepIcon(currentStepData)
+  const allSteps = stepOrder.filter(step => step !== 'review')
+  const filledSteps = allSteps.filter((step) => {
+    const value = getStepValue(step)
+    return value && value !== 'Not set' && value !== '₹0' && value !== ''
+  })
+
+  return (
     <div
-      className={`fixed inset-0 bg-white z-[99999] flex flex-col ${
-        isClosing ? 'native-modal-exit' : isMounted ? 'native-modal-enter' : 'opacity-0'
-      }`}
+      className="bg-gray-50 min-h-screen flex flex-col"
       style={{
-        WebkitTapHighlightColor: 'transparent',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 99999,
-        height: '100dvh',
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        paddingLeft: 'env(safe-area-inset-left, 0px)',
-        paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
-      {/* Header - Always on top with highest z-index to stay above overlays */}
-      <div 
-        className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 bg-white"
-        style={{ 
-          position: 'relative',
-          zIndex: 100001 
-        }}
-      >
-        <div className="flex items-center gap-3">
-          {currentStep > 0 && (
+      {/* Header - Sticky */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between p-3">
+          <div className="flex items-center gap-2.5">
             <button
-              onClick={handlePrevious}
-              className="p-2 active:bg-gray-100 active:scale-[0.95] rounded-lg transition-transform duration-100"
-              style={{ WebkitTapHighlightColor: 'transparent', position: 'relative', zIndex: 100002 }}
+              onClick={handleClose}
+              className="p-1.5 active:bg-gray-100 active:scale-95 rounded-lg transition-all duration-150"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              <ChevronLeft size={20} className="text-gray-600" />
+              <X size={18} className="text-gray-600" />
             </button>
-          )}
-          <div>
-            {!(isEditMode && stepOrder[currentStep] === 'review') && (
-              <div className="text-xs text-gray-500">Step {currentStep + 1} of {stepOrder.length}</div>
-            )}
-            <h2 className="text-lg font-bold text-gray-900">
-              {getStepLabel(stepOrder[currentStep])}
-            </h2>
-          </div>
-        </div>
-        <button
-          onClick={handleClose}
-          disabled={saving}
-          className="p-2 active:bg-gray-100 active:scale-95 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ WebkitTapHighlightColor: 'transparent', position: 'relative', zIndex: 100002 }}
-          aria-label="Close"
-        >
-          <X size={20} className="text-gray-500" />
-        </button>
-      </div>
-
-      {/* Progress Bar */}
-      <div 
-        className="flex-shrink-0 px-4 py-2 bg-gray-50 border-b border-gray-200"
-        style={{ position: 'relative', zIndex: 100001 }}
-      >
-        <div className="flex gap-1">
-          {stepOrder.map((step, idx) => {
-            const isComplete = isStepComplete(step)
-            const isCurrent = idx === currentStep
-            return (
-              <button
-                key={step}
-                onClick={() => handleStepClick(idx)}
-                className={`flex-1 h-1.5 rounded-full transition-all duration-200 ease-out ${
-                  isComplete
-                    ? 'bg-green-500'
-                    : isCurrent
-                    ? 'bg-primary-600'
-                    : 'bg-gray-300'
-                }`}
-                style={{ 
-                  WebkitTapHighlightColor: 'transparent',
-                  transform: isCurrent ? 'scaleY(1.2)' : 'scaleY(1)',
-                }}
-                title={getStepLabel(step)}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* All Filled Details Summary - Show on all steps except review */}
-      {stepOrder[currentStep] !== 'review' && (() => {
-        const allSteps = stepOrder.filter(step => step !== 'review')
-        const filledSteps = allSteps.filter((step, idx) => {
-          const value = getStepValue(step)
-          return value && value !== 'Not set' && value !== '₹0' && value !== ''
-        })
-        
-        if (filledSteps.length === 0) return null
-        
-        return (
-          <div className="flex-shrink-0 px-6 pt-4 pb-3 border-t border-gray-100 bg-gradient-to-br from-gray-50 to-gray-100/50">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-                <Check size={14} className="text-green-600" />
-                Filled Details
-              </div>
+            <div>
+              <h1 className="text-base font-bold text-gray-900">
+                {isEditMode ? `Edit ${type === 'credit' ? 'Income' : 'Expense'}` : `New ${type === 'credit' ? 'Income' : 'Expense'}`}
+              </h1>
               <div className="text-xs text-gray-500">
                 {filledSteps.length} / {allSteps.length} completed
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          </div>
+          {/* Quick Save Button - Show when required fields are filled */}
+          {canSave() && currentStepData === 'note' && (
+            <button
+              onClick={handleSubmit}
+              disabled={saving}
+              className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg active:bg-green-700 transition-all disabled:opacity-50 flex items-center gap-1.5"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Check size={14} />
+              Save
+            </button>
+          )}
+        </div>
+
+        {/* Compact Filled Details Summary - Always visible */}
+        {filledSteps.length > 0 && (
+          <div className="px-3 pb-2 border-b border-gray-100 bg-gradient-to-br from-gray-50 to-gray-100/50">
+            <div className="flex flex-wrap gap-1">
               {allSteps.map((step, idx) => {
                 const value = getStepValue(step)
-                if (!value || value === 'Not set' || value === '₹0' || value === '') return null
-                const isCurrentStep = idx === currentStep
+                if (value === 'Not set' || value === '₹0' || value === '') return null
+                const isCurrent = idx === currentStep
                 const Icon = getStepIcon(step)
                 return (
                   <button
                     key={step}
                     onClick={() => handleStepClick(idx)}
-                    className={`px-3 py-2 bg-white border rounded-lg text-xs text-left active:bg-gray-50 active:scale-[0.98] transition-all duration-150 flex items-center gap-1.5 shadow-sm ${
-                      isCurrentStep 
-                        ? 'border-primary-400 bg-primary-50/50' 
+                    className={`px-1.5 py-0.5 bg-white border rounded text-xs text-left active:bg-gray-50 active:scale-95 transition-all duration-150 flex items-center gap-1 ${
+                      isCurrent
+                        ? 'border-primary-400 bg-primary-50'
                         : 'border-gray-200'
                     }`}
                     style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
-                    <Icon size={14} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-600' : 'text-gray-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-700 truncate" style={{ fontSize: '11px' }}>
-                        {getStepLabel(step)}
-                      </div>
-                      <div className={`truncate ${isCurrentStep ? 'text-primary-700 font-semibold' : 'text-gray-600'}`} style={{ fontSize: '12px' }}>
-                        {value}
-                      </div>
-                    </div>
-                    <Edit2 size={12} className={`flex-shrink-0 ${isCurrentStep ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <Icon size={9} className={`flex-shrink-0 ${isCurrent ? 'text-primary-600' : 'text-gray-400'}`} />
+                    <span className={`truncate max-w-[60px] ${isCurrent ? 'text-primary-700' : 'text-gray-600'}`}>
+                      {value}
+                    </span>
                   </button>
                 )
               })}
             </div>
           </div>
-        )
-      })()}
+        )}
 
-      {/* Step Content */}
-      <div className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="max-w-3xl mx-auto w-full">
-          {renderStep()}
+        {/* Progress Indicator */}
+        <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100">
+          <div className="flex gap-0.5">
+            {stepOrder.map((step, idx) => {
+              const isComplete = isStepComplete(step)
+              const isCurrent = idx === currentStep
+              return (
+                <div
+                  key={step}
+                  className={`flex-1 h-0.5 rounded-full transition-all duration-200 ${
+                    isComplete
+                      ? 'bg-green-500'
+                      : isCurrent
+                      ? 'bg-primary-600'
+                      : 'bg-gray-300'
+                  }`}
+                />
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      {stepOrder[currentStep] !== 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
-        <div className="flex-shrink-0 p-4 border-t border-gray-200">
-          <button
-            onClick={handleNext}
-            disabled={!canProceed()}
-            className="w-full h-12 bg-primary-600 text-white rounded-xl font-semibold active:bg-primary-700 transition-transform duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-primary-600/30"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            Continue
-            <ChevronRight size={20} className="transition-transform duration-200 group-hover:translate-x-1" />
-          </button>
+      {/* Current Step Content - Scrollable area */}
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: '5rem' }}>
+        <div className="max-w-2xl mx-auto w-full px-3 py-3">
+          {/* Empty space for scrolling */}
         </div>
-      )}
+      </div>
 
-      {stepOrder[currentStep] === 'review' && !showNumberPad && !showTextPad && !showSelectList && !showDatePicker && (
-        <div className="flex-shrink-0 p-4 border-t border-gray-200 space-y-3">
-          <button
-            onClick={handleSubmit}
-            disabled={saving || !canProceed()}
-            className="w-full h-12 bg-green-600 text-white rounded-xl font-semibold active:bg-green-700 transition-transform duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg shadow-green-600/30"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            {saving ? (isEditMode ? 'Saving changes...' : 'Saving...') : (isEditMode ? 'Save Changes' : 'Confirm & Save')}
-            {!saving && <ChevronRight size={20} className="transition-transform duration-200 group-hover:translate-x-1" />}
-          </button>
-          {isEditMode && onDelete && entry?.id && (
-            <button
-              onClick={() => {
-                if (entry?.id) {
-                  onDelete(entry.id)
-                }
-              }}
-              disabled={saving}
-              className="w-full h-12 bg-red-50 border-2 border-red-200 text-red-600 rounded-xl font-semibold active:bg-red-100 active:border-red-300 transition-transform duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <Trash2 size={18} />
-              Delete Entry
-            </button>
+      {/* Sticky Input Container at Bottom */}
+      <div className="sticky bottom-0 bg-white border-t border-gray-200 shadow-lg z-20">
+        <div className="max-w-2xl mx-auto w-full px-3 py-3">
+          {/* Input Element */}
+          <div className="mb-3">
+            {renderStep()}
+          </div>
+
+          {/* Navigation Buttons - Always Visible */}
+          {currentStepData === 'note' ? (
+            // Save button on note step
+            <div className="space-y-2">
+              <button
+                onClick={handleSubmit}
+                disabled={saving || !canSave()}
+                className="w-full h-11 bg-green-600 text-white rounded-lg font-semibold active:bg-green-700 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98] shadow-md text-sm"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                {saving ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Entry')}
+                {!saving && <Check size={16} />}
+              </button>
+              <div className="flex gap-2">
+                {currentStep > 0 && (
+                  <button
+                    onClick={handlePrevious}
+                    className="flex-1 h-10 bg-gray-100 text-gray-700 rounded-lg font-medium active:bg-gray-200 transition-all duration-100 flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <ChevronLeft size={14} />
+                    Back
+                  </button>
+                )}
+                {isEditMode && onDelete && entry?.id && (
+                  <button
+                    onClick={() => {
+                      if (entry?.id) {
+                        onDelete(entry.id)
+                      }
+                    }}
+                    disabled={saving}
+                    className="flex-1 h-10 bg-red-50 border border-red-200 text-red-600 rounded-lg font-medium active:bg-red-100 active:border-red-300 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            // Continue/Skip buttons for other steps
+            <div className="flex gap-2">
+              {currentStep > 0 && (
+                <button
+                  onClick={handlePrevious}
+                  className="flex-1 h-10 bg-gray-100 text-gray-700 rounded-lg font-medium active:bg-gray-200 transition-all duration-100 flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </button>
+              )}
+              {/* Skip button for optional steps */}
+              {(currentStepData === 'supplier' || currentStepData === 'partyName') && (
+                <button
+                  onClick={handleSkip}
+                  className="h-10 px-3 bg-gray-50 text-gray-600 rounded-lg font-medium active:bg-gray-100 transition-all duration-100 flex items-center justify-center active:scale-[0.98] text-sm border border-gray-200"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  Skip
+                </button>
+              )}
+              <button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                className={`${currentStep > 0 && currentStepData !== 'supplier' && currentStepData !== 'partyName' ? 'flex-1' : currentStepData === 'supplier' || currentStepData === 'partyName' ? 'flex-1' : 'w-full'} h-10 bg-primary-600 text-white rounded-lg font-medium active:bg-primary-700 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm shadow-md`}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                Continue
+                <ChevronRight size={16} />
+              </button>
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
-
-  if (typeof window === 'undefined') return null
-  return createPortal(wizardContent, document.body)
 }
 

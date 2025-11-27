@@ -14,6 +14,7 @@ interface SelectListProps {
   multiSelect?: boolean
   selectedValues?: string[]
   onMultiChange?: (values: string[]) => void
+  inline?: boolean // If true, render inline instead of as overlay
 }
 
 export default function SelectList({
@@ -26,7 +27,8 @@ export default function SelectList({
   onCustomAdd,
   multiSelect = false,
   selectedValues = [],
-  onMultiChange
+  onMultiChange,
+  inline = false
 }: SelectListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
@@ -56,18 +58,12 @@ export default function SelectList({
     }
   }
 
-  return (
-    <div 
-      className="fixed inset-0 bg-black/50 z-[100000] flex items-end justify-center backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose()
-        }
-      }}
-    >
-      <div 
-        className="bg-white rounded-t-3xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up shadow-2xl"
+  const renderContent = () => {
+    return (
+      <div
+        className={inline ? "bg-white rounded-xl w-full max-h-[80vh] flex flex-col shadow-lg" : "bg-white rounded-t-3xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up shadow-2xl"}
         onClick={(e) => e.stopPropagation()}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
@@ -203,7 +199,24 @@ export default function SelectList({
             )}
           </>
         )}
-      </div>
+    </div>
+    )
+  }
+
+  if (inline) {
+    return renderContent()
+  }
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/50 z-[100000] flex items-end justify-center backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      {renderContent()}
     </div>
   )
 }

@@ -793,6 +793,22 @@ export default function LedgerPage() {
     )
   }
 
+  // If wizard is open, show only the wizard (no drawer/overlay)
+  if (drawerOpen) {
+    return (
+      <LedgerEntryWizard
+        entry={editingEntry || null}
+        type={drawerType}
+        onClose={() => {
+          setDrawerOpen(false)
+          setEditingEntry(null)
+        }}
+        onSave={handleSaveEntry}
+        onDelete={handleDeleteClick}
+      />
+    )
+  }
+
   return (
     <div className="bg-gray-50" style={{ 
       height: '100dvh',
@@ -1046,20 +1062,6 @@ export default function LedgerPage() {
           </div>
         </div>
       </div>
-      )}
-
-      {/* Entry Wizard */}
-      {drawerOpen && (
-        <LedgerEntryWizard
-          entry={editingEntry || null}
-          type={drawerType}
-          onClose={() => {
-            setDrawerOpen(false)
-            setEditingEntry(null)
-          }}
-          onSave={handleSaveEntry}
-          onDelete={handleDeleteClick}
-        />
       )}
 
       {/* Delete Confirmation Bottom Sheet */}

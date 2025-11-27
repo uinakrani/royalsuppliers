@@ -23,13 +23,15 @@ interface DatePickerProps {
   onChange: (value: string) => void
   onClose: () => void
   label?: string
+  inline?: boolean // If true, render inline instead of as overlay
 }
 
 export default function DatePicker({ 
   value, 
   onChange, 
   onClose, 
-  label = 'Select Date'
+  label = 'Select Date',
+  inline = false
 }: DatePickerProps) {
   // Parse date string in local time to avoid timezone issues
   const selectedDate = value ? parseLocalDate(value) : new Date()
@@ -67,6 +69,109 @@ export default function DatePicker({
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+  const renderContent = () => {
+    return (
+      <div 
+        className={inline ? "bg-white rounded-xl w-full shadow-lg" : "bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"}
+        onClick={(e) => e.stopPropagation()}
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-200">
+        <h3 className="text-base font-semibold text-gray-900">{label}</h3>
+        <button
+          onClick={onClose}
+          className="p-1.5 active:bg-gray-100 rounded-lg"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+          <X size={18} className="text-gray-500" />
+        </button>
+      </div>
+
+      {/* Month Navigation */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-200">
+        <button
+          onClick={handlePrevMonth}
+          className="p-1.5 active:bg-gray-100 rounded-lg"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+          <ChevronLeft size={18} className="text-gray-600" />
+        </button>
+        <div className="text-base font-semibold text-gray-900">
+          {format(currentMonth, 'MMMM yyyy')}
+        </div>
+        <button
+          onClick={handleNextMonth}
+          className="p-1.5 active:bg-gray-100 rounded-lg"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+          <ChevronRight size={18} className="text-gray-600" />
+        </button>
+      </div>
+
+      {/* Calendar */}
+      <div className="p-3">
+        {/* Week Days Header */}
+        <div className="grid grid-cols-7 gap-1 mb-1.5">
+          {weekDays.map((day) => (
+            <div key={day} className="text-center text-xs font-medium text-gray-500 py-1.5">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar Days */}
+        <div className="grid grid-cols-7 gap-1">
+          {allDays.map((day, idx) => {
+            if (!day) {
+              return <div key={`empty-${idx}`} className="aspect-square" />
+            }
+
+            const isSelected = value && isSameDay(day, selectedDate)
+            const isToday = isSameDay(day, new Date())
+            const isCurrentMonth = isSameMonth(day, currentMonth)
+
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => handleDateSelect(day)}
+                className={`aspect-square rounded-lg text-xs font-medium transition-all duration-100 ${
+                  isSelected
+                    ? 'bg-primary-600 text-white shadow-lg scale-110'
+                    : isToday
+                    ? 'bg-primary-100 text-primary-700 border-2 border-primary-500 active:scale-[0.95]'
+                    : isCurrentMonth
+                    ? 'bg-white text-gray-900 active:bg-gray-100 active:scale-[0.95]'
+                    : 'bg-gray-50 text-gray-400'
+                }`}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                {format(day, 'd')}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Today Button */}
+      <div className="p-3 border-t border-gray-200">
+          <button
+            onClick={handleToday}
+            className="w-full h-10 bg-primary-600 text-white rounded-lg font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30 text-sm"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
+            <Calendar size={16} />
+            Select Today
+          </button>
+      </div>
+    </div>
+    )
+  }
+
+  if (inline) {
+    return renderContent()
+  }
+
   return (
     <div 
       className="fixed inset-0 bg-black/50 z-[100000] flex items-end justify-center backdrop-blur-sm"
@@ -76,99 +181,7 @@ export default function DatePicker({
         }
       }}
     >
-      <div 
-        className="bg-white rounded-t-3xl w-full max-w-md animate-slide-up shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">{label}</h3>
-          <button
-            onClick={onClose}
-            className="p-2 active:bg-gray-100 rounded-lg"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
-        </div>
-
-        {/* Month Navigation */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <button
-            onClick={handlePrevMonth}
-            className="p-2 active:bg-gray-100 rounded-lg"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            <ChevronLeft size={20} className="text-gray-600" />
-          </button>
-          <div className="text-lg font-semibold text-gray-900">
-            {format(currentMonth, 'MMMM yyyy')}
-          </div>
-          <button
-            onClick={handleNextMonth}
-            className="p-2 active:bg-gray-100 rounded-lg"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            <ChevronRight size={20} className="text-gray-600" />
-          </button>
-        </div>
-
-        {/* Calendar */}
-        <div className="p-4">
-          {/* Week Days Header */}
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {weekDays.map((day) => (
-              <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Days */}
-          <div className="grid grid-cols-7 gap-1">
-            {allDays.map((day, idx) => {
-              if (!day) {
-                return <div key={`empty-${idx}`} className="aspect-square" />
-              }
-
-              const isSelected = value && isSameDay(day, selectedDate)
-              const isToday = isSameDay(day, new Date())
-              const isCurrentMonth = isSameMonth(day, currentMonth)
-
-              return (
-                <button
-                  key={day.toISOString()}
-                  onClick={() => handleDateSelect(day)}
-                  className={`aspect-square rounded-lg text-sm font-medium transition-all duration-100 ${
-                    isSelected
-                      ? 'bg-primary-600 text-white shadow-lg scale-110'
-                      : isToday
-                      ? 'bg-primary-100 text-primary-700 border-2 border-primary-500 active:scale-[0.95]'
-                      : isCurrentMonth
-                      ? 'bg-white text-gray-900 active:bg-gray-100 active:scale-[0.95]'
-                      : 'bg-gray-50 text-gray-400'
-                  }`}
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  {format(day, 'd')}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Today Button */}
-        <div className="p-4 border-t border-gray-200">
-            <button
-              onClick={handleToday}
-              className="w-full h-12 bg-primary-600 text-white rounded-xl font-semibold active:bg-primary-700 active:scale-[0.97] transition-transform duration-100 flex items-center justify-center gap-2 shadow-lg shadow-primary-600/30"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <Calendar size={18} />
-              Select Today
-            </button>
-        </div>
-      </div>
+      {renderContent()}
     </div>
   )
 }
