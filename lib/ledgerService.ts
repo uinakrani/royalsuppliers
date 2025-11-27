@@ -331,25 +331,40 @@ export const ledgerService = {
     await updateDoc(entryRef, updateData)
     
     // Log activity - always try to log even if oldEntry fetch failed
+    // Always log updates (even if no changes detected, in case the comparison logic has issues)
     try {
-      await ledgerActivityService.logActivity({
+      // Normalize note values for comparison (treat empty string and undefined as the same)
+      const oldNote = (oldEntry?.note || '').trim() || undefined
+      const newNote = updates.note !== undefined ? ((updates.note || '').trim() || undefined) : oldNote
+      
+      const activityData = {
         ledgerEntryId: id,
-        activityType: 'updated',
+        activityType: 'updated' as const,
         amount: updates.amount !== undefined ? updates.amount : (oldEntry?.amount),
         previousAmount: oldEntry?.amount,
-        note: updates.note !== undefined ? (updates.note || undefined) : oldEntry?.note,
-        previousNote: oldEntry?.note,
+        note: newNote,
+        previousNote: oldNote,
         date: updates.date !== undefined ? updateData.date : oldEntry?.date,
         previousDate: oldEntry?.date,
-        supplier: updates.supplier !== undefined ? (updates.supplier || undefined) : oldEntry?.supplier,
+        supplier: updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldEntry?.supplier,
         previousSupplier: oldEntry?.supplier,
-        partyName: updates.partyName !== undefined ? (updates.partyName || undefined) : oldEntry?.partyName,
+        partyName: updates.partyName !== undefined ? (updates.partyName?.trim() || undefined) : oldEntry?.partyName,
         previousPartyName: oldEntry?.partyName,
         type: oldEntry?.type,
+      }
+      
+      console.log('📝 Logging ledger activity for update:', {
+        ledgerEntryId: id,
+        activityType: 'updated',
+        noteChanged: oldNote !== newNote,
+        oldNote,
+        newNote,
       })
+      await ledgerActivityService.logActivity(activityData)
+      console.log('✅ Activity logged successfully')
     } catch (error) {
-      console.error('Failed to log ledger activity for update:', error)
-      // Don't throw - update already succeeded
+      console.error('❌ Failed to log ledger activity for update:', error)
+      // Don't throw - update already succeeded, but log the error for debugging
     }
   },
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { format } from 'date-fns'
-import { PlusCircle, MinusCircle, Wallet, Plus, History, Calendar, X } from 'lucide-react'
+import { PlusCircle, MinusCircle, Wallet, Plus, History, Calendar, X, Edit2 } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import NavBar from '@/components/NavBar'
 import LedgerEntryWizard from '@/components/LedgerEntryWizard'
@@ -652,24 +652,24 @@ export default function LedgerPage() {
     const getActivityColor = () => {
       switch (activity.activityType) {
         case 'created':
-          return 'bg-green-50 border-green-200'
+          return 'bg-green-50/50 border-l-3 border-green-500'
         case 'updated':
-          return 'bg-blue-50 border-blue-200'
+          return 'bg-blue-50/50 border-l-3 border-blue-500'
         case 'deleted':
-          return 'bg-red-50 border-red-200'
+          return 'bg-red-50/50 border-l-3 border-red-500'
         default:
-          return 'bg-gray-50 border-gray-200'
+          return 'bg-gray-50/50 border-l-3 border-gray-400'
       }
     }
 
     const getActivityIcon = () => {
       switch (activity.activityType) {
         case 'created':
-          return <PlusCircle size={16} className="text-green-600" />
+          return <PlusCircle size={14} className="text-green-600" />
         case 'updated':
-          return <MinusCircle size={16} className="text-blue-600" />
+          return <Edit2 size={14} className="text-blue-600" />
         case 'deleted':
-          return <X size={16} className="text-red-600" />
+          return <X size={14} className="text-red-600" />
         default:
           return null
       }
@@ -700,94 +700,119 @@ export default function LedgerPage() {
       if (diffMins < 60) return `${diffMins}m ago`
       if (diffHours < 24) return `${diffHours}h ago`
       if (diffDays < 7) return `${diffDays}d ago`
-      return format(date, 'dd MMM yyyy, hh:mm a')
+      return format(date, 'dd MMM, hh:mm a')
     }
 
-    const renderChange = (label: string, oldValue: any, newValue: any, formatter?: (val: any) => string) => {
-      if (activity.activityType === 'created') {
-        if (newValue === undefined || newValue === null || newValue === '') return null
-        return (
-          <div className="mt-1.5">
-            <span className="text-gray-600 text-xs">{label}:</span>
-            <span className="ml-1.5 text-gray-800 font-medium text-xs">
-              {formatter ? formatter(newValue) : String(newValue)}
-            </span>
-          </div>
-        )
+    // Collect all changes for compact display
+    const changes: Array<{ label: string; old: any; new: any; formatter?: (val: any) => string }> = []
+    
+    if (activity.activityType === 'created') {
+      if (activity.amount !== undefined && activity.amount !== null) {
+        changes.push({ label: 'Amount', old: null, new: activity.amount, formatter: (val) => formatIndianCurrency(val || 0) })
       }
-      if (activity.activityType === 'deleted') {
-        if (oldValue === undefined || oldValue === null || oldValue === '') return null
-        return (
-          <div className="mt-1.5">
-            <span className="text-gray-600 text-xs">{label}:</span>
-            <span className="ml-1.5 text-gray-800 font-medium text-xs line-through">
-              {formatter ? formatter(oldValue) : String(oldValue)}
-            </span>
-          </div>
-        )
+      if (activity.date) {
+        changes.push({ label: 'Date', old: null, new: activity.date, formatter: (val) => val ? format(new Date(val), 'dd MMM yyyy') : 'N/A' })
       }
-      // Updated - only show if value actually changed
-      if (oldValue !== newValue && (oldValue !== undefined || newValue !== undefined)) {
-        return (
-          <div className="mt-1.5">
-            <span className="text-gray-600 text-xs">{label}:</span>
-            <div className="ml-1.5 flex items-center gap-1.5 flex-wrap">
-              {oldValue !== undefined && oldValue !== null && oldValue !== '' && (
-                <>
-                  <span className="text-red-600 text-xs line-through">
-                    {formatter ? formatter(oldValue) : String(oldValue)}
-                  </span>
-                  <span className="text-gray-400 text-xs">→</span>
-                </>
-              )}
-              {newValue !== undefined && newValue !== null && newValue !== '' && (
-                <span className="text-green-600 text-xs font-medium">
-                  {formatter ? formatter(newValue) : String(newValue)}
-                </span>
-              )}
-              {oldValue !== undefined && newValue === undefined && (
-                <span className="text-gray-500 text-xs italic">(removed)</span>
-              )}
-            </div>
-          </div>
-        )
+      if (activity.note) changes.push({ label: 'Note', old: null, new: activity.note })
+      if (activity.supplier) changes.push({ label: 'Supplier', old: null, new: activity.supplier })
+      if (activity.partyName) changes.push({ label: 'Party', old: null, new: activity.partyName })
+    } else if (activity.activityType === 'deleted') {
+      if (activity.previousAmount !== undefined && activity.previousAmount !== null) {
+        changes.push({ label: 'Amount', old: activity.previousAmount, new: null, formatter: (val) => formatIndianCurrency(val || 0) })
       }
-      return null
+      if (activity.previousDate) {
+        changes.push({ label: 'Date', old: activity.previousDate, new: null, formatter: (val) => val ? format(new Date(val), 'dd MMM yyyy') : 'N/A' })
+      }
+      if (activity.previousNote) changes.push({ label: 'Note', old: activity.previousNote, new: null })
+      if (activity.previousSupplier) changes.push({ label: 'Supplier', old: activity.previousSupplier, new: null })
+      if (activity.previousPartyName) changes.push({ label: 'Party', old: activity.previousPartyName, new: null })
+    } else {
+      // Updated - only show changed fields
+      if (activity.previousAmount !== activity.amount && (activity.previousAmount !== undefined || activity.amount !== undefined)) {
+        changes.push({ label: 'Amount', old: activity.previousAmount, new: activity.amount, formatter: (val) => formatIndianCurrency(val || 0) })
+      }
+      if (activity.previousDate !== activity.date && (activity.previousDate || activity.date)) {
+        changes.push({ label: 'Date', old: activity.previousDate, new: activity.date, formatter: (val) => val ? format(new Date(val), 'dd MMM yyyy') : 'N/A' })
+      }
+      if (activity.previousNote !== activity.note && (activity.previousNote !== undefined || activity.note !== undefined)) {
+        changes.push({ label: 'Note', old: activity.previousNote, new: activity.note })
+      }
+      if (activity.previousSupplier !== activity.supplier && (activity.previousSupplier !== undefined || activity.supplier !== undefined)) {
+        changes.push({ label: 'Supplier', old: activity.previousSupplier, new: activity.supplier })
+      }
+      if (activity.previousPartyName !== activity.partyName && (activity.previousPartyName !== undefined || activity.partyName !== undefined)) {
+        changes.push({ label: 'Party', old: activity.previousPartyName, new: activity.partyName })
+      }
     }
 
     return (
       <div
         key={activity.id}
-        className={`rounded-xl border p-3 ${getActivityColor()} transition-all duration-200`}
+        className={`rounded-lg border-l-3 ${getActivityColor()} transition-all duration-150 hover:shadow-sm`}
         style={{
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+          borderLeftWidth: '3px',
         }}
       >
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {getActivityIcon()}
-            <span className="font-semibold text-gray-800" style={{ fontSize: '13px' }}>
-              {getActivityLabel()}
-            </span>
-            {activity.type && (
-              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                activity.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>
-                {activity.type === 'credit' ? 'Income' : 'Expense'}
+        <div className="p-2.5">
+          {/* Header Row */}
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <div className="flex-shrink-0">
+                {getActivityIcon()}
+              </div>
+              <span className="font-semibold text-gray-900 text-xs">
+                {getActivityLabel()}
               </span>
-            )}
+              {activity.type && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
+                  activity.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {activity.type === 'credit' ? 'Income' : 'Expense'}
+                </span>
+              )}
+            </div>
+            <span className="text-gray-500 text-[10px] flex-shrink-0 ml-2">
+              {formatTimestamp(activity.timestamp)}
+            </span>
           </div>
-          <span className="text-gray-500 text-xs flex-shrink-0">
-            {formatTimestamp(activity.timestamp)}
-          </span>
-        </div>
 
-        <div className="space-y-1">
-          {renderChange('Amount', activity.previousAmount, activity.amount, (val) => formatIndianCurrency(val || 0))}
-          {renderChange('Date', activity.previousDate, activity.date, (val) => val ? format(new Date(val), 'dd MMM yyyy') : 'N/A')}
-          {renderChange('Note', activity.previousNote, activity.note)}
-          {renderChange('Supplier', activity.previousSupplier, activity.supplier)}
-          {renderChange('Party', activity.previousPartyName, activity.partyName)}
+          {/* Changes - Compact inline display */}
+          {changes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+              {changes.map((change, idx) => (
+                <div key={idx} className="flex items-center gap-1 text-[10px]">
+                  <span className="text-gray-500 font-medium">{change.label}:</span>
+                  {activity.activityType === 'created' ? (
+                    <span className="text-gray-800 font-semibold">
+                      {change.formatter ? change.formatter(change.new) : String(change.new)}
+                    </span>
+                  ) : activity.activityType === 'deleted' ? (
+                    <span className="text-gray-600 line-through">
+                      {change.formatter ? change.formatter(change.old) : String(change.old)}
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      {change.old !== undefined && change.old !== null && change.old !== '' && (
+                        <>
+                          <span className="text-red-600 line-through">
+                            {change.formatter ? change.formatter(change.old) : String(change.old)}
+                          </span>
+                          <span className="text-gray-400">→</span>
+                        </>
+                      )}
+                      {change.new !== undefined && change.new !== null && change.new !== '' ? (
+                        <span className="text-green-600 font-semibold">
+                          {change.formatter ? change.formatter(change.new) : String(change.new)}
+                        </span>
+                      ) : change.old !== undefined && (
+                        <span className="text-gray-400 italic">removed</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -1022,7 +1047,7 @@ export default function LedgerPage() {
                 )}
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {activities.map((activity) => renderActivity(activity))}
               </div>
             )}

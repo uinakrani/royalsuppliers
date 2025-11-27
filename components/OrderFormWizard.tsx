@@ -1015,20 +1015,60 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         return
       }
 
-      // Use the original ledger entry amount for redistribution, not the calculated totalAllocated
-      // This ensures we redistribute the actual ledger entry amount
-      let remainingExpense = ledgerEntry.amount
+      // Preserve existing payments from this ledger entry (they may have been manually edited)
+      // Calculate how much is already allocated to preserve those amounts
+      const preservedPayments: Array<{ orderId: string; payment: PaymentRecord }> = []
+      let preservedAmount = 0
+      
+      allOrders.forEach(order => {
+        if (!order.id) return
+        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
+        ledgerPayments.forEach(payment => {
+          preservedPayments.push({ orderId: order.id!, payment })
+          preservedAmount += Number(payment.amount || 0)
+        })
+      })
+      
+      console.log(`💾 Preserving ${preservedPayments.length} existing payment(s) totaling ${preservedAmount}`)
+      
+      // Calculate remaining amount to redistribute
+      let remainingExpense = ledgerEntry.amount - preservedAmount
       const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
 
-      console.log(`💰 Starting redistribution: ledger entry amount=${ledgerEntry.amount}, currently allocated=${totalAllocated}`)
+      console.log(`💰 Starting redistribution: ledger entry amount=${ledgerEntry.amount}, preserved=${preservedAmount}, remaining to redistribute=${remainingExpense}`)
 
-      // Distribute expense across orders (oldest first)
+      // First, preserve existing payments by adding them to paymentsToAdd
+      const preservedByOrder = new Map<string, PaymentRecord[]>()
+      preservedPayments.forEach(({ orderId, payment }) => {
+        if (!preservedByOrder.has(orderId)) {
+          preservedByOrder.set(orderId, [])
+        }
+        preservedByOrder.get(orderId)!.push(payment)
+      })
+
+      // Distribute remaining expense across orders (oldest first)
       for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
         if (remainingExpense <= 0) break
         
         if (!order.id) continue
         
-        const paymentAmount = Math.min(remainingExpense, remaining)
+        // Check if this order has preserved payments
+        const preservedForThisOrder = preservedByOrder.get(order.id) || []
+        const preservedAmountForOrder = preservedForThisOrder.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        
+        // Calculate remaining capacity for this order (considering preserved payments)
+        const remainingCapacity = Math.max(0, remaining - preservedAmountForOrder)
+        
+        if (remainingCapacity <= 0) {
+          // Order already has preserved payment that fills the remaining amount
+          const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
+          const updatedPayments = [...paymentsWithoutThisEntry, ...preservedForThisOrder]
+          paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
+          console.log(`  💾 Preserved payment of ${preservedAmountForOrder} for order ${order.id}`)
+          continue
+        }
+        
+        const paymentAmount = Math.min(remainingExpense, remainingCapacity)
         
         let paymentDate = expenseDate
         if (paymentDate && !paymentDate.includes('T')) {
@@ -1044,13 +1084,27 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         }
         
         const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-        const updatedPayments = [...paymentsWithoutThisEntry, payment]
+        const updatedPayments = [...paymentsWithoutThisEntry, ...preservedForThisOrder, payment]
         
         paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
         remainingExpense -= paymentAmount
         
-        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (order remaining: ${remaining - paymentAmount}, expense remaining: ${remainingExpense})`)
+        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (preserved: ${preservedAmountForOrder}, order remaining: ${remaining - preservedAmountForOrder - paymentAmount}, expense remaining: ${remainingExpense})`)
       }
+      
+      // Handle orders with preserved payments that weren't in ordersWithOutstanding
+      preservedByOrder.forEach((preserved, orderId) => {
+        if (!paymentsToAdd.find(p => p.orderId === orderId)) {
+          const order = allOrders.find(o => o.id === orderId)
+          if (order) {
+            const existingPayments = order.partialPayments || []
+            const paymentsWithoutThisEntry = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
+            const updatedPayments = [...paymentsWithoutThisEntry, ...preserved]
+            paymentsToAdd.push({ orderId, payment: updatedPayments })
+            console.log(`  💾 Preserved payment(s) for order ${orderId} (not in outstanding list)`)
+          }
+        }
+      })
 
       console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingExpense} remaining undistributed`)
 

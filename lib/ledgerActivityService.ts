@@ -30,15 +30,30 @@ export const ledgerActivityService = {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     
-    const activityData: Omit<LedgerActivity, 'id'> = {
-      ...activity,
+    // Convert undefined values to null for Firestore compatibility
+    // Firestore doesn't allow undefined, but allows null
+    const cleanActivity: any = {
+      ledgerEntryId: activity.ledgerEntryId,
+      activityType: activity.activityType,
       timestamp: new Date().toISOString(),
+      timestampTs: Timestamp.now(),
     }
     
-    const ref = await addDoc(collection(db, LEDGER_ACTIVITIES_COLLECTION), {
-      ...activityData,
-      timestampTs: Timestamp.now(),
-    })
+    // Only include fields that are defined (not undefined)
+    if (activity.amount !== undefined) cleanActivity.amount = activity.amount
+    if (activity.previousAmount !== undefined) cleanActivity.previousAmount = activity.previousAmount
+    if (activity.note !== undefined) cleanActivity.note = activity.note || null
+    if (activity.previousNote !== undefined) cleanActivity.previousNote = activity.previousNote || null
+    if (activity.date !== undefined) cleanActivity.date = activity.date || null
+    if (activity.previousDate !== undefined) cleanActivity.previousDate = activity.previousDate || null
+    if (activity.supplier !== undefined) cleanActivity.supplier = activity.supplier || null
+    if (activity.previousSupplier !== undefined) cleanActivity.previousSupplier = activity.previousSupplier || null
+    if (activity.partyName !== undefined) cleanActivity.partyName = activity.partyName || null
+    if (activity.previousPartyName !== undefined) cleanActivity.previousPartyName = activity.previousPartyName || null
+    if (activity.type !== undefined) cleanActivity.type = activity.type || null
+    if (activity.previousType !== undefined) cleanActivity.previousType = activity.previousType || null
+    
+    const ref = await addDoc(collection(db, LEDGER_ACTIVITIES_COLLECTION), cleanActivity)
     
     return ref.id
   },
@@ -48,9 +63,10 @@ export const ledgerActivityService = {
     const db = getDb()
     if (!db) return []
     
-    // Build query - Firestore requires orderBy on the same field as where clauses
+    // Build query - Use timestampTs for ordering since that's what's stored in Firestore
+    // Firestore requires orderBy on the same field as where clauses
     // So we'll fetch all and filter in memory if both dates are provided
-    let q = query(collection(db, LEDGER_ACTIVITIES_COLLECTION), orderBy('timestamp', 'desc'))
+    let q = query(collection(db, LEDGER_ACTIVITIES_COLLECTION), orderBy('timestampTs', 'desc'))
     
     const snap = await getDocs(q)
     const activities: LedgerActivity[] = []
@@ -102,7 +118,8 @@ export const ledgerActivityService = {
     const db = getDb()
     if (!db) return () => {}
     
-    const q = query(collection(db, LEDGER_ACTIVITIES_COLLECTION), orderBy('timestamp', 'desc'))
+    // Use timestampTs for ordering since that's what's stored in Firestore
+    const q = query(collection(db, LEDGER_ACTIVITIES_COLLECTION), orderBy('timestampTs', 'desc'))
     
     return onSnapshot(q, (snap) => {
       const activities: LedgerActivity[] = []
