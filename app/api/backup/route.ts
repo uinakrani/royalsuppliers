@@ -14,14 +14,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     console.log('📦 Starting manual backup via API...')
-    
+
     const result = await exportAndUploadBackup('manual')
-    
+
     if (result.success) {
       return NextResponse.json({
         success: true,
         message: 'Backup completed successfully',
-        downloadUrl: result.downloadUrl,
         fileName: result.fileName,
         timestamp: new Date().toISOString(),
       }, { status: 200 })
@@ -47,7 +46,7 @@ export async function POST(request: NextRequest) {
     // Optional: Check for secret key for scheduled backups
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET || ''
-    
+
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({
         success: false,
@@ -56,9 +55,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📦 Starting scheduled backup via API...')
-    
+
     const result = await exportAndUploadBackup('daily')
-    
+
     if (result.success) {
       return NextResponse.json({
         success: true,
