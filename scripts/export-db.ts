@@ -9,6 +9,7 @@ import { initializeApp } from 'firebase/app'
 import { getFirestore, collection, getDocs } from 'firebase/firestore'
 import * as fs from 'fs'
 import * as path from 'path'
+import { execSync } from 'child_process'
 
 // Load environment variables from .env.local
 const envPath = path.join(__dirname, '..', '.env.local')
@@ -46,6 +47,13 @@ const COLLECTIONS = [
 interface ExportData {
   exportDate: string
   projectId: string
+  version?: {
+    commitHash?: string
+    branch?: string
+    tag?: string
+    commitMessage?: string
+    author?: string
+  }
   orders?: any[]
   ledgerEntries?: any[]
   invoices?: any[]
@@ -53,7 +61,44 @@ interface ExportData {
   [key: string]: any
 }
 
-async function exportDatabase() {
+// Get git version information if available
+function getGitVersionInfo(): ExportData['version'] | undefined {
+  try {
+    const isGitRepo = fs.existsSync(path.join(__dirname, '..', '.git'))
+    if (!isGitRepo) {
+      return undefined
+    }
+
+    try {
+      const commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8', cwd: path.join(__dirname, '..') }).trim()
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8', cwd: path.join(__dirname, '..') }).trim()
+      const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8', cwd: path.join(__dirname, '..') }).trim()
+      const author = execSync('git log -1 --pretty=%an', { encoding: 'utf-8', cwd: path.join(__dirname, '..') }).trim()
+      
+      let tag: string | undefined
+      try {
+        tag = execSync('git describe --exact-match --tags HEAD', { encoding: 'utf-8', cwd: path.join(__dirname, '..') }).trim()
+      } catch {
+        // No tag found, that's okay
+      }
+
+      return {
+        commitHash: commitHash || undefined,
+        branch: branch || undefined,
+        tag: tag || undefined,
+        commitMessage: commitMessage || undefined,
+        author: author || undefined,
+      }
+    } catch (error) {
+      // Git commands failed, return undefined
+      return undefined
+    }
+  } catch {
+    return undefined
+  }
+}
+
+async function exportDatabase(outputDir?: string, includeVersion: boolean = true) {
   try {
     // Validate configuration
     if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {
@@ -65,9 +110,19 @@ async function exportDatabase() {
     const db = getFirestore(app)
     console.log(`✅ Connected to project: ${firebaseConfig.projectId}`)
 
+    // Get version info if requested
+    const versionInfo = includeVersion ? getGitVersionInfo() : undefined
+    if (versionInfo) {
+      console.log(`\n📌 Version Info:`)
+      if (versionInfo.commitHash) console.log(`   Commit: ${versionInfo.commitHash.substring(0, 8)}`)
+      if (versionInfo.branch) console.log(`   Branch: ${versionInfo.branch}`)
+      if (versionInfo.tag) console.log(`   Tag: ${versionInfo.tag}`)
+    }
+
     const exportData: ExportData = {
       exportDate: new Date().toISOString(),
       projectId: firebaseConfig.projectId,
+      ...(versionInfo && { version: versionInfo }),
     }
 
     // Export each collection
@@ -97,10 +152,27 @@ async function exportDatabase() {
       }
     }
 
-    // Save to file
+    // Determine output directory
+    const rootDir = path.join(__dirname, '..')
+    const backupsDir = outputDir || path.join(rootDir, 'backups')
+    
+    // Create backups directory if it doesn't exist
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true })
+    }
+
+    // Generate filename with version info
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
-    const filename = `db-dump-${timestamp}.json`
-    const filepath = path.join(__dirname, '..', filename)
+    let filename: string
+    
+    if (versionInfo?.commitHash) {
+      const shortHash = versionInfo.commitHash.substring(0, 8)
+      filename = `db-dump-${timestamp}-${shortHash}.json`
+    } else {
+      filename = `db-dump-${timestamp}.json`
+    }
+    
+    const filepath = path.join(backupsDir, filename)
 
     fs.writeFileSync(filepath, JSON.stringify(exportData, null, 2), 'utf-8')
 
@@ -172,6 +244,10 @@ function processDocument(data: any): any {
   return data
 }
 
+// Get command line arguments
+const outputDir = process.argv[2] || undefined
+const skipVersion = process.argv.includes('--no-version')
+
 // Run export
-exportDatabase()
+exportDatabase(outputDir, !skipVersion)
 

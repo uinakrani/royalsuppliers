@@ -126,6 +126,28 @@ On mobile devices:
 - date-fns
 - Lucide React Icons
 
+## Documentation
+
+For comprehensive documentation of all features and functionality:
+
+- **📖 Complete Application Documentation**: See [APP_DOCUMENTATION.md](./APP_DOCUMENTATION.md)
+  - Detailed feature descriptions
+  - Data models and interfaces
+  - Service methods and APIs
+  - Component reference
+  - Business logic explanations
+
+- **⚡ AI Quick Reference**: See [AI_QUICK_REFERENCE.md](./AI_QUICK_REFERENCE.md)
+  - Quick lookup guide for AI assistants
+  - Common patterns and code snippets
+  - File location reference
+  - Common tasks and solutions
+
+- **💾 Database Backup System**: See [DATABASE_BACKUP.md](./DATABASE_BACKUP.md)
+  - Automated backup on code push
+  - Versioned database dumps
+  - Backup restoration guide
+
 ## License
 
 MIT

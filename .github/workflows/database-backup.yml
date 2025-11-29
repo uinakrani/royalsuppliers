@@ -1,0 +1,147 @@
+name: Database Backup on Push
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'README.md'
+      - 'LICENSE'
+      - '.github/**'
+      - 'backups/**'
+
+jobs:
+  backup-database:
+    name: Create Database Backup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for git commands
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Create backups directory
+        run: mkdir -p backups
+
+      - name: Export database
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+        run: |
+          npm run export-db backups
+        continue-on-error: true
+
+      - name: Check if backup was created
+        id: check-backup
+        run: |
+          BACKUP_FILE=$(ls -t backups/db-dump-*.json 2>/dev/null | head -n 1)
+          if [ -n "$BACKUP_FILE" ]; then
+            echo "backup_file=$BACKUP_FILE" >> $GITHUB_OUTPUT
+            echo "✅ Backup created: $BACKUP_FILE"
+            echo "file_size=$(stat -f%z "$BACKUP_FILE" 2>/dev/null || stat -c%s "$BACKUP_FILE" 2>/dev/null || echo 0)" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No backup file found"
+            exit 1
+          fi
+
+      - name: Get backup info
+        id: backup-info
+        run: |
+          BACKUP_FILE="${{ steps.check-backup.outputs.backup_file }}"
+          COMMIT_HASH=$(git rev-parse HEAD)
+          SHORT_HASH=$(echo $COMMIT_HASH | cut -c1-8)
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
+          echo "short_hash=$SHORT_HASH" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      - name: Create backup index entry
+        run: |
+          BACKUP_FILE="${{ steps.check-backup.outputs.backup_file }}"
+          BACKUP_NAME=$(basename "$BACKUP_FILE")
+          
+          INDEX_FILE="backups/README.md"
+          
+          # Create or update index file
+          if [ ! -f "$INDEX_FILE" ]; then
+            cat > "$INDEX_FILE" <<EOF
+# Database Backups
+
+This directory contains automated database backups created on every code push.
+
+Each backup file is named with a timestamp and commit hash: \`db-dump-YYYY-MM-DDTHH-MM-SS-COMMIT.json\`
+
+## Latest Backup
+
+- **File**: \`$BACKUP_NAME\`
+- **Date**: ${{ steps.backup-info.outputs.date }}
+- **Commit**: \`${{ steps.backup-info.outputs.short_hash }}\` - ${{ steps.backup-info.outputs.commit_msg }}
+- **Branch**: \`${{ steps.backup-info.outputs.branch }}\`
+- **Size**: $(( ${{ steps.check-backup.outputs.file_size }} / 1024 )) KB
+
+## Backup List
+
+Run \`ls -lt backups/db-dump-*.json\` to see all backups sorted by date.
+
+EOF
+          else
+            # Update latest backup section
+            sed -i '/^## Latest Backup$/,/^## Backup List$/{//!d}' "$INDEX_FILE" 2>/dev/null || true
+            sed -i '/^## Latest Backup$/a\
+- **File**: `'"$BACKUP_NAME"'`\
+- **Date**: '"${{ steps.backup-info.outputs.date }}"'\
+- **Commit**: `'"${{ steps.backup-info.outputs.short_hash }}"'` - '"${{ steps.backup-info.outputs.commit_msg }}"'\
+- **Branch**: `'"${{ steps.backup-info.outputs.branch }}"'`\
+- **Size**: $(( '"${{ steps.check-backup.outputs.file_size }}"' / 1024 )) KB\
+' "$INDEX_FILE" 2>/dev/null || true
+          fi
+
+      - name: Commit and push backup
+        run: |
+          git add backups/
+          git diff --staged --quiet || git commit -m "🤖 Auto backup: ${{ steps.backup-info.outputs.short_hash }} - ${{ steps.backup-info.outputs.commit_msg }}"
+          git push origin HEAD:${{ steps.backup-info.outputs.branch }}
+        continue-on-error: true
+
+      - name: Summary
+        run: |
+          echo "## 📦 Database Backup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backup File**: \`${{ steps.check-backup.outputs.backup_file }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ steps.backup-info.outputs.short_hash }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ steps.backup-info.outputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Size**: $(( ${{ steps.check-backup.outputs.file_size }} / 1024 )) KB" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The backup has been saved to the \`backups/\` directory and committed to the repository." >> $GITHUB_STEP_SUMMARY
+
