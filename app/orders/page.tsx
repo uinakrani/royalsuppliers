@@ -9,7 +9,7 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import OrderForm from '@/components/OrderForm'
 import { format } from 'date-fns'
-import { Plus, Edit, Trash2, Filter, FileText, X, User, Calendar, ChevronRight, Package } from 'lucide-react'
+import { Plus, Edit, Trash2, Filter, FileText, X, User, Calendar, ChevronRight, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import PaymentEditPopup from '@/components/PaymentEditPopup'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
@@ -87,11 +87,19 @@ export default function OrdersPage() {
   const [showPaymentHistory, setShowPaymentHistory] = useState(false)
   const [editingPayment, setEditingPayment] = useState<{ order: Order; paymentId: string } | null>(null)
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
-  const headerRef = useRef<HTMLDivElement>(null)
-  const [headerHeight, setHeaderHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
   const [showBottomTabs, setShowBottomTabs] = useState(true)
   const lastScrollTop = useRef(0)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [inlinePartyFilter, setInlinePartyFilter] = useState<Set<string>>(new Set())
+  const [inlineMaterialFilter, setInlineMaterialFilter] = useState<Set<string>>(new Set())
+  const [showPartyFilterDropdown, setShowPartyFilterDropdown] = useState(false)
+  const [showMaterialFilterDropdown, setShowMaterialFilterDropdown] = useState(false)
+  const [showExpandedView, setShowExpandedView] = useState(false)
+  const selectAllRef = useRef<HTMLDivElement>(null)
+  const tableHeaderRef = useRef<HTMLDivElement>(null)
+  const [selectAllHeight, setSelectAllHeight] = useState(0)
+  const [tableHeaderHeight, setTableHeaderHeight] = useState(40)
 
   // Filter form state
   const [filterPartyName, setFilterPartyName] = useState('')
@@ -143,16 +151,6 @@ export default function OrdersPage() {
     }
   }
 
-  useEffect(() => {
-    const updateHeaderHeight = () => {
-      if (headerRef.current) {
-        setHeaderHeight(headerRef.current.offsetHeight)
-      }
-    }
-    updateHeaderHeight()
-    window.addEventListener('resize', updateHeaderHeight)
-    return () => window.removeEventListener('resize', updateHeaderHeight)
-  }, [])
 
   // Scroll detection for hiding/showing bottom tabs (works for both view modes)
   useEffect(() => {
@@ -253,12 +251,17 @@ export default function OrdersPage() {
     }
   }
 
-  // Apply filters whenever orders, filters, or selectedPartyTags change
+  // Apply filters whenever orders, filters, selectedPartyTags, or inline filters change
   useEffect(() => {
     let filtered = [...orders]
 
-    // Apply party tag filters (takes priority over filter drawer party name)
-    if (selectedPartyTags.size > 0) {
+    // Apply inline party filter (takes highest priority)
+    if (inlinePartyFilter.size > 0) {
+      filtered = filtered.filter((o) =>
+        inlinePartyFilter.has(o.partyName?.trim() || '')
+      )
+    } else if (selectedPartyTags.size > 0) {
+      // Apply party tag filters (takes priority over filter drawer party name)
       filtered = filtered.filter((o) => {
         // Ensure exact match by trimming whitespace
         const orderPartyName = o.partyName?.trim() || ''
@@ -271,7 +274,16 @@ export default function OrdersPage() {
         filterPartyNames.some(fp => o.partyName.toLowerCase() === fp)
       )
     }
-    if (filters.material) {
+    
+    // Apply inline material filter (takes highest priority)
+    if (inlineMaterialFilter.size > 0) {
+      filtered = filtered.filter((o) => {
+        const orderMaterials = Array.isArray(o.material) 
+          ? o.material.map(m => String(m).trim())
+          : [String(o.material || '').trim()].filter(Boolean)
+        return orderMaterials.some(om => inlineMaterialFilter.has(om))
+      })
+    } else if (filters.material) {
       const filterMaterials = filters.material.split(',').map(m => m.trim().toLowerCase())
       filtered = filtered.filter((o) => {
         const orderMaterials = Array.isArray(o.material) 
@@ -304,7 +316,57 @@ export default function OrdersPage() {
     filtered.sort((a, b) => getTime(b) - getTime(a))
 
     setFilteredOrders(filtered)
-  }, [orders, filters, selectedPartyTags])
+  }, [orders, filters, selectedPartyTags, inlinePartyFilter, inlineMaterialFilter])
+
+  // Measure "Select All" and table header heights for sticky positioning
+  useEffect(() => {
+    const measureHeights = () => {
+      if (selectAllRef.current) {
+        const height = selectAllRef.current.getBoundingClientRect().height
+        if (height > 0) {
+          setSelectAllHeight(height)
+        }
+      }
+      if (tableHeaderRef.current) {
+        const height = tableHeaderRef.current.getBoundingClientRect().height
+        if (height > 0) {
+          setTableHeaderHeight(height)
+        }
+      }
+    }
+    
+    // Measure after a short delay to ensure DOM is ready
+    const timeoutId = setTimeout(measureHeights, 50)
+    
+    // Use ResizeObserver for dynamic measurement
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        measureHeights()
+      })
+      if (selectAllRef.current) {
+        resizeObserver.observe(selectAllRef.current)
+      }
+      if (tableHeaderRef.current) {
+        resizeObserver.observe(tableHeaderRef.current)
+      }
+    }
+    
+    window.addEventListener('resize', measureHeights)
+    
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', measureHeights)
+      if (resizeObserver) {
+        if (selectAllRef.current) {
+          resizeObserver.unobserve(selectAllRef.current)
+        }
+        if (tableHeaderRef.current) {
+          resizeObserver.unobserve(tableHeaderRef.current)
+        }
+      }
+    }
+  }, [filteredOrders, viewMode])
 
   const handleSaveOrder = async (orderData: Omit<Order, 'id'>) => {
     console.log('📝 handleSaveOrder called', { 
@@ -1082,6 +1144,76 @@ export default function OrdersPage() {
     setSelectedOrders(newSelected)
   }
 
+  const toggleRowExpansion = (id: string) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id)
+    } else {
+      newExpanded.add(id)
+    }
+    setExpandedRows(newExpanded)
+  }
+
+  // Get unique materials from orders
+  const getUniqueMaterials = (): string[] => {
+    const materialSet = new Set<string>()
+    orders.forEach(order => {
+      if (Array.isArray(order.material)) {
+        order.material.forEach(m => {
+          const material = String(m || '').trim()
+          if (material) materialSet.add(material)
+        })
+      } else if (order.material) {
+        const material = String(order.material).trim()
+        if (material) materialSet.add(material)
+      }
+    })
+    return Array.from(materialSet).sort()
+  }
+
+  const togglePartyFilter = (partyName: string) => {
+    const newFilter = new Set(inlinePartyFilter)
+    if (newFilter.has(partyName)) {
+      newFilter.delete(partyName)
+    } else {
+      newFilter.add(partyName)
+    }
+    setInlinePartyFilter(newFilter)
+  }
+
+  const toggleMaterialFilter = (material: string) => {
+    const newFilter = new Set(inlineMaterialFilter)
+    if (newFilter.has(material)) {
+      newFilter.delete(material)
+    } else {
+      newFilter.add(material)
+    }
+    setInlineMaterialFilter(newFilter)
+  }
+
+  const clearPartyFilter = () => {
+    setInlinePartyFilter(new Set())
+    setShowPartyFilterDropdown(false)
+  }
+
+  const clearMaterialFilter = () => {
+    setInlineMaterialFilter(new Set())
+    setShowMaterialFilterDropdown(false)
+  }
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.filter-dropdown-container')) {
+        setShowPartyFilterDropdown(false)
+        setShowMaterialFilterDropdown(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
+
   const handleBulkDelete = async () => {
     if (selectedOrders.size === 0) return
 
@@ -1447,64 +1579,6 @@ export default function OrdersPage() {
       flexDirection: 'column',
       overflow: 'hidden'
     }}>
-      {/* Header - Fixed at top */}
-      <div ref={headerRef} className="bg-primary-600 text-white sticky top-0 z-40 pt-safe" style={{ flexShrink: 0 }}>
-        <div className="p-2.5">
-          <div className="flex justify-between items-center gap-2">
-            <h1 className="text-xl font-bold">Orders</h1>
-            <div className="flex gap-1.5">
-              <button
-                onClick={() => {
-                  setEditingOrder(null)
-                  setShowForm(true)
-                }}
-                className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-                title="Add Order"
-              >
-                <Plus size={18} />
-              </button>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-1.5 bg-primary-500 text-white rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-              >
-                <Filter size={18} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Party Name Tags - Horizontal Scrollable */}
-      {partyNames.length > 0 && (
-        <div className="bg-white border-b border-gray-200 px-2.5 py-2 sticky z-30" style={{ top: headerHeight ? `${headerHeight}px` : 'auto' }}>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {partyNames.map((partyName) => {
-              const isSelected = selectedPartyTags.has(partyName)
-              return (
-                <button
-                  key={partyName}
-                  onClick={() => togglePartyTag(partyName)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                    isSelected
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {partyName}
-                </button>
-              )
-            })}
-            {selectedPartyTags.size > 0 && (
-              <button
-                onClick={() => setSelectedPartyTags(new Set())}
-                className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Filters Drawer */}
       <FilterPopup isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
@@ -1769,6 +1843,7 @@ export default function OrdersPage() {
         style={{ 
           flex: 1,
           overflowY: 'auto',
+          overflowX: viewMode === 'allOrders' ? 'auto' : 'visible',
           WebkitOverflowScrolling: 'touch',
           paddingBottom: selectedOrders.size > 0 ? '12.25rem' : '7.25rem'
         }}
@@ -2047,7 +2122,7 @@ export default function OrdersPage() {
         <div className="w-full" style={{ paddingTop: '0.5rem' }}>
           {/* Select All Checkbox */}
           {filteredOrders.length > 0 && (
-            <div className="bg-white border-b border-gray-100 px-2 py-2 sticky top-0 z-10">
+            <div ref={selectAllRef} className="bg-white border-b border-gray-100 px-2 py-2 sticky top-0 z-20 flex items-center justify-between min-w-max">
               <label className="flex items-center gap-2 cursor-pointer touch-manipulation" style={{ WebkitTapHighlightColor: 'transparent' }}>
                 <input
                   type="checkbox"
@@ -2068,23 +2143,160 @@ export default function OrdersPage() {
                   Select All ({filteredOrders.length})
                 </span>
               </label>
+              <button
+                onClick={() => setShowExpandedView(!showExpandedView)}
+                className="text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
+              >
+                {showExpandedView ? 'Compact view' : 'Expanded view'}
+              </button>
             </div>
           )}
 
-          {/* Table Container - Horizontal Scroll */}
-          <div className="bg-white overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {/* Table Header - Sticky - Single Row - Compact */}
-            <div className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 min-w-max">
+          {/* Table Header - Sticky - Single Row - Compact */}
+          {filteredOrders.length > 0 && (
+            <div ref={tableHeaderRef} className="sticky z-30 bg-gray-50 min-w-max" style={{ top: `${selectAllHeight || 0}px` }}>
               <div className="flex items-center">
                 <div className="w-12 px-1 py-1.5 flex-shrink-0"></div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
                   <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Date</span>
                 </div>
-                <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
+                <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200 relative filter-dropdown-container">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowPartyFilterDropdown(!showPartyFilterDropdown)
+                        setShowMaterialFilterDropdown(false)
+                      }}
+                      className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${
+                        inlinePartyFilter.size > 0 ? 'text-primary-600' : 'text-gray-400'
+                      }`}
+                      title="Filter parties"
+                    >
+                      {showPartyFilterDropdown ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                    </button>
+                    {inlinePartyFilter.size > 0 && (
+                      <span className="text-[9px] text-primary-600 font-bold">({inlinePartyFilter.size})</span>
+                    )}
+                  </div>
+                  {showPartyFilterDropdown && (
+                    <div 
+                      className="absolute top-full left-0 mt-0.5 bg-white border border-gray-300 rounded shadow-lg z-50 w-56 max-h-64 overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="p-1.5">
+                        {partyNames.length === 0 ? (
+                          <div className="text-[10px] text-gray-500 p-2 text-center">No parties found</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between px-2 py-1 border-b border-gray-200 mb-1">
+                              <span className="text-[10px] font-semibold text-gray-700">Select Parties</span>
+                              {inlinePartyFilter.size > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    clearPartyFilter()
+                                  }}
+                                  className="text-[9px] text-primary-600 hover:text-primary-700"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            <div className="max-h-48 overflow-y-auto">
+                              {partyNames.map((partyName) => (
+                                <label
+                                  key={partyName}
+                                  className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 cursor-pointer text-[10px]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={inlinePartyFilter.has(partyName)}
+                                    onChange={() => togglePartyFilter(partyName)}
+                                    className="custom-checkbox"
+                                    style={{ width: '14px', height: '14px' }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <span className="text-gray-700 truncate">{partyName}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Material</span>
+                <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200 relative filter-dropdown-container">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Material</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowMaterialFilterDropdown(!showMaterialFilterDropdown)
+                        setShowPartyFilterDropdown(false)
+                      }}
+                      className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${
+                        inlineMaterialFilter.size > 0 ? 'text-primary-600' : 'text-gray-400'
+                      }`}
+                      title="Filter materials"
+                    >
+                      {showMaterialFilterDropdown ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                    </button>
+                    {inlineMaterialFilter.size > 0 && (
+                      <span className="text-[9px] text-primary-600 font-bold">({inlineMaterialFilter.size})</span>
+                    )}
+                  </div>
+                  {showMaterialFilterDropdown && (
+                    <div 
+                      className="absolute top-full left-0 mt-0.5 bg-white border border-gray-300 rounded shadow-lg z-50 w-56 max-h-64 overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="p-1.5">
+                        {getUniqueMaterials().length === 0 ? (
+                          <div className="text-[10px] text-gray-500 p-2 text-center">No materials found</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between px-2 py-1 border-b border-gray-200 mb-1">
+                              <span className="text-[10px] font-semibold text-gray-700">Select Materials</span>
+                              {inlineMaterialFilter.size > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    clearMaterialFilter()
+                                  }}
+                                  className="text-[9px] text-primary-600 hover:text-primary-700"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            <div className="max-h-48 overflow-y-auto">
+                              {getUniqueMaterials().map((material) => (
+                                <label
+                                  key={material}
+                                  className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 cursor-pointer text-[10px]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={inlineMaterialFilter.has(material)}
+                                    onChange={() => toggleMaterialFilter(material)}
+                                    className="custom-checkbox"
+                                    style={{ width: '14px', height: '14px' }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <span className="text-gray-700 truncate">{material}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
                   <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Wt/Rate</span>
@@ -2109,6 +2321,52 @@ export default function OrdersPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Compact Sticky Totals Row */}
+          {filteredOrders.length > 0 && (
+            <div 
+              className="sticky z-30 bg-primary-600 text-white border-t border-primary-700 border-b border-primary-500 min-w-max" 
+              style={{ 
+                top: `${selectAllHeight + tableHeaderHeight}px`,
+              }}
+            >
+                <div className="flex items-center">
+                  <div className="w-12 px-1 py-0.5 flex-shrink-0"></div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
+                    <span className="text-[9px] font-bold uppercase">Total</span>
+                  </div>
+                  <div className="w-28 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
+                  <div className="w-28 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
+                    <div className="font-bold text-[10px]">
+                      {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.total, 0))}
+                    </div>
+                  </div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
+                    <div className="text-[9px] font-bold">
+                      {filteredOrders.reduce((sum, o) => sum + o.originalWeight, 0).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
+                    <div className="font-bold text-[10px]">
+                      {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.originalTotal, 0))}
+                    </div>
+                  </div>
+                  <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
+                    <div className="text-[9px] font-bold">
+                      {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.additionalCost, 0))}
+                    </div>
+                    <div className="font-bold text-[10px]">
+                      {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.profit, 0))}
+                    </div>
+                  </div>
+                  <div className="w-32 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
+                </div>
+              </div>
+            )}
 
             {/* Table Rows */}
             <div className="divide-y divide-gray-100 min-w-max">
@@ -2120,37 +2378,39 @@ export default function OrdersPage() {
                 const expenseAmount = Number(order.originalTotal || 0)
                 const isPaid = isOrderPaid(order)
 
+                const isExpanded = expandedRows.has(order.id!)
+                
                 return (
-                  <div
-                    key={order.id}
-                    data-order-id={order.id}
-                    onClick={(e) => {
-                      // Don't highlight if clicking on buttons or checkboxes
-                      if ((e.target as HTMLElement).closest('button') || 
-                          (e.target as HTMLElement).closest('input[type="checkbox"]')) {
-                        return
-                      }
-                      setHighlightedRowId(order.id || null)
-                    }}
-                    className={`flex items-center touch-manipulation transition-colors ${
-                      highlightedRowId === order.id
-                        ? 'bg-yellow-100'
-                        : selectedOrders.has(order.id!)
-                        ? 'bg-primary-50'
-                        : isPaid
-                        ? 'bg-green-50/30'
-                        : 'bg-white'
-                    }`}
-                    style={{
-                      WebkitTapHighlightColor: 'transparent',
-                      animation: `fadeInUp 0.2s ease-out ${index * 0.02}s both`,
-                      position: 'relative',
-                      overflow: 'hidden',
-                      minHeight: '3rem',
-                    }}
-                  >
+                  <div key={order.id} data-order-id={order.id} className="border-b border-gray-100">
+                    <div
+                      onClick={(e) => {
+                        // Don't highlight if clicking on buttons, checkboxes, or expand button
+                        if ((e.target as HTMLElement).closest('button') || 
+                            (e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                          return
+                        }
+                        setHighlightedRowId(order.id || null)
+                      }}
+                      className={`flex items-center touch-manipulation transition-colors ${
+                        highlightedRowId === order.id
+                          ? 'bg-yellow-100'
+                          : selectedOrders.has(order.id!)
+                          ? 'bg-primary-50'
+                          : isPaid
+                          ? 'bg-green-50/30'
+                          : 'bg-white'
+                      }`}
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        animation: `fadeInUp 0.2s ease-out ${index * 0.02}s both`,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        minHeight: '2rem',
+                        lineHeight: '1rem',
+                      }}
+                    >
                     {/* Checkbox Column */}
-                    <div className="w-12 px-1 py-2 flex-shrink-0 flex items-center justify-center border-r border-gray-100">
+                    <div className="w-12 px-1 py-1 flex-shrink-0 flex items-center justify-center border-r border-gray-100">
                       <input
                         type="checkbox"
                         checked={selectedOrders.has(order.id!)}
@@ -2159,201 +2419,206 @@ export default function OrdersPage() {
                           toggleOrderSelection(order.id!)
                         }}
                         className="custom-checkbox"
-                        style={{ width: '22px', height: '22px' }}
+                        style={{ width: '18px', height: '18px' }}
                         onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
                     {/* Date Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="flex items-center gap-1">
-                        <div className="text-gray-600 text-[11px] leading-tight font-medium">
-                          {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
-                        </div>
-                        {order.invoiced && (
-                          <span title="Invoiced">
-                            <FileText size={12} className="text-blue-600 flex-shrink-0" />
-                          </span>
-                        )}
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-600 text-[10px] leading-tight font-medium">
+                        {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
                       </div>
-                      <div className="text-gray-500 text-[10px] leading-tight mt-0.5">
-                        {orderDate ? format(orderDate, 'hh:mm a') : ''}
-                      </div>
+                      {order.invoiced && (
+                        <FileText size={10} className="text-blue-600 mt-0.5" title="Invoiced" />
+                      )}
                     </div>
 
                     {/* Party / Site Column */}
-                    <div className="w-28 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="flex items-center gap-1">
-                        <div className="font-semibold text-gray-900 truncate text-[13px] leading-tight flex-1">
-                          {order.partyName}
-                        </div>
-                        {isPaid && (
-                          <span className="flex-shrink-0 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[9px] font-bold">
-                            ✓
-                          </span>
-                        )}
+                    <div className="w-28 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="font-semibold text-gray-900 truncate text-[11px] leading-tight">
+                        {order.partyName}
                       </div>
                       {order.siteName && (
-                        <div className="text-[11px] text-gray-500 truncate mt-0.5">
+                        <div className="text-[9px] text-gray-500 truncate">
                           {order.siteName}
                         </div>
                       )}
                     </div>
 
                     {/* Material Column */}
-                    <div className="w-28 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
+                    <div className="w-28 px-1 py-1 flex-shrink-0 border-r border-gray-100">
                       <div className="flex flex-wrap gap-0.5">
-                        {materials.map((mat, idx) => (
+                        {materials.slice(0, 2).map((mat, idx) => (
                           <span
                             key={idx}
-                            className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
+                            className="bg-primary-50 text-primary-700 px-1 py-0.5 rounded text-[9px] font-medium whitespace-nowrap"
                             title={mat}
                           >
                             {mat}
                           </span>
                         ))}
+                        {materials.length > 2 && (
+                          <span className="text-[9px] text-gray-500">+{materials.length - 2}</span>
+                        )}
                       </div>
                     </div>
 
                     {/* Weight / Rate Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight">
-                        Wt: {order.weight.toLocaleString('en-IN')}
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-700 text-[10px] leading-tight">
+                        {order.weight.toLocaleString('en-IN')}
                       </div>
-                      <div className="text-gray-700 text-[11px] leading-tight">
-                        R: {formatIndianCurrency(order.rate)}
+                      <div className="text-gray-700 text-[10px] leading-tight">
+                        {formatIndianCurrency(order.rate)}
                       </div>
                     </div>
 
                     {/* Total Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="font-bold text-primary-600 text-[13px] leading-tight">
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="font-bold text-primary-600 text-[11px] leading-tight">
                         {formatIndianCurrency(order.total)}
                       </div>
                     </div>
 
                     {/* Truck Owner / No. / Supplier Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight truncate font-semibold">
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-700 text-[10px] leading-tight truncate font-semibold">
                         {order.truckOwner}
                       </div>
-                      <div className="text-gray-500 text-[11px] leading-tight">
-                        {order.truckNo}
-                      </div>
                       {order.supplier && (
-                        <div className="text-orange-600 text-[10px] leading-tight font-bold mt-0.5 truncate">
+                        <div className="text-orange-600 text-[9px] leading-tight truncate">
                           {order.supplier}
                         </div>
                       )}
                     </div>
 
                     {/* Original Weight / Rate Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-gray-700 text-[11px] leading-tight">
-                        Wt: {order.originalWeight.toLocaleString('en-IN')}
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-gray-700 text-[10px] leading-tight">
+                        {order.originalWeight.toLocaleString('en-IN')}
                       </div>
-                      <div className="text-gray-700 text-[11px] leading-tight">
-                        R: {formatIndianCurrency(order.originalRate)}
+                      <div className="text-gray-700 text-[10px] leading-tight">
+                        {formatIndianCurrency(order.originalRate)}
                       </div>
                     </div>
 
                     {/* Original Total Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="flex items-center gap-1">
-                        <div className="font-semibold text-gray-800 text-[13px] leading-tight">
-                          {formatIndianCurrency(order.originalTotal)}
-                        </div>
-                        {isPaid && (
-                          <span className="flex-shrink-0 bg-green-500 text-white px-1.5 py-0.5 rounded text-[9px] font-bold">
-                            PAID
-                          </span>
-                        )}
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="font-semibold text-gray-800 text-[11px] leading-tight">
+                        {formatIndianCurrency(order.originalTotal)}
                       </div>
-                      {totalRawPayments > 0 && (
-                        <div className="text-[11px] leading-tight mt-0.5">
-                          <div className="text-green-600 font-medium">
-                            Paid: {formatIndianCurrency(totalRawPayments)}
-                          </div>
-                          {totalRawPayments < order.originalTotal && (
-                            <div className="text-orange-600">
-                              Rem: {formatIndianCurrency(order.originalTotal - totalRawPayments)}
-                            </div>
-                          )}
-                          {/* Show payment details for paid orders */}
-                          {isPaid && partialPayments.length > 0 && (
-                            <div className="mt-1 pt-1 border-t border-gray-200">
-                              <div className="text-[10px] text-gray-600 space-y-0.5">
-                                {partialPayments.slice(0, 2).map((payment, idx) => (
-                                  <div key={payment.id || idx} className="flex items-center justify-between gap-1">
-                                    <span className="truncate">
-                                      {payment.date ? (() => { const date = safeParseDate(payment.date); return date ? format(date, 'dd MMM') : 'N/A'; })() : 'N/A'}
-                                    </span>
-                                    <span className="font-medium text-gray-700">
-                                      {formatIndianCurrency(payment.amount)}
-                                    </span>
-                                  </div>
-                                ))}
-                                {partialPayments.length > 2 && (
-                                  <div className="text-gray-500 italic">
-                                    +{partialPayments.length - 2} more
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                      {isPaid && (
+                        <span className="bg-green-500 text-white px-1 py-0.5 rounded text-[8px] font-bold">
+                          PAID
+                        </span>
                       )}
                     </div>
 
                     {/* Additional Cost / Profit Column */}
-                    <div className="w-24 px-1.5 py-2 flex-shrink-0 border-r border-gray-100">
-                      <div className="text-blue-600 text-[11px] leading-tight">
-                        Add: {formatIndianCurrency(order.additionalCost)}
+                    <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
+                      <div className="text-blue-600 text-[10px] leading-tight">
+                        {formatIndianCurrency(order.additionalCost)}
                       </div>
-                      <div className={`font-semibold text-[13px] leading-tight ${
+                      <div className={`font-semibold text-[11px] leading-tight ${
                         order.profit >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        P: {formatIndianCurrency(order.profit)}
+                        {formatIndianCurrency(order.profit)}
                       </div>
                     </div>
 
-                    {/* Actions Column */}
-                    <div className="w-32 px-1.5 py-2 flex-shrink-0 flex flex-col gap-1.5">
+                    {/* Actions Column - Compact with expand button */}
+                    <div className="w-32 px-1 py-1 flex-shrink-0 flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleRowExpansion(order.id!)
+                        }}
+                        className="p-1 text-gray-600 hover:text-primary-600 transition-colors"
+                        title={expandedRows.has(order.id!) ? 'Collapse' : 'Expand'}
+                      >
+                        {expandedRows.has(order.id!) ? (
+                          <ChevronUp size={14} />
+                        ) : (
+                          <ChevronDown size={14} />
+                        )}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleAddPaymentToOrder(order)
                         }}
-                        className="w-full px-2 py-1.5 bg-primary-600 text-white text-[10px] font-medium rounded-lg active:bg-primary-700 transition-colors touch-manipulation native-press"
+                        className="flex-1 px-2 py-1 bg-primary-600 text-white text-[9px] font-medium rounded active:bg-primary-700 transition-colors touch-manipulation native-press"
                         style={{
                           WebkitTapHighlightColor: 'transparent',
                           position: 'relative',
                           overflow: 'hidden',
                         }}
                       >
-                        Add Payment
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedOrderDetail(order)
-                          setShowOrderDetailDrawer(true)
-                        }}
-                        className="w-full px-2 py-1.5 bg-gray-600 text-white text-[10px] font-medium rounded-lg active:bg-gray-700 transition-colors touch-manipulation native-press"
-                        style={{
-                          WebkitTapHighlightColor: 'transparent',
-                          position: 'relative',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        View Details
+                        Payment
                       </button>
                     </div>
+                    </div>
+                  
+                    {/* Expandable Section for Payment Details */}
+                    {isExpanded && (
+                      <div className="w-full bg-gray-50 px-2 py-2">
+                        <div className="grid grid-cols-2 gap-3 mb-2">
+                          <div>
+                            <div className="text-[9px] text-gray-500 mb-0.5">Total Paid</div>
+                            <div className="text-[11px] font-bold text-green-600">
+                              {formatIndianCurrency(totalRawPayments)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-gray-500 mb-0.5">Remaining</div>
+                            <div className={`text-[11px] font-bold ${
+                              order.originalTotal - totalRawPayments > 0 ? 'text-orange-600' : 'text-green-600'
+                            }`}>
+                              {formatIndianCurrency(Math.max(0, order.originalTotal - totalRawPayments))}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {partialPayments.length > 0 && (
+                          <div>
+                            <div className="text-[9px] font-semibold text-gray-600 mb-1">Payment Details:</div>
+                            <div className="space-y-1">
+                              {partialPayments.map((payment, idx) => {
+                                const paymentDate = safeParseDate(payment.date)
+                                const isFromLedger = !!payment.ledgerEntryId
+                                return (
+                                  <div key={payment.id || idx} className="flex items-center justify-between text-[10px] bg-white rounded px-2 py-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-gray-700">
+                                        {paymentDate ? format(paymentDate, 'dd MMM') : 'N/A'}
+                                      </span>
+                                      {isFromLedger && (
+                                        <span className="bg-purple-100 text-purple-700 px-1 rounded text-[8px]">
+                                          Ledger
+                                        </span>
+                                      )}
+                                      {payment.note && (
+                                        <span className="text-gray-500 truncate" title={payment.note}>
+                                          • {payment.note}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="font-semibold text-gray-900">
+                                      {formatIndianCurrency(payment.amount)}
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
-          </div>
         </div>
       )}
 
