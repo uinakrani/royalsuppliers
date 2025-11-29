@@ -7,6 +7,7 @@ import FirebaseSetupAlert from '@/components/FirebaseSetupAlert'
 import FirestoreRulesAlert from '@/components/FirestoreRulesAlert'
 import ToastContainer from '@/components/Toast'
 import NativePopup from '@/components/NativePopup'
+import AutoBackupScheduler from '@/components/AutoBackupScheduler'
 import { PopupStackProvider } from '@/contexts/PopupStackContext'
 import '@/lib/firebaseTest' // Load test utility
 
@@ -185,6 +186,7 @@ export default function RootLayout({
           }}
         />
         <PopupStackProvider>
+          <AutoBackupScheduler />
           <NativePopup />
           <PWARegister />
           <PWAInstallPrompt />
