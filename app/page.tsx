@@ -178,8 +178,25 @@ export default function Dashboard() {
         console.warn('Error loading ledger entries:', error)
       }
 
+      // Calculate All-Time Stats (independent of filters)
+      const totalLedgerBalance = ledgerEntries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
+      const totalMoneyOutAllTime = ledgerEntries.reduce((acc, e) => acc + (e.type === 'debit' ? e.amount : 0), 0)
+
+      // Calculate receivables and total revenue from ALL orders (independent of filters)
+      const totalRevenueAllTime = allOrders.reduce((sum, order) => sum + order.total, 0)
+      const totalReceivables = allOrders.reduce((sum, order) => {
+        const received = (order.customerPayments || []).reduce((s, p) => s + p.amount, 0)
+        return sum + Math.max(0, order.total - received)
+      }, 0)
+
       // Calculate stats from filtered orders and ledger entries
       const calculatedStats = calculateStats(filteredOrders, ledgerEntries, dateRangeStart || undefined, dateRangeEnd || undefined)
+
+      // Add All-Time stats to the state object
+      calculatedStats.totalLedgerBalance = totalLedgerBalance
+      calculatedStats.totalMoneyOutAllTime = totalMoneyOutAllTime
+      calculatedStats.totalRevenueAllTime = totalRevenueAllTime
+      calculatedStats.totalReceivables = totalReceivables
 
       // Calculate profit received based on customer payments from ledger
       // Profit received = proportion of estimated profit based on how much was received vs total order value
@@ -614,20 +631,43 @@ export default function Dashboard() {
                 {investment ? (investment.note || 'Your actual capital in the business') : 'Set your investment in Ledger page'}
               </p>
               {investment && (
-                <div className="pt-3 border-t border-white/20 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="opacity-80">Investment Date:</span>
-                    <span className="font-semibold">{format(new Date(investment.date), 'dd MMM yyyy')}</span>
+                <div className="pt-3 border-t border-white/20 space-y-3">
+                  
+                  {/* Liquidity & Receivables Grid */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+                       <p className="text-[10px] opacity-80 mb-0.5 uppercase tracking-wider">Available Cash</p>
+                       <p className="text-sm font-bold text-white">
+                         {formatIndianCurrency(investment.amount + (stats.totalLedgerBalance || 0))}
+                       </p>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+                       <p className="text-[10px] opacity-80 mb-0.5 uppercase tracking-wider">Market Receivables</p>
+                       <p className="text-sm font-bold text-white">
+                         {formatIndianCurrency(stats.totalReceivables || 0)}
+                       </p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="opacity-80">Current Balance:</span>
-                    <span className="font-semibold">{formatIndianCurrency(stats.calculatedBalance)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="opacity-80">Money in Business:</span>
-                    <span className="font-bold text-amber-100">
-                      {formatIndianCurrency(investment.amount + stats.calculatedBalance)}
-                    </span>
+
+                  {/* Rotation Stats */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="opacity-80">Total Business Volume:</span>
+                      <span className="font-semibold">{formatIndianCurrency(stats.totalRevenueAllTime || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="opacity-80">Capital Rotation:</span>
+                      <div className="flex items-center gap-1">
+                         <Activity size={12} className="text-amber-200"/>
+                         <span className="font-bold text-amber-100">
+                           {((stats.totalRevenueAllTime || 0) / (investment.amount || 1)).toFixed(1)}x
+                         </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="opacity-80">Investment Date:</span>
+                      <span className="font-semibold opacity-90">{format(new Date(investment.date), 'dd MMM yyyy')}</span>
+                    </div>
                   </div>
                 </div>
               )}

@@ -23,7 +23,7 @@ export const clearFinancials = async () => {
 
   // 1. Clear Ledger Entries
   console.log('Clearing ledger entries...');
-  const ledgerSnapshot = await getDocs(collection(db, 'ledger'));
+  const ledgerSnapshot = await getDocs(collection(db, 'ledgerEntries'));
   ledgerSnapshot.forEach((docSnapshot) => {
     batch.delete(docSnapshot.ref);
     operationCount++;

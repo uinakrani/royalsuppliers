@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore'
 import { getDb } from './firebase'
 import { ledgerActivityService } from './ledgerActivityService'
+import { orderService } from './orderService'
 
 export type LedgerType = 'credit' | 'debit'
 export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit' | 'orderPaymentUpdate'
@@ -75,6 +76,30 @@ export const ledgerService = {
       ...payload,
       createdAtTs: serverTimestamp(),
     })
+
+    // If this is a supplier payment (debit with supplier name), distribute to unpaid orders
+    if (type === 'debit' && supplier && supplier.trim()) {
+      try {
+        // 1. Reconcile FIRST to clean up any orphan payments from previous failures/manual deletions
+        // This ensures we don't distribute if the ledger is already out of sync
+        const allLedgerEntries = await this.list()
+        const validLedgerIds = allLedgerEntries.map(e => e.id!).filter(Boolean)
+        // Add the new ID to the valid list (since it's just added)
+        validLedgerIds.push(ref.id)
+        
+        await orderService.reconcileSupplierOrders(supplier.trim(), validLedgerIds)
+
+        // 2. Run distribution
+        orderService.distributePaymentToSupplierOrders(
+          supplier.trim(),
+          amount,
+          ref.id,
+          note
+        ).catch(err => console.error('Failed to distribute supplier payment:', err))
+      } catch (e) {
+        console.error('Error initiating payment distribution:', e)
+      }
+    }
     
     // Log activity - always try to log, but don't fail the operation if logging fails
     try {
@@ -208,6 +233,28 @@ export const ledgerService = {
       entry = await this.getEntryById(id)
     } catch (error) {
       console.warn('Failed to get entry before deletion for activity logging:', error)
+    }
+    
+    // Cleanup associated payments on orders (re-distribution logic)
+    // This removes any payments from orders that were linked to this ledger entry
+    try {
+      console.log('Cleaning up payments for ledger entry:', id)
+      await orderService.removePaymentsByLedgerEntryId(id)
+      
+      // Also trigger a full reconciliation for the supplier if available, to be safe
+      if (entry?.supplier) {
+        const allLedgerEntries = await this.list()
+        // Filter out the ID we are about to delete
+        const validLedgerIds = allLedgerEntries
+          .map(e => e.id!)
+          .filter(eid => eid !== id)
+          .filter(Boolean)
+          
+        await orderService.reconcileSupplierOrders(entry.supplier, validLedgerIds)
+      }
+    } catch (error) {
+      console.error('Failed to cleanup order payments for ledger entry:', error)
+      // Don't throw, main deletion succeeded
     }
     
     await deleteDoc(doc(db, LEDGER_COLLECTION, id))

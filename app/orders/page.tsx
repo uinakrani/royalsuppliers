@@ -18,6 +18,7 @@ import TruckLoading from '@/components/TruckLoading'
 import OrderDetailDrawer from '@/components/OrderDetailDrawer'
 import PartyDetailPopup from '@/components/PartyDetailPopup'
 import OrderDetailPopup from '@/components/OrderDetailPopup'
+import SelectionSheet from '@/components/SelectionSheet'
 import SupplierDetailPopup from '@/components/SupplierDetailPopup'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Invoice, InvoicePayment } from '@/types/invoice'
@@ -92,8 +93,7 @@ export default function OrdersPage() {
   const lastScrollTop = useRef(0)
   const [inlinePartyFilter, setInlinePartyFilter] = useState<Set<string>>(new Set())
   const [inlineMaterialFilter, setInlineMaterialFilter] = useState<Set<string>>(new Set())
-  const [showPartyFilterDropdown, setShowPartyFilterDropdown] = useState(false)
-  const [showMaterialFilterDropdown, setShowMaterialFilterDropdown] = useState(false)
+  const [activeColumnFilter, setActiveColumnFilter] = useState<'party' | 'material' | null>(null)
   const selectAllRef = useRef<HTMLDivElement>(null)
   const tableHeaderRef = useRef<HTMLDivElement>(null)
 
@@ -1135,26 +1135,25 @@ export default function OrdersPage() {
 
   const clearPartyFilter = () => {
     setInlinePartyFilter(new Set())
-    setShowPartyFilterDropdown(false)
+    setActiveColumnFilter(null)
   }
 
   const clearMaterialFilter = () => {
     setInlineMaterialFilter(new Set())
-    setShowMaterialFilterDropdown(false)
+    setActiveColumnFilter(null)
   }
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      if (!target.closest('.filter-dropdown-container')) {
-        setShowPartyFilterDropdown(false)
-        setShowMaterialFilterDropdown(false)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
+  // Close dropdowns when clicking outside - Removed as we use SelectionSheet now
+  // useEffect(() => {
+  //   const handleClickOutside = (event: MouseEvent) => {
+  //     const target = event.target as HTMLElement
+  //     if (!target.closest('.filter-dropdown-container')) {
+  //       setActiveColumnFilter(null)
+  //     }
+  //   }
+  //   document.addEventListener('click', handleClickOutside)
+  //   return () => document.removeEventListener('click', handleClickOutside)
+  // }, [])
 
   const handleBulkDelete = async () => {
     if (selectedOrders.size === 0) return
@@ -2059,9 +2058,9 @@ export default function OrdersPage() {
           <div className="inline-block min-w-full" style={{ paddingTop: '0.5rem' }}>
             {/* Sticky Header Group */}
             {filteredOrders.length > 0 && (
-              <div className="sticky top-0 z-30 shadow-sm">
+              <div className="sticky top-0 z-30 shadow-sm bg-white min-w-max">
                 {/* Select All Checkbox - Sticky Left */}
-                <div ref={selectAllRef} className="bg-white border-b border-gray-100 px-2 py-2 flex items-center justify-between w-full sticky left-0 z-40">
+                <div ref={selectAllRef} className="bg-white border-b border-gray-100 px-2 py-2 flex items-center justify-between sticky left-0 z-40 w-screen max-w-[100%]">
                   <label className="flex items-center gap-2 cursor-pointer touch-manipulation" style={{ WebkitTapHighlightColor: 'transparent' }}>
                     <input
                       type="checkbox"
@@ -2091,141 +2090,39 @@ export default function OrdersPage() {
                     <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
                       <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Date</span>
                     </div>
-                    <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200 relative filter-dropdown-container">
-                      <div className="flex items-center gap-1">
+                    <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                      <div
+                        className="flex items-center gap-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveColumnFilter('party')
+                        }}
+                      >
                         <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Party/Site</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setShowPartyFilterDropdown(!showPartyFilterDropdown)
-                            setShowMaterialFilterDropdown(false)
-                          }}
-                          className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${inlinePartyFilter.size > 0 ? 'text-primary-600' : 'text-gray-400'
-                            }`}
-                          title="Filter parties"
-                        >
-                          {showPartyFilterDropdown ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                        </button>
+                        <div className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${inlinePartyFilter.size > 0 ? 'text-primary-600' : 'text-gray-400'}`}>
+                          <Filter size={10} />
+                        </div>
                         {inlinePartyFilter.size > 0 && (
                           <span className="text-[9px] text-primary-600 font-bold">({inlinePartyFilter.size})</span>
                         )}
                       </div>
-                      {showPartyFilterDropdown && (
-                        <div
-                          className="absolute top-full left-0 mt-0.5 bg-white border border-gray-300 rounded shadow-lg z-50 w-56 max-h-64 overflow-y-auto"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="p-1.5">
-                            {partyNames.length === 0 ? (
-                              <div className="text-[10px] text-gray-500 p-2 text-center">No parties found</div>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between px-2 py-1 border-b border-gray-200 mb-1">
-                                  <span className="text-[10px] font-semibold text-gray-700">Select Parties</span>
-                                  {inlinePartyFilter.size > 0 && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        clearPartyFilter()
-                                      }}
-                                      className="text-[9px] text-primary-600 hover:text-primary-700"
-                                    >
-                                      Clear
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="max-h-48 overflow-y-auto">
-                                  {partyNames.map((partyName) => (
-                                    <label
-                                      key={partyName}
-                                      className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 cursor-pointer text-[10px]"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={inlinePartyFilter.has(partyName)}
-                                        onChange={() => togglePartyFilter(partyName)}
-                                        className="custom-checkbox"
-                                        style={{ width: '14px', height: '14px' }}
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                      <span className="text-gray-700 truncate">{partyName}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
-                    <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200 relative filter-dropdown-container">
-                      <div className="flex items-center gap-1">
+                    <div className="w-28 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
+                      <div
+                        className="flex items-center gap-1 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveColumnFilter('material')
+                        }}
+                      >
                         <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Material</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setShowMaterialFilterDropdown(!showMaterialFilterDropdown)
-                            setShowPartyFilterDropdown(false)
-                          }}
-                          className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${inlineMaterialFilter.size > 0 ? 'text-primary-600' : 'text-gray-400'
-                            }`}
-                          title="Filter materials"
-                        >
-                          {showMaterialFilterDropdown ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                        </button>
+                        <div className={`p-0.5 hover:bg-gray-200 rounded transition-colors ${inlineMaterialFilter.size > 0 ? 'text-primary-600' : 'text-gray-400'}`}>
+                          <Filter size={10} />
+                        </div>
                         {inlineMaterialFilter.size > 0 && (
                           <span className="text-[9px] text-primary-600 font-bold">({inlineMaterialFilter.size})</span>
                         )}
                       </div>
-                      {showMaterialFilterDropdown && (
-                        <div
-                          className="absolute top-full left-0 mt-0.5 bg-white border border-gray-300 rounded shadow-lg z-50 w-56 max-h-64 overflow-y-auto"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="p-1.5">
-                            {getUniqueMaterials().length === 0 ? (
-                              <div className="text-[10px] text-gray-500 p-2 text-center">No materials found</div>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between px-2 py-1 border-b border-gray-200 mb-1">
-                                  <span className="text-[10px] font-semibold text-gray-700">Select Materials</span>
-                                  {inlineMaterialFilter.size > 0 && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        clearMaterialFilter()
-                                      }}
-                                      className="text-[9px] text-primary-600 hover:text-primary-700"
-                                    >
-                                      Clear
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="max-h-48 overflow-y-auto">
-                                  {getUniqueMaterials().map((material) => (
-                                    <label
-                                      key={material}
-                                      className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 cursor-pointer text-[10px]"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={inlineMaterialFilter.has(material)}
-                                        onChange={() => toggleMaterialFilter(material)}
-                                        className="custom-checkbox"
-                                        style={{ width: '14px', height: '14px' }}
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                      <span className="text-gray-700 truncate">{material}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                     <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
                       <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Wt/Rate</span>
@@ -2796,6 +2693,108 @@ export default function OrdersPage() {
           )
         })()}
       </div>
+
+      {/* Selection Sheets for Column Filters */}
+      <SelectionSheet
+        isOpen={activeColumnFilter === 'party'}
+        onClose={() => setActiveColumnFilter(null)}
+        title="Filter by Party"
+      >
+        <div className="space-y-1">
+          {/* Clear Filter Option */}
+          {inlinePartyFilter.size > 0 && (
+            <button
+              onClick={() => {
+                clearPartyFilter()
+                setActiveColumnFilter(null)
+              }}
+              className="w-full text-left px-4 py-3 text-red-600 font-medium hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Clear Filter
+            </button>
+          )}
+          
+          {partyNames.length === 0 ? (
+            <div className="text-center text-gray-500 py-8">No parties found</div>
+          ) : (
+            partyNames.map((partyName) => {
+              const isSelected = inlinePartyFilter.has(partyName)
+              return (
+                <button
+                  key={partyName}
+                  onClick={() => {
+                    // Toggle behavior: 
+                    // If already selected, remove it (and keep sheet open? user said "close on selection")
+                    // User said "selecting one option should close". 
+                    // So we set the filter to THIS option (single select behavior) and close.
+                    // If they want to clear, they use Clear Filter.
+                    
+                    // Implementing single-select style for quick filter:
+                    const newSet = new Set<string>()
+                    newSet.add(partyName)
+                    setInlinePartyFilter(newSet)
+                    setActiveColumnFilter(null)
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${
+                    isSelected ? 'bg-primary-50 text-primary-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <span className="truncate">{partyName}</span>
+                  {isSelected && <div className="w-2 h-2 rounded-full bg-primary-600" />}
+                </button>
+              )
+            })
+          )}
+        </div>
+      </SelectionSheet>
+
+      <SelectionSheet
+        isOpen={activeColumnFilter === 'material'}
+        onClose={() => setActiveColumnFilter(null)}
+        title="Filter by Material"
+      >
+        <div className="space-y-1">
+          {/* Clear Filter Option */}
+          {inlineMaterialFilter.size > 0 && (
+            <button
+              onClick={() => {
+                clearMaterialFilter()
+                setActiveColumnFilter(null)
+              }}
+              className="w-full text-left px-4 py-3 text-red-600 font-medium hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Clear Filter
+            </button>
+          )}
+          
+          {getUniqueMaterials().length === 0 ? (
+            <div className="text-center text-gray-500 py-8">No materials found</div>
+          ) : (
+            getUniqueMaterials().map((material) => {
+              const isSelected = inlineMaterialFilter.has(material)
+              return (
+                <button
+                  key={material}
+                  onClick={() => {
+                    const newSet = new Set<string>()
+                    newSet.add(material)
+                    setInlineMaterialFilter(newSet)
+                    setActiveColumnFilter(null)
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${
+                    isSelected ? 'bg-primary-50 text-primary-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <span className="truncate">{material}</span>
+                  {isSelected && <div className="w-2 h-2 rounded-full bg-primary-600" />}
+                </button>
+              )
+            })
+          )}
+        </div>
+      </SelectionSheet>
 
       {/* Bottom Navigation - Fixed at bottom */}
       <NavBar />

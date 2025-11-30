@@ -13,7 +13,8 @@ import {
 } from 'firebase/firestore'
 import { getDb } from './firebase'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
-import { ledgerService } from './ledgerService'
+// LedgerService import removed to avoid circular dependency
+
 
 const ORDERS_COLLECTION = 'orders'
 
@@ -802,4 +803,220 @@ export const orderService = {
       return []
     }
   },
+
+  // Remove all payments (partial or customer) associated with a specific ledger entry ID
+  async removePaymentsByLedgerEntryId(ledgerEntryId: string): Promise<void> {
+    const db = getDb()
+    if (!db) {
+      console.error('Firebase is not configured.')
+      return
+    }
+    
+    // Fetch all orders (inefficient but necessary without specialized indexes)
+    // Ideally, we would query only orders that have payments with this ledgerEntryId
+    // but Firestore array-contains-any with objects is limited.
+    // For now, we'll fetch all and filter in memory.
+    const allOrders = await this.getAllOrders()
+    
+    const ordersToUpdate = allOrders.filter(order => {
+      const hasPartialPayment = (order.partialPayments || []).some(p => p.ledgerEntryId === ledgerEntryId)
+      const hasCustomerPayment = (order.customerPayments || []).some(p => p.ledgerEntryId === ledgerEntryId)
+      return hasPartialPayment || hasCustomerPayment
+    })
+    
+    console.log(`Found ${ordersToUpdate.length} orders to cleanup for ledger entry ${ledgerEntryId}`)
+    
+    for (const order of ordersToUpdate) {
+      if (!order.id) continue
+      
+      // Filter out payments with this ledgerEntryId
+      const newPartialPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId !== ledgerEntryId)
+      const newCustomerPayments = (order.customerPayments || []).filter(p => p.ledgerEntryId !== ledgerEntryId)
+      
+      // Check if changes are needed
+      const partialChanged = (order.partialPayments?.length || 0) !== newPartialPayments.length
+      const customerChanged = (order.customerPayments?.length || 0) !== newCustomerPayments.length
+      
+      if (!partialChanged && !customerChanged) continue
+      
+      // Recalculate paid status
+      const expenseAmount = Number(order.originalTotal || 0)
+      const totalPartialPaid = newPartialPayments.reduce((sum, p) => sum + p.amount, 0)
+      const isPaid = totalPartialPaid >= (expenseAmount - 250)
+      
+      const updateData: any = {
+        updatedAt: new Date().toISOString(),
+      }
+      
+      if (partialChanged) {
+        updateData.partialPayments = newPartialPayments
+        updateData.paid = isPaid
+        updateData.paymentDue = !isPaid
+        if (isPaid) {
+          updateData.paidAmount = deleteField()
+        } else {
+          updateData.paidAmount = totalPartialPaid
+        }
+      }
+      
+      if (customerChanged) {
+        updateData.customerPayments = newCustomerPayments
+      }
+      
+      try {
+        const orderRef = doc(db, ORDERS_COLLECTION, order.id)
+        await updateDoc(orderRef, updateData)
+        console.log(`✅ Removed payments for ledger ${ledgerEntryId} from order ${order.id}`)
+      } catch (error) {
+        console.error(`Failed to update order ${order.id} during ledger cleanup:`, error)
+      }
+    }
+  },
+
+  // Reconcile supplier payments: Ensure order payments match valid ledger entries
+  async reconcileSupplierOrders(supplier: string, validLedgerEntryIds: string[]): Promise<void> {
+    const db = getDb()
+    if (!db) return
+
+    const validIdsSet = new Set(validLedgerEntryIds)
+    console.log(`🔄 Reconciling orders for supplier: ${supplier}. Valid Ledger IDs: ${validLedgerEntryIds.length}`)
+
+    // Get all orders for this supplier
+    const q = query(collection(db, ORDERS_COLLECTION), where('supplier', '==', supplier))
+    const snapshot = await getDocs(q)
+    
+    const ordersToUpdate: Order[] = []
+    snapshot.forEach((doc) => {
+      ordersToUpdate.push({ id: doc.id, ...doc.data() } as Order)
+    })
+
+    let removedCount = 0
+
+    for (const order of ordersToUpdate) {
+      if (!order.id) continue
+
+      const existingPayments = order.partialPayments || []
+      // Filter out payments that have a ledgerEntryId BUT that ID is not in the valid set
+      const validPayments = existingPayments.filter(p => {
+        if (p.ledgerEntryId) {
+          return validIdsSet.has(p.ledgerEntryId)
+        }
+        return true // Keep manual payments (no ledgerEntryId)
+      })
+
+      if (validPayments.length !== existingPayments.length) {
+        removedCount += (existingPayments.length - validPayments.length)
+        
+        // Recalculate paid status
+        const expenseAmount = Number(order.originalTotal || 0)
+        const totalPaid = validPayments.reduce((sum, p) => sum + p.amount, 0)
+        const isPaid = totalPaid >= (expenseAmount - 250)
+
+        const updateData: any = {
+          partialPayments: validPayments,
+          paid: isPaid,
+          paymentDue: !isPaid,
+          updatedAt: new Date().toISOString()
+        }
+
+        if (isPaid) {
+          updateData.paidAmount = deleteField()
+        } else {
+          updateData.paidAmount = totalPaid
+        }
+
+        try {
+          await updateDoc(doc(db, ORDERS_COLLECTION, order.id), updateData)
+          console.log(`✅ Removed orphan payments from order ${order.id}`)
+        } catch (err) {
+          console.error(`Failed to update order ${order.id} during reconciliation:`, err)
+        }
+      }
+    }
+    console.log(`✅ Reconciliation complete. Removed ${removedCount} orphan payments.`)
+  },
+
+  // Distribute a payment amount to orders for a specific supplier (expense payment)
+  async distributePaymentToSupplierOrders(supplier: string, amount: number, ledgerEntryId: string, note?: string): Promise<void> {
+    const db = getDb()
+    if (!db) return
+
+    console.log(`🔄 Distributing payment of ₹${amount} to supplier: ${supplier}`)
+
+    // Get all unpaid orders for this supplier
+    // Note: We can't filter efficiently by 'paymentDue' AND 'supplier' without a composite index
+    // So we fetch by supplier and filter in memory
+    const q = query(collection(db, ORDERS_COLLECTION), where('supplier', '==', supplier))
+    const snapshot = await getDocs(q)
+    
+    const unpaidOrders: Order[] = []
+    snapshot.forEach((doc) => {
+      const order = { id: doc.id, ...doc.data() } as Order
+      if (!isExpensePaid(order)) {
+        unpaidOrders.push(order)
+      }
+    })
+
+    // Sort by date (oldest first) to pay off oldest debts first
+    unpaidOrders.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    console.log(`Found ${unpaidOrders.length} unpaid orders for supplier ${supplier}`)
+
+    let remainingAmount = amount
+
+    for (const order of unpaidOrders) {
+      if (remainingAmount <= 0) break
+      if (!order.id) continue
+
+      // Calculate how much is owed on this order
+      const originalTotal = order.originalTotal || 0
+      const existingPayments = order.partialPayments || []
+      const paidSoFar = existingPayments.reduce((sum, p) => sum + p.amount, 0)
+      const amountDue = Math.max(0, originalTotal - paidSoFar)
+
+      if (amountDue <= 0) continue
+
+      // Determine how much to pay on this order
+      const paymentForThisOrder = Math.min(remainingAmount, amountDue)
+
+      // Create the payment record
+      const paymentRecord: PaymentRecord = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        amount: paymentForThisOrder,
+        date: new Date().toISOString(),
+        ledgerEntryId, // Link back to the source ledger entry
+        note: note || 'Auto-distributed from ledger payment',
+      }
+
+      // Update the order
+      const newPartialPayments = [...existingPayments, paymentRecord]
+      const newTotalPaid = paidSoFar + paymentForThisOrder
+      const isNowPaid = newTotalPaid >= (originalTotal - 250) // 250 tolerance
+
+      const updateData: any = {
+        partialPayments: newPartialPayments,
+        paid: isNowPaid,
+        paymentDue: !isNowPaid,
+        updatedAt: new Date().toISOString()
+      }
+
+      if (isNowPaid) {
+        updateData.paidAmount = deleteField()
+      } else {
+        updateData.paidAmount = newTotalPaid
+      }
+
+      await updateDoc(doc(db, ORDERS_COLLECTION, order.id), updateData)
+      
+      console.log(`✅ Paid ₹${paymentForThisOrder} on order ${order.id} (Remaining: ₹${remainingAmount - paymentForThisOrder})`)
+      
+      remainingAmount -= paymentForThisOrder
+    }
+
+    if (remainingAmount > 0) {
+      console.log(`⚠️ Payment distribution complete. ₹${remainingAmount} remaining undistributed (no more unpaid orders).`)
+    } else {
+      console.log('✅ Payment fully distributed.')
+    }
+  }
 }

@@ -63,5 +63,9 @@ export interface DashboardStats {
   rawMaterialPaymentsReceived: number // Payments received for raw materials
   profitReceived: number // Profit received based on received money
   calculatedBalance: number // Current balance: Money received - Costs + Profits
+  // Investment & Cash Flow Metrics (All Time)
+  totalLedgerBalance?: number // All-time ledger balance (Income - Expenses)
+  totalMoneyOutAllTime?: number // All-time money spent
+  totalReceivables?: number // Total unpaid amount from all orders
+  totalRevenueAllTime?: number // All-time total order value
 }
-
