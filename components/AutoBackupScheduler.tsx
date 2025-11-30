@@ -63,6 +63,7 @@ export default function AutoBackupScheduler() {
       console.log('🔍 Checking backup status on app open...')
       checkBackupStatus()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // This component doesn't render anything

@@ -340,15 +340,18 @@ export default function OrdersPage() {
 
     // Use ResizeObserver for dynamic measurement
     let resizeObserver: ResizeObserver | null = null
+    const selectAllElement = selectAllRef.current
+    const tableHeaderElement = tableHeaderRef.current
+    
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
         measureHeights()
       })
-      if (selectAllRef.current) {
-        resizeObserver.observe(selectAllRef.current)
+      if (selectAllElement) {
+        resizeObserver.observe(selectAllElement)
       }
-      if (tableHeaderRef.current) {
-        resizeObserver.observe(tableHeaderRef.current)
+      if (tableHeaderElement) {
+        resizeObserver.observe(tableHeaderElement)
       }
     }
 
@@ -358,11 +361,11 @@ export default function OrdersPage() {
       clearTimeout(timeoutId)
       window.removeEventListener('resize', measureHeights)
       if (resizeObserver) {
-        if (selectAllRef.current) {
-          resizeObserver.unobserve(selectAllRef.current)
+        if (selectAllElement) {
+          resizeObserver.unobserve(selectAllElement)
         }
-        if (tableHeaderRef.current) {
-          resizeObserver.unobserve(tableHeaderRef.current)
+        if (tableHeaderElement) {
+          resizeObserver.unobserve(tableHeaderElement)
         }
       }
     }

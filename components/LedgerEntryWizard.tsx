@@ -97,6 +97,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
         partyName: entry.partyName || '',
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, entry?.date, entry?.amount, entry?.note, entry?.supplier, entry?.partyName])
 
   const [suppliers, setSuppliers] = useState<string[]>([])
