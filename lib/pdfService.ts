@@ -436,7 +436,26 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   doc.setTextColor(50, 50, 50)
   doc.text(partyName, leftColX, yPos, { charSpace: 0 })
   yPos += 6
-  doc.text(orders[0].siteName, leftColX, yPos, { charSpace: 0 })
+  const addresses = Array.from(
+    new Set(
+      orders
+        .map(o => (o.siteName || '').trim())
+        .filter(addr => addr && addr.length > 0)
+    )
+  )
+  if (addresses.length === 0) {
+    // No address found in orders, keep existing behavior using first order site if available
+    if (orders[0].siteName) {
+      doc.text((orders[0].siteName || '').trim(), leftColX, yPos, { charSpace: 0 })
+    }
+  } else if (addresses.length === 1) {
+    doc.text(addresses[0], leftColX, yPos, { charSpace: 0 })
+  } else {
+    // If multiple different addresses found, include up to two distinct addresses
+    doc.text(addresses[0], leftColX, yPos, { charSpace: 0 })
+    yPos += 6
+    doc.text(addresses[1], leftColX, yPos, { charSpace: 0 })
+  }
 
   // From (right column)
   const fromY = yPos - 13
