@@ -896,6 +896,11 @@ export default function LedgerPage() {
               {e.note}
             </div>
           )}
+          {e.type === 'credit' && e.partyName && (
+            <div className="mt-1">
+              <span className="inline-block px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-semibold">Party: {e.partyName}</span>
+            </div>
+          )}
           {e.type === 'debit' && e.supplier && (
             <div className="mt-1">
               <span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-semibold">Supplier: {e.supplier}</span>

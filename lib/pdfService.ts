@@ -424,6 +424,9 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   const leftColX = contentX
   const rightColX = contentX + (contentWidth / 2) + 20
   const partyName = orders[0].partyName
+  
+  // Save start Y for alignment
+  const sectionStartY = yPos
 
   // Billed to (left column)
   doc.setFontSize(12)
@@ -436,6 +439,7 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   doc.setTextColor(50, 50, 50)
   doc.text(partyName, leftColX, yPos, { charSpace: 0 })
   yPos += 6
+  
   const addresses = Array.from(
     new Set(
       orders
@@ -443,22 +447,23 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
         .filter(addr => addr && addr.length > 0)
     )
   )
+  
   if (addresses.length === 0) {
     // No address found in orders, keep existing behavior using first order site if available
     if (orders[0].siteName) {
       doc.text((orders[0].siteName || '').trim(), leftColX, yPos, { charSpace: 0 })
+      yPos += 6
     }
-  } else if (addresses.length === 1) {
-    doc.text(addresses[0], leftColX, yPos, { charSpace: 0 })
   } else {
-    // If multiple different addresses found, include up to two distinct addresses
-    doc.text(addresses[0], leftColX, yPos, { charSpace: 0 })
-    yPos += 6
-    doc.text(addresses[1], leftColX, yPos, { charSpace: 0 })
+    // Include all distinct addresses
+    addresses.forEach((address) => {
+      doc.text(address, leftColX, yPos, { charSpace: 0 })
+      yPos += 6
+    })
   }
 
-  // From (right column)
-  const fromY = yPos - 13
+  // From (right column) - Align with top of Billed To section
+  const fromY = sectionStartY
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(30, 30, 30)
@@ -467,7 +472,8 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   doc.setTextColor(50, 50, 50)
   doc.text('Royal Suppliers', rightColX, fromY + 7, { charSpace: 0 })
 
-  yPos += 18
+  // Ensure yPos is below both sections (From section is approx 15 units tall)
+  yPos = Math.max(yPos, fromY + 20) + 10
 
   // Table header
   doc.setFontSize(11)

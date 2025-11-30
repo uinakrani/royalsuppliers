@@ -28,6 +28,8 @@ export interface Order {
   invoiced?: boolean // whether order has been invoiced
   invoiceId?: string // ID of the invoice this order belongs to
   archived?: boolean // whether order is archived (when invoice is fully paid)
+  adjustmentAmount?: number // Manual adjustment to the profit (positive adds to profit, negative deducts)
+  adjustmentNote?: string // Reason for the adjustment
   createdAt?: string
   updatedAt?: string
 }
