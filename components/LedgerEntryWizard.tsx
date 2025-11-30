@@ -237,12 +237,16 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
   }
 
   const canProceed = (): boolean => {
-    const step = stepOrder[currentStep]
+    const safeStepIndex = Math.max(0, Math.min(currentStep, stepOrder.length - 1))
+    const step = stepOrder[safeStepIndex]
+    if (!step) return false
     return isStepComplete(step)
   }
 
   const renderStep = () => {
-    const step = stepOrder[currentStep]
+    const safeStepIndex = Math.max(0, Math.min(currentStep, stepOrder.length - 1))
+    const step = stepOrder[safeStepIndex]
+    if (!step) return null
 
     switch (step) {
       case 'amount':
@@ -347,7 +351,16 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       case 'amount':
         return formData.amount > 0 ? formatIndianCurrency(formData.amount) : 'Not set'
       case 'date':
-        return formData.date ? format(new Date(formData.date + 'T12:00:00'), 'dd MMM yyyy') : 'Not set'
+        if (!formData.date) return 'Not set'
+        try {
+          const dateStr = formData.date.includes('T') ? formData.date : formData.date + 'T12:00:00'
+          const date = new Date(dateStr)
+          if (isNaN(date.getTime())) return 'Not set'
+          return format(date, 'dd MMM yyyy')
+        } catch (error) {
+          console.error('Error formatting date:', error)
+          return 'Not set'
+        }
       case 'supplier':
         return formData.supplier || ''
       case 'partyName':
@@ -370,9 +383,9 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       await onSave({
         amount: formData.amount,
         date: formData.date,
-        note: formData.note.trim() || undefined,
-        supplier: type === 'debit' ? (formData.supplier.trim() || undefined) : undefined,
-        partyName: type === 'credit' ? (formData.partyName.trim() || undefined) : undefined,
+        note: (formData.note || '').trim() || undefined,
+        supplier: type === 'debit' ? ((formData.supplier || '').trim() || undefined) : undefined,
+        partyName: type === 'credit' ? ((formData.partyName || '').trim() || undefined) : undefined,
       })
       handleClose()
     } catch (error: any) {
@@ -382,14 +395,23 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }
 
-  const currentStepData = stepOrder[currentStep]
-  const currentStepLabel = getStepLabel(currentStepData)
-  const currentStepIcon = getStepIcon(currentStepData)
+  // Ensure currentStep is within bounds
+  const safeCurrentStep = Math.max(0, Math.min(currentStep, stepOrder.length - 1))
+  const currentStepData = stepOrder[safeCurrentStep]
+  const currentStepLabel = currentStepData ? getStepLabel(currentStepData) : ''
+  const currentStepIcon = currentStepData ? getStepIcon(currentStepData) : null
   const allSteps = stepOrder.filter(step => step !== 'review')
   const filledSteps = allSteps.filter((step) => {
     const value = getStepValue(step)
     return value && value !== 'Not set' && value !== '₹0' && value !== ''
   })
+  
+  // Ensure currentStep is within bounds - if not, reset it
+  useEffect(() => {
+    if (currentStep < 0 || currentStep >= stepOrder.length) {
+      setCurrentStep(0)
+    }
+  }, [currentStep, stepOrder.length])
 
   return (
     <div
@@ -458,8 +480,9 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               {allSteps.map((step, idx) => {
                 const value = getStepValue(step)
                 if (value === 'Not set' || value === '₹0' || value === '') return null
-                const isCurrent = idx === currentStep
+                const isCurrent = idx === safeCurrentStep
                 const Icon = getStepIcon(step)
+                if (!Icon) return null
                 return (
                   <button
                     key={step}
@@ -487,7 +510,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
           <div className="flex gap-0.5">
             {stepOrder.map((step, idx) => {
               const isComplete = isStepComplete(step)
-              const isCurrent = idx === currentStep
+              const isCurrent = idx === safeCurrentStep
               return (
                 <div
                   key={step}
