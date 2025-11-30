@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { orderService, isOrderPaid } from '@/lib/orderService'
+import { orderService, isOrderPaid, isCustomerPaid } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
 import { partyPaymentService, PartyPayment } from '@/lib/partyPaymentService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
@@ -769,7 +769,9 @@ export default function OrdersPage() {
 
   const handleEditPayment = (order: Order, paymentId: string) => {
     const payment = order.partialPayments?.find(p => p.id === paymentId)
-    // Allow editing ledger payments - they will be redistributed
+    if (payment?.ledgerEntryId) {
+      return
+    }
     setEditingPayment({ order, paymentId })
   }
 
@@ -1925,7 +1927,10 @@ export default function OrdersPage() {
 
                             await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
                             showToast('Payment added successfully!', 'success')
-                            await loadPartyPayments()
+                            await Promise.all([
+                              loadPartyPayments(),
+                              loadOrders(),
+                            ])
                           } catch (error: any) {
                             if (error?.message && !error.message.includes('SweetAlert')) {
                               showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
@@ -2365,8 +2370,11 @@ export default function OrdersPage() {
                 const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
                 const partialPayments = order.partialPayments || []
                 const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+                const customerPayments = order.customerPayments || []
+                const totalCustomerPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0)
                 const expenseAmount = Number(order.originalTotal || 0)
                 const isPaid = isOrderPaid(order)
+                const isPartyPaid = isCustomerPaid(order)
 
                 const isExpanded = expandedRows.has(order.id!)
 
@@ -2468,6 +2476,9 @@ export default function OrdersPage() {
                         <div className="font-bold text-primary-600 text-[11px] leading-tight">
                           {formatIndianCurrency(order.total)}
                         </div>
+                        <div className="text-[10px] text-green-600 font-semibold leading-tight">
+                          {formatIndianCurrency(totalCustomerPaid)}
+                        </div>
                       </div>
 
                       {/* Truck Owner / No. / Supplier Column */}
@@ -2475,6 +2486,11 @@ export default function OrdersPage() {
                         <div className="text-gray-700 text-[10px] leading-tight truncate font-semibold">
                           {order.truckOwner}
                         </div>
+                        {order.truckNo && (
+                          <div className="text-gray-700 text-[9px] leading-tight truncate">
+                            {order.truckNo}
+                          </div>
+                        )}
                         {order.supplier && (
                           <div className="text-orange-600 text-[9px] leading-tight truncate">
                             {order.supplier}
@@ -2497,9 +2513,17 @@ export default function OrdersPage() {
                         <div className="font-semibold text-gray-800 text-[11px] leading-tight">
                           {formatIndianCurrency(order.originalTotal)}
                         </div>
+                        <div className="text-[10px] text-green-600 font-semibold leading-tight">
+                          {formatIndianCurrency(totalRawPayments)}
+                        </div>
                         {isPaid && (
                           <span className="bg-green-500 text-white px-1 py-0.5 rounded text-[8px] font-bold">
                             PAID
+                          </span>
+                        )}
+                        {isPartyPaid && (
+                          <span className="bg-blue-500 text-white px-1 py-0.5 rounded text-[8px] font-bold ml-1">
+                            PARTY PAID
                           </span>
                         )}
                       </div>
@@ -2515,8 +2539,8 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {/* Actions Column - Compact with expand button */}
-                      <div className="w-32 px-1 py-1 flex-shrink-0 flex items-center gap-1">
+                      {/* Actions Column - Compact with expand/view/edit/payment */}
+                      <div className="w-40 px-1 py-1 flex-shrink-0 flex items-center gap-1">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -2530,6 +2554,28 @@ export default function OrdersPage() {
                           ) : (
                             <ChevronDown size={14} />
                           )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedOrderDetail(order)
+                            setShowOrderDetailDrawer(true)
+                          }}
+                          className="p-1 text-gray-600 hover:text-primary-600 transition-colors"
+                          title="View"
+                        >
+                          <FileText size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingOrder(order)
+                            setShowForm(true)
+                          }}
+                          className="p-1 text-gray-600 hover:text-primary-600 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit size={14} />
                         </button>
                         <button
                           onClick={(e) => {
@@ -2572,6 +2618,55 @@ export default function OrdersPage() {
                             <div className="text-[9px] font-semibold text-gray-600 mb-1">Payment Details:</div>
                             <div className="space-y-1">
                               {partialPayments.map((payment, idx) => {
+                                const paymentDate = safeParseDate(payment.date)
+                                const isFromLedger = !!payment.ledgerEntryId
+                                return (
+                                  <div key={payment.id || idx} className="flex items-center justify-between text-[10px] bg-white rounded px-2 py-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-gray-700">
+                                        {paymentDate ? format(paymentDate, 'dd MMM') : 'N/A'}
+                                      </span>
+                                      {isFromLedger && (
+                                        <span className="bg-purple-100 text-purple-700 px-1 rounded text-[8px]">
+                                          Ledger
+                                        </span>
+                                      )}
+                                      {payment.note && (
+                                        <span className="text-gray-500 truncate" title={payment.note}>
+                                          • {payment.note}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="font-semibold text-gray-900">
+                                      {formatIndianCurrency(payment.amount)}
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Customer Payments (Party Payments) */}
+                        {customerPayments.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-[9px] font-semibold text-gray-600 mb-1">Customer Payments:</div>
+                            <div className="grid grid-cols-2 gap-3 mb-2">
+                              <div>
+                                <div className="text-[9px] text-gray-500 mb-0.5">Total Received</div>
+                                <div className="text-[11px] font-bold text-green-600">
+                                  {formatIndianCurrency(totalCustomerPaid)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] text-gray-500 mb-0.5">Remaining</div>
+                                <div className={`text-[11px] font-bold ${order.total - totalCustomerPaid > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                  {formatIndianCurrency(Math.max(0, order.total - totalCustomerPaid))}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              {customerPayments.map((payment, idx) => {
                                 const paymentDate = safeParseDate(payment.date)
                                 const isFromLedger = !!payment.ledgerEntryId
                                 return (
@@ -2667,6 +2762,13 @@ export default function OrdersPage() {
           }}
           onPaymentAdded={async () => {
             await loadPartyPayments()
+            await loadOrders()
+            if (selectedPartyGroup?.partyName) {
+              const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)
+              if (updatedGroup) {
+                setSelectedPartyGroup(updatedGroup)
+              }
+            }
           }}
           onPaymentRemoved={async () => {
             await loadPartyPayments()
@@ -2787,14 +2889,16 @@ export default function OrdersPage() {
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2 ml-3">
-                                    <button
-                                      onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
-                                      className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
-                                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                                      title={isFromLedger ? "Edit payment (from ledger)" : "Edit payment"}
-                                    >
-                                      <Edit size={16} />
-                                    </button>
+                                    {!isFromLedger && (
+                                      <button
+                                        onClick={() => handleEditPayment(selectedOrderForPayments, payment.id)}
+                                        className="p-1.5 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                                        title="Edit payment"
+                                      >
+                                        <Edit size={16} />
+                                      </button>
+                                    )}
                                     {!isFromLedger && (
                                       <button
                                         onClick={() => handleRemovePayment(selectedOrderForPayments, payment.id)}
@@ -2862,5 +2966,3 @@ export default function OrdersPage() {
     </div>
   )
 }
-
-

@@ -23,7 +23,8 @@ export interface Order {
   originalTotal: number // calculated: originalWeight * originalRate
   additionalCost: number
   profit: number // calculated: total - (originalTotal + additionalCost)
-  partialPayments?: PaymentRecord[] // array of individual payment records for raw materials
+  partialPayments?: PaymentRecord[] // array of individual payment records for raw materials (expense payments to supplier)
+  customerPayments?: PaymentRecord[] // array of payment records received from customer for this order
   invoiced?: boolean // whether order has been invoiced
   invoiceId?: string // ID of the invoice this order belongs to
   archived?: boolean // whether order is archived (when invoice is fully paid)

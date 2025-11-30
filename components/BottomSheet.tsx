@@ -8,9 +8,10 @@ interface BottomSheetProps {
   onConfirm: () => void
   title: string
   message?: string
+  children?: React.ReactNode
   confirmText?: string
   cancelText?: string
-  confirmColor?: 'red' | 'blue' | 'green'
+  confirmColor?: 'red' | 'blue' | 'green' | 'amber'
 }
 
 export default function BottomSheet({
@@ -19,6 +20,7 @@ export default function BottomSheet({
   onConfirm,
   title,
   message,
+  children,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   confirmColor = 'red',
@@ -69,6 +71,7 @@ export default function BottomSheet({
     red: 'bg-red-600 active:bg-red-700',
     blue: 'bg-blue-600 active:bg-blue-700',
     green: 'bg-green-600 active:bg-green-700',
+    amber: 'bg-amber-600 active:bg-amber-700',
   }
 
   if (!isOpen) return null
@@ -79,19 +82,17 @@ export default function BottomSheet({
       <div
         ref={backdropRef}
         onClick={handleBackdropClick}
-        className={`fixed inset-0 bg-black z-[99990] ${
-          isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
-        }`}
+        className={`fixed inset-0 bg-black z-[99990] ${isClosing ? 'native-backdrop-exit' : isMounted ? 'native-backdrop-enter' : 'opacity-0'
+          }`}
         style={{ WebkitTapHighlightColor: 'transparent' }}
       />
-      
+
       {/* Bottom Sheet */}
       <div
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100000] ${
-          isClosing ? 'native-bottom-sheet-exit' : isMounted ? 'native-bottom-sheet-enter' : 'translate-y-full'
-        }`}
-        style={{ 
+        className={`fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100000] ${isClosing ? 'native-bottom-sheet-exit' : isMounted ? 'native-bottom-sheet-enter' : 'translate-y-full'
+          }`}
+        style={{
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
           paddingBottom: 'env(safe-area-inset-bottom, 0)',
@@ -111,7 +112,12 @@ export default function BottomSheet({
           {message && (
             <p className="text-sm text-gray-600 mb-6">{message}</p>
           )}
-          
+          {children && (
+            <div className="mb-6">
+              {children}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="space-y-2">
             <button

@@ -1,0 +1,1241 @@
+{
+  "exportDate": "2025-11-29T11:52:06.446Z",
+  "projectId": "orders-38fca",
+  "commitHash": "fa64124399f921e4b8e1acae06e840b48a9a602a",
+  "commitMessage": "Remove unused firebase-admin file",
+  "branch": "main",
+  "orders": [
+    {
+      "id": "4Y7uQxm383KeyrdXnkyQ",
+      "supplier": "PRAVIN BHAI MARAJ ",
+      "truckNo": "7889",
+      "updatedAt": "2025-11-22T10:12:57.776Z",
+      "siteName": "V-18,OM UBHEL",
+      "additionalCost": 385,
+      "rate": 1050,
+      "paid": true,
+      "profit": 1333.5,
+      "partialPayments": [
+        {
+          "id": "1763657590151ne0mipmsz",
+          "amount": 34300,
+          "date": "2025-11-20T16:53:10.151Z"
+        }
+      ],
+      "originalWeight": 34.37,
+      "date": "2025-11-19",
+      "createdAt": "2025-11-19T16:40:29.981Z",
+      "originalTotal": 34370,
+      "total": 36088.5,
+      "paymentDue": false,
+      "partyName": "HARESH BHAI ",
+      "truckOwner": "PRAVIN BHAI MARAJ ",
+      "weight": 34.37,
+      "originalRate": 1000,
+      "material": [
+        "Chikhli Kapchi"
+      ]
+    },
+    {
+      "id": "6L3ACD4NXDYU5eIY8ld1",
+      "originalWeight": 44.6,
+      "siteName": "264,GOPIN SEGVA",
+      "truckNo": "5104",
+      "originalTotal": 32781,
+      "rate": 780,
+      "originalRate": 735,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "paymentDue": false,
+      "weight": 44.6,
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "additionalCost": 0,
+      "createdAt": "2025-11-19T16:36:02.488Z",
+      "updatedAt": "2025-11-28T15:24:48.247Z",
+      "material": [
+        "Panetha"
+      ],
+      "paid": true,
+      "date": "2025-11-18T00:00:00.000Z",
+      "partialPayments": [
+        {
+          "date": "2025-11-20T16:50:31.403Z",
+          "id": "1763657431403cgdqecnon",
+          "amount": 32700
+        }
+      ],
+      "partyName": "SAGAR BHAI",
+      "total": 34788,
+      "profit": 2007
+    },
+    {
+      "id": "ASyJKC2Ti40rz7hQYagF",
+      "date": "2025-11-26T00:00:00.000Z",
+      "partialPayments": [
+        {
+          "date": "2025-11-24T00:00:00.000Z",
+          "note": "From ledger entry",
+          "amount": 34227.7,
+          "id": "1764244393997fge587bbj",
+          "ledgerEntryId": "QlkAsp9A0VOlhLRf3VEJ"
+        },
+        {
+          "date": "2025-11-26T18:30:00.000Z",
+          "id": "1764246371824kxrjdmrsy",
+          "amount": 295.25,
+          "note": "From ledger entry",
+          "ledgerEntryId": "7di0VMihBkOS6D2bOScQ"
+        }
+      ],
+      "originalTotal": 34522.95,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "additionalCost": 200,
+      "originalWeight": 46.97,
+      "weight": 46.97,
+      "truckNo": "5104",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "total": 38750.25,
+      "updatedAt": "2025-11-27T12:26:12.458Z",
+      "material": [
+        "Panetha"
+      ],
+      "createdAt": "2025-11-27T08:29:27.783Z",
+      "originalRate": 735,
+      "profit": 4027.300000000003,
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "rate": 825
+    },
+    {
+      "id": "ApjM2Ofk1UuvqF6EqZxV",
+      "originalTotal": 40359,
+      "total": 42193.5,
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "truckNo": "6525",
+      "rate": 1150,
+      "createdAt": "2025-11-27T10:13:14.733Z",
+      "truckOwner": "MITUL BALAR",
+      "profit": 1834.5,
+      "date": "2025-11-26T00:00:00.000Z",
+      "originalRate": 1100,
+      "updatedAt": "2025-11-27T10:13:24.276Z",
+      "additionalCost": 0,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "supplier": "MITUL SUPPLIER",
+      "originalWeight": 36.69,
+      "weight": 36.69
+    },
+    {
+      "id": "COirmlFDoI7uxoONuaon",
+      "rate": 1100,
+      "partialPayments": [
+        {
+          "note": "From ledger entry",
+          "amount": 39611,
+          "date": "2025-11-18T18:30:00.000Z",
+          "id": "17639251314163xxxsvkzd",
+          "ledgerEntryId": "xZWrfNc81UWwHR1gaca0"
+        }
+      ],
+      "paid": true,
+      "partyName": "DINESH BHAI ",
+      "truckNo": "9639",
+      "createdAt": "2025-11-17T17:35:45.079Z",
+      "originalWeight": 36.01,
+      "date": "2025-11-17",
+      "siteName": "SHIV CITY INDUSTRY 1&2",
+      "originalRate": 1100,
+      "paidAmountForRawMaterials": 39611,
+      "additionalCost": 0,
+      "weight": 36.01,
+      "paymentDue": false,
+      "updatedAt": "2025-11-23T19:12:12.547Z",
+      "profit": 0,
+      "supplier": "MITUL SUPPLIER",
+      "total": 39611,
+      "originalTotal": 39611,
+      "truckOwner": "MITUL BALAR",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ]
+    },
+    {
+      "id": "QVg1GoykKif4K7azyBo3",
+      "total": 39492.75,
+      "rate": 825,
+      "partialPayments": [
+        {
+          "id": "1763630546878kb95iwaxb",
+          "date": "2025-11-20T09:22:26.878Z",
+          "amount": 35100
+        }
+      ],
+      "invoiced": false,
+      "createdAt": "2025-11-17T04:05:23.310Z",
+      "originalTotal": 35184.45,
+      "paid": true,
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "originalRate": 735,
+      "material": [
+        "Panetha"
+      ],
+      "additionalCost": 0,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "originalWeight": 47.87,
+      "paymentDue": false,
+      "truckNo": "3585",
+      "updatedAt": "2025-11-23T09:36:24.648Z",
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "date": "2025-11-13",
+      "weight": 47.87,
+      "profit": 4308.300000000003
+    },
+    {
+      "id": "TgZxwR6pTW5EKHVADIox",
+      "originalWeight": 44.835,
+      "date": "2025-11-16",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "partialPayments": [
+        {
+          "id": "1763658323439qzr4b390n",
+          "amount": 32900,
+          "date": "2025-11-20T17:05:23.439Z"
+        }
+      ],
+      "material": [
+        "Panetha"
+      ],
+      "createdAt": "2025-11-17T04:09:24.789Z",
+      "profit": 768.1500000000015,
+      "truckNo": "5104",
+      "siteName": "AYODHYA 1&2(JAYESH BHAI)",
+      "total": 36988.875,
+      "invoiced": true,
+      "paid": true,
+      "originalTotal": 32953.725,
+      "updatedAt": "2025-11-26T18:02:48.589Z",
+      "paymentDue": false,
+      "rate": 825,
+      "invoiceId": "oofwMKCSqxN6AYnCOLTl",
+      "originalRate": 735,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "weight": 44.835,
+      "additionalCost": 3267
+    },
+    {
+      "id": "VLxTp7SSGDvIGqxhzbXz",
+      "date": "2025-11-19",
+      "rate": 825,
+      "profit": 4051.625,
+      "total": 36551.625,
+      "additionalCost": 0,
+      "paymentDue": false,
+      "truckOwner": "GOPAL BHAI(NAVAGHAN)",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "paid": true,
+      "createdAt": "2025-11-19T16:55:25.548Z",
+      "originalTotal": 32564.175,
+      "weight": 44.305,
+      "originalWeight": 44.305,
+      "updatedAt": "2025-11-20T16:52:46.294Z",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "material": [
+        "Panetha"
+      ],
+      "partialPayments": [
+        {
+          "date": "2025-11-20T16:52:45.515Z",
+          "id": "1763657565515a5bb24qt6",
+          "amount": 32500
+        }
+      ],
+      "originalRate": 735,
+      "truckNo": "0768"
+    },
+    {
+      "id": "VvSbYqDU9E0AEZBnRtct",
+      "truckNo": "9639",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "originalWeight": 35.83,
+      "originalTotal": 39413,
+      "rate": 1150,
+      "originalRate": 1100,
+      "truckOwner": "MITUL BALAR",
+      "paymentDue": true,
+      "weight": 35.83,
+      "supplier": "MITUL SUPPLIER",
+      "createdAt": "2025-11-21T11:32:30.254Z",
+      "additionalCost": 0,
+      "updatedAt": "2025-11-21T18:33:45.757Z",
+      "paid": false,
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "date": "2025-11-21",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "partialPayments": [],
+      "profit": 1791.5,
+      "total": 41204.5
+    },
+    {
+      "id": "WRaKdcYb291d7AqhKKws",
+      "rate": 825,
+      "originalRate": 735,
+      "weight": 46.04,
+      "date": "2025-11-23",
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "originalWeight": 46.04,
+      "paid": false,
+      "originalTotal": 33839.4,
+      "paidAmount": 33800,
+      "additionalCost": 0,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "material": [
+        "Panetha"
+      ],
+      "createdAt": "2025-11-26T18:42:48.640Z",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "profit": 4143.5999999999985,
+      "updatedAt": "2025-11-27T10:21:56.451Z",
+      "total": 37983,
+      "paymentDue": true,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "truckNo": "5104",
+      "partialPayments": [
+        {
+          "note": "From ledger entry",
+          "date": "2025-11-22T18:30:00.000Z",
+          "id": "1764238915614l0zcdmi89",
+          "amount": 33800,
+          "ledgerEntryId": "WVBzYtBuNZred6W5wv3f"
+        }
+      ]
+    },
+    {
+      "id": "WTadwryt8aGUi3iNp2lm",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "additionalCost": 200,
+      "profit": 3879.7000000000044,
+      "updatedAt": "2025-11-29T11:30:53.099Z",
+      "total": 37397.25,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "rate": 825,
+      "date": "2025-11-29T00:00:00.000Z",
+      "originalWeight": 45.33,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "material": [
+        "Panetha"
+      ],
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "originalRate": 735,
+      "originalTotal": 33317.549999999996,
+      "createdAt": "2025-11-29T11:30:53.099Z",
+      "weight": 45.33,
+      "truckNo": "5104"
+    },
+    {
+      "id": "WjaIJ0OWhFXdqcMSZmyL",
+      "siteName": "264,GOPIN SEGVA",
+      "originalWeight": 44.18,
+      "weight": 44.18,
+      "total": 34460.4,
+      "date": "2025-11-24T00:00:00.000Z",
+      "originalTotal": 32472.3,
+      "profit": 1988.1000000000022,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "truckNo": "5104",
+      "additionalCost": 0,
+      "originalRate": 735,
+      "partialPayments": [
+        {
+          "amount": 32300,
+          "date": "2025-11-23T18:30:00.000Z",
+          "note": "From ledger entry",
+          "id": "1764238937015bdnar8gio",
+          "ledgerEntryId": "zEYOgQfdx2OgV3F3Za92"
+        }
+      ],
+      "updatedAt": "2025-11-27T11:50:38.200Z",
+      "rate": 780,
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "partyName": "SAGAR BHAI",
+      "createdAt": "2025-11-27T10:16:16.877Z",
+      "material": [
+        "Panetha"
+      ]
+    },
+    {
+      "id": "ZWK06kiLW0SftNxOQUl0",
+      "date": "2025-11-23",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "weight": 34.89,
+      "additionalCost": 0,
+      "updatedAt": "2025-11-26T17:01:44.739Z",
+      "total": 40123.5,
+      "rate": 1150,
+      "profit": 1744.5,
+      "createdAt": "2025-11-26T16:32:16.645Z",
+      "partialPayments": [],
+      "originalRate": 1100,
+      "originalWeight": 34.89,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "supplier": "MITUL SUPPLIER",
+      "truckNo": "9639",
+      "truckOwner": "MITUL BALAR",
+      "originalTotal": 38379
+    },
+    {
+      "id": "bEqwpBPSHnEtsdMM3AuJ",
+      "rate": 1150,
+      "partialPayments": [
+        {
+          "amount": 6600,
+          "note": "Carting",
+          "id": "1763807099712zys8zrfsi",
+          "date": "2025-11-19"
+        },
+        {
+          "note": "From ledger entry",
+          "ledgerEntryId": "WlVFzUFUDT49S3jFZh6f",
+          "amount": 14511,
+          "id": "1763925056275e2e98htv5",
+          "date": "2025-11-19T18:30:00.000Z"
+        },
+        {
+          "ledgerEntryId": "xZWrfNc81UWwHR1gaca0",
+          "date": "2025-11-18T18:30:00.000Z",
+          "note": "From ledger entry",
+          "amount": 6400,
+          "id": "17639251314179jdntws5z"
+        }
+      ],
+      "supplier": "MITUL SUPPLIER",
+      "truckNo": "2697",
+      "updatedAt": "2025-11-23T19:12:14.182Z",
+      "additionalCost": 0,
+      "originalTotal": 36674.00000000001,
+      "truckOwner": "BHIKHU BHAI",
+      "weight": 33.34,
+      "originalWeight": 33.34,
+      "total": 38341.00000000001,
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "profit": 1667,
+      "date": "2025-11-19",
+      "paidAmount": 34321,
+      "originalRate": 1100,
+      "paymentDue": true,
+      "createdAt": "2025-11-19T16:56:38.058Z",
+      "paid": false,
+      "siteName": "V-21,GOPIN OM UBHEL"
+    },
+    {
+      "id": "e1oSyuEsT6E687QCU0ix",
+      "paidAmount": 31000,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "total": 35322.375,
+      "createdAt": "2025-11-21T11:26:54.909Z",
+      "originalWeight": 42.815,
+      "material": [
+        "Panetha"
+      ],
+      "originalRate": 725,
+      "date": "2025-11-21",
+      "truckOwner": "VIPUL BHAI JOGRANA",
+      "paymentDue": false,
+      "originalTotal": 31040.875,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "rate": 825,
+      "additionalCost": 0,
+      "paid": true,
+      "profit": 4322.375,
+      "updatedAt": "2025-11-21T11:26:54.909Z",
+      "truckNo": "9945",
+      "partialPayments": [
+        {
+          "id": "1763724414909531d67xhd",
+          "date": "2025-11-21T11:26:54.909Z",
+          "amount": 31000
+        }
+      ],
+      "weight": 42.815
+    },
+    {
+      "id": "edUSbQi6vao5vzhx5vwf",
+      "additionalCost": 0,
+      "originalTotal": 38632,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "originalWeight": 35.12,
+      "total": 40388,
+      "truckOwner": "MITUL BALAR",
+      "date": "2025-11-28T00:00:00.000Z",
+      "supplier": "MITUL SUPPLIER",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "weight": 35.12,
+      "rate": 1150,
+      "createdAt": "2025-11-29T11:29:22.796Z",
+      "profit": 1756,
+      "originalRate": 1100,
+      "updatedAt": "2025-11-29T11:29:22.796Z",
+      "truckNo": "9639"
+    },
+    {
+      "id": "fO3Evjp0l3Rt8aMtksZO",
+      "paidAmountForRawMaterials": 35812,
+      "paid": false,
+      "originalTotal": 35948,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "supplier": "MITUL SUPPLIER",
+      "weight": 32.68,
+      "paidAmount": 35900,
+      "updatedAt": "2025-11-25T05:32:17.510Z",
+      "profit": 1484,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "additionalCost": 150,
+      "rate": 1150,
+      "truckNo": "2697",
+      "originalWeight": 32.68,
+      "truckOwner": "BHIKHU BHAI",
+      "originalRate": 1100,
+      "date": "2025-11-13",
+      "paymentDue": true,
+      "createdAt": "2025-11-17T04:07:12.823Z",
+      "total": 37582,
+      "invoiced": true,
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "invoiceId": "Sna1lHJYYnmzbdZ0D8xB",
+      "partialPayments": [
+        {
+          "date": "2025-11-13",
+          "note": "Carting",
+          "id": "1763806634647slzmpc2os",
+          "amount": 6400
+        },
+        {
+          "id": "1763925131416rbw7vh7gh",
+          "amount": 29548,
+          "ledgerEntryId": "xZWrfNc81UWwHR1gaca0",
+          "date": "2025-11-18T18:30:00.000Z",
+          "note": "From ledger entry"
+        }
+      ]
+    },
+    {
+      "id": "iSTd4qn5ZoDegzYZ4cG6",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "truckNo": "5104",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "updatedAt": "2025-11-23T18:53:29.549Z",
+      "rate": 825,
+      "additionalCost": 0,
+      "paid": true,
+      "partialPayments": [
+        {
+          "id": "1763724173438s7rlkvv3f",
+          "date": "2025-11-21T11:22:53.438Z",
+          "amount": 32700
+        }
+      ],
+      "profit": 4011.2999999999993,
+      "originalWeight": 44.57,
+      "date": "2025-11-21",
+      "originalTotal": 32758.95,
+      "createdAt": "2025-11-21T11:22:53.438Z",
+      "total": 36770.25,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "paymentDue": false,
+      "weight": 44.57,
+      "originalRate": 735,
+      "material": [
+        "Panetha"
+      ],
+      "paidAmount": 32700
+    },
+    {
+      "id": "n68eEflzwsYGVIxghFnM",
+      "total": 37050.75,
+      "weight": 44.91,
+      "date": "2025-11-28T00:00:00.000Z",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "material": [
+        "Panetha"
+      ],
+      "createdAt": "2025-11-29T11:30:12.867Z",
+      "updatedAt": "2025-11-29T11:30:12.867Z",
+      "originalWeight": 44.91,
+      "profit": 4041.9000000000015,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "truckNo": "5104",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "additionalCost": 0,
+      "rate": 825,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "originalTotal": 33008.85,
+      "originalRate": 735
+    },
+    {
+      "id": "nvdVL7b6D3FU5w117HaU",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "profit": 3764.5000000000036,
+      "material": [
+        "Panetha"
+      ],
+      "updatedAt": "2025-11-27T12:26:13.166Z",
+      "truckNo": "6104",
+      "partialPayments": [
+        {
+          "date": "2025-11-24T00:00:00.000Z",
+          "id": "1764244393997begx8k3ks",
+          "note": "From ledger entry",
+          "ledgerEntryId": "QlkAsp9A0VOlhLRf3VEJ",
+          "amount": 1
+        },
+        {
+          "ledgerEntryId": "QlkAsp9A0VOlhLRf3VEJ",
+          "id": "1764244924771a9lcwhze6",
+          "date": "2025-11-24T00:00:00.000Z",
+          "amount": 171.3000000000029,
+          "note": "From ledger entry"
+        },
+        {
+          "amount": 32004.75,
+          "note": "From ledger entry",
+          "ledgerEntryId": "7di0VMihBkOS6D2bOScQ",
+          "date": "2025-11-26T18:30:00.000Z",
+          "id": "1764246371824ecq0o9uoy"
+        }
+      ],
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "createdAt": "2025-11-27T10:15:10.621Z",
+      "weight": 44.05,
+      "date": "2025-11-27T00:00:00.000Z",
+      "originalRate": 735,
+      "total": 36341.25,
+      "originalWeight": 44.05,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "originalTotal": 32376.749999999996,
+      "additionalCost": 200,
+      "rate": 825
+    },
+    {
+      "id": "pHuMJ534biDz739f7myQ",
+      "paid": true,
+      "date": "2025-11-19",
+      "originalWeight": 15.84,
+      "createdAt": "2025-11-19T16:53:11.949Z",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "truckNo": "9777",
+      "profit": 1188,
+      "paymentDue": false,
+      "weight": 15.84,
+      "originalTotal": 11880,
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "material": [
+        "Panetha"
+      ],
+      "supplier": "LALA BHAI(NAVAGHAN)",
+      "updatedAt": "2025-11-22T10:15:55.069Z",
+      "partialPayments": [
+        {
+          "id": "1763657542030aeh4ooadk",
+          "amount": 11800,
+          "date": "2025-11-20T16:52:22.030Z"
+        }
+      ],
+      "total": 13068,
+      "originalRate": 750,
+      "truckOwner": "LALA BHAI(NAVAGHAN)",
+      "rate": 825,
+      "additionalCost": 0
+    },
+    {
+      "id": "tQNyFSL8fn58FxEJ8b5U",
+      "paid": false,
+      "total": 41745,
+      "originalWeight": 36.3,
+      "paidAmountForRawMaterials": 39930,
+      "paidAmount": 24441,
+      "createdAt": "2025-11-17T17:36:53.748Z",
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "partialPayments": [
+        {
+          "amount": 15489,
+          "date": "2025-11-19T18:30:00.000Z",
+          "note": "From ledger entry",
+          "id": "1763925056275pcc5dy4mx",
+          "ledgerEntryId": "WlVFzUFUDT49S3jFZh6f"
+        },
+        {
+          "ledgerEntryId": "xZWrfNc81UWwHR1gaca0",
+          "date": "2025-11-18T18:30:00.000Z",
+          "note": "From ledger entry",
+          "amount": 24441,
+          "id": "1763925131416uxerb2fyw"
+        }
+      ],
+      "invoiced": true,
+      "rate": 1150,
+      "originalTotal": 39930,
+      "paymentDue": true,
+      "date": "2025-11-17",
+      "supplier": "MITUL SUPPLIER",
+      "truckOwner": "MITUL BALAR",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "truckNo": "9099",
+      "material": [
+        "Chikhli Kapchi VSI"
+      ],
+      "profit": 755,
+      "updatedAt": "2025-11-26T17:16:22.783Z",
+      "originalRate": 1100,
+      "additionalCost": 1060,
+      "weight": 36.3,
+      "invoiceId": "oofwMKCSqxN6AYnCOLTl"
+    },
+    {
+      "id": "vxG7FhepS1kHw1IMNdP7",
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "paid": true,
+      "date": "2025-11-19",
+      "paymentDue": false,
+      "originalWeight": 42.26,
+      "updatedAt": "2025-11-23T18:53:07.854Z",
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "originalRate": 735,
+      "material": [
+        "Panetha"
+      ],
+      "createdAt": "2025-11-19T16:58:47.389Z",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "profit": 3803.4000000000015,
+      "additionalCost": 0,
+      "originalTotal": 31061.1,
+      "truckNo": "5104",
+      "partialPayments": [
+        {
+          "date": "2025-11-20T16:15:30.475Z",
+          "id": "1763655330475yujntbjjc",
+          "amount": 31000
+        }
+      ],
+      "rate": 825,
+      "total": 34864.5,
+      "siteName": "V-18,SHIV ECO OM UBHEL",
+      "weight": 42.26
+    },
+    {
+      "id": "zv2v7iMVGBi7Rz0oTHgC",
+      "partialPayments": [
+        {
+          "id": "1764345012968fpgbmoezk",
+          "note": "From ledger entry",
+          "ledgerEntryId": "7Lz8yzouaYTx2WXhYL2I",
+          "amount": 32300,
+          "date": "2025-11-21T18:30:00.000Z"
+        }
+      ],
+      "date": "2025-11-22",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "updatedAt": "2025-11-28T15:50:13.892Z",
+      "total": 34366.8,
+      "paid": false,
+      "siteName": "264,GOPIN SEGVA",
+      "truckNo": "5104",
+      "originalWeight": 44.06,
+      "paymentDue": true,
+      "material": [
+        "Panetha"
+      ],
+      "createdAt": "2025-11-22T09:56:11.433Z",
+      "partyName": "SAGAR BHAI",
+      "profit": 1982.7000000000007,
+      "weight": 44.06,
+      "additionalCost": 0,
+      "originalRate": 735,
+      "originalTotal": 32384.100000000002,
+      "truckOwner": "NAVAGHAN BHAI BOLIYA",
+      "rate": 780,
+      "paidAmount": 84.10000000000218
+    }
+  ],
+  "ledgerEntries": [
+    {
+      "id": "0MuqwXsZ0A99MEOcM2KD",
+      "type": "debit",
+      "note": "PETROL",
+      "createdAtTs": "2025-11-27T10:29:55.707Z",
+      "amount": 200,
+      "createdAt": "2025-11-27T10:29:54.766Z",
+      "date": "2025-11-26T06:30:00.000Z",
+      "source": "manual"
+    },
+    {
+      "id": "2XJ3Yblv8iVS2KgFKWUu",
+      "type": "debit",
+      "amount": 385,
+      "note": "petrol",
+      "createdAtTs": "2025-11-19T18:03:17.453Z",
+      "createdAt": "2025-11-19T18:03:17.269Z",
+      "date": "2025-11-18T18:30:00.000Z",
+      "source": "manual"
+    },
+    {
+      "id": "4B3IypgLOhlPmxLf2dRd",
+      "amount": 35100,
+      "createdAt": "2025-11-19T17:58:34.586Z",
+      "type": "debit",
+      "note": "Navghan ne aapya",
+      "source": "manual",
+      "createdAtTs": "2025-11-19T17:58:34.762Z",
+      "date": "2025-11-12T18:30:00.000Z"
+    },
+    {
+      "id": "5dnO1ScWZcB3Pypuh1jU",
+      "note": "24/11 Ni Gadi Nu peymnet",
+      "amount": 34500,
+      "partyName": "SAGAR BHAI",
+      "createdAt": "2025-11-27T10:18:26.278Z",
+      "createdAtTs": "2025-11-27T10:18:27.159Z",
+      "type": "credit",
+      "date": "2025-11-27T06:30:00.000Z",
+      "source": "manual"
+    },
+    {
+      "id": "7Lz8yzouaYTx2WXhYL2I",
+      "amount": 32300,
+      "createdAt": "2025-11-22T10:05:31.143Z",
+      "note": "G.PAY",
+      "type": "debit",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "updatedAt": "2025-11-26T17:52:46.367Z",
+      "createdAtTs": "2025-11-22T10:05:31.487Z",
+      "date": "2025-11-21T18:30:00.000Z",
+      "source": "manual"
+    },
+    {
+      "id": "7di0VMihBkOS6D2bOScQ",
+      "createdAtTs": "2025-11-27T10:30:18.820Z",
+      "source": "manual",
+      "date": "2025-11-26T18:30:00.000Z",
+      "note": "G PAY VIVEK BALAR",
+      "amount": 32300,
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "type": "debit",
+      "createdAt": "2025-11-27T10:30:18.659Z"
+    },
+    {
+      "id": "9MfLDYcjBcAI9wOUCUYt",
+      "amount": 32300,
+      "type": "credit",
+      "createdAtTs": "2025-11-27T10:31:15.889Z",
+      "createdAt": "2025-11-27T10:31:15.753Z",
+      "date": "2025-11-27T06:30:00.000Z",
+      "source": "manual",
+      "note": "VIVEK BALAR"
+    },
+    {
+      "id": "ELQFw7ZqCsO8eQMksb1D",
+      "createdAt": "2025-11-19T18:07:28.637Z",
+      "type": "credit",
+      "partyName": "SAGAR BHAI",
+      "date": "2025-11-18T18:30:00.000Z",
+      "note": "sagar segva na aavya",
+      "createdAtTs": "2025-11-19T18:07:29.585Z",
+      "amount": 34800,
+      "source": "manual"
+    },
+    {
+      "id": "FZr82Rsic9UJmRHhDmqy",
+      "amount": 32700,
+      "source": "orderExpense",
+      "note": "NAVGAN BHAI BOLIYA",
+      "createdAt": "2025-11-21T11:22:54.674Z",
+      "createdAtTs": "2025-11-21T11:22:54.922Z",
+      "type": "debit",
+      "date": "2025-11-20T18:30:00.000Z"
+    },
+    {
+      "id": "HmfsNmX6ssNWylMw83mq",
+      "date": "2025-11-19T18:30:00.000Z",
+      "amount": 40000,
+      "source": "manual",
+      "note": "Ashish",
+      "createdAt": "2025-11-20T16:25:26.500Z",
+      "type": "credit",
+      "createdAtTs": "2025-11-20T16:25:27.120Z"
+    },
+    {
+      "id": "Mf5bc44qex0ljAiIC9NY",
+      "amount": 34300,
+      "note": "Pravin maharaj ne kapchi na",
+      "source": "manual",
+      "createdAtTs": "2025-11-19T18:03:06.155Z",
+      "date": "2025-11-18T18:30:00.000Z",
+      "type": "debit",
+      "createdAt": "2025-11-19T18:03:05.968Z"
+    },
+    {
+      "id": "QlkAsp9A0VOlhLRf3VEJ",
+      "source": "manual",
+      "note": "G PAY VIVEK BALAR",
+      "type": "debit",
+      "createdAt": "2025-11-27T10:25:41.883Z",
+      "amount": 34400,
+      "createdAtTs": "2025-11-27T10:25:42.885Z",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "date": "2025-11-26T06:30:00.000Z"
+    },
+    {
+      "id": "Vxh6BhUKwxcr5oC3Sm3z",
+      "source": "manual",
+      "createdAtTs": "2025-11-26T19:00:38.083Z",
+      "createdAt": "2025-11-26T19:00:36.871Z",
+      "date": "2025-11-24T06:30:00.000Z",
+      "type": "credit",
+      "amount": 66700,
+      "note": "VIVEK BALAR"
+    },
+    {
+      "id": "WBj8rV0skoPH53scBFsT",
+      "createdAt": "2025-11-19T18:01:08.178Z",
+      "type": "debit",
+      "source": "manual",
+      "createdAtTs": "2025-11-19T18:01:08.379Z",
+      "note": "navghan ne aapya",
+      "amount": 32900,
+      "date": "2025-11-15T18:30:00.000Z"
+    },
+    {
+      "id": "WVBzYtBuNZred6W5wv3f",
+      "type": "debit",
+      "date": "2025-11-22T18:30:00.000Z",
+      "source": "manual",
+      "createdAt": "2025-11-27T10:19:45.209Z",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "note": "G PAY PARAS",
+      "createdAtTs": "2025-11-27T10:19:46.111Z",
+      "amount": 33800
+    },
+    {
+      "id": "WlVFzUFUDT49S3jFZh6f",
+      "source": "manual",
+      "type": "debit",
+      "supplier": "MITUL SUPPLIER",
+      "updatedAt": "2025-11-23T19:10:55.865Z",
+      "note": "mitul ne gadi nu payment pete",
+      "createdAtTs": "2025-11-20T16:36:38.881Z",
+      "amount": 30000,
+      "createdAt": "2025-11-20T16:36:38.089Z",
+      "date": "2025-11-19T18:30:00.000Z"
+    },
+    {
+      "id": "XbO7m66Tr3Nr5yohTjon",
+      "source": "manual",
+      "note": "bhikhubhai ne 200 lekhe carting na",
+      "date": "2025-11-18T18:30:00.000Z",
+      "type": "debit",
+      "amount": 6600,
+      "createdAtTs": "2025-11-19T18:04:11.526Z",
+      "createdAt": "2025-11-19T18:04:11.350Z"
+    },
+    {
+      "id": "XtLueRBuxwmrdVCwFlK9",
+      "date": "2025-11-12T18:30:00.000Z",
+      "amount": 3417,
+      "note": "Card, Book, Petrol",
+      "source": "manual",
+      "createdAtTs": "2025-11-19T18:00:26.159Z",
+      "type": "debit",
+      "createdAt": "2025-11-19T18:00:25.145Z"
+    },
+    {
+      "id": "YAUf4nqVX9KfLW728w7M",
+      "createdAtTs": "2025-11-21T11:26:56.372Z",
+      "amount": 31000,
+      "createdAt": "2025-11-21T11:26:56.111Z",
+      "source": "orderExpense",
+      "date": "2025-11-20T18:30:00.000Z",
+      "type": "debit",
+      "note": "VIPUL JOGRANA"
+    },
+    {
+      "id": "baEjpI3kEDyAWYMEtfCj",
+      "createdAt": "2025-11-28T16:09:14.018Z",
+      "type": "credit",
+      "amount": 34300,
+      "source": "manual",
+      "partyName": "SAGAR BHAI",
+      "date": "2025-11-23T18:30:00.000Z",
+      "createdAtTs": "2025-11-28T16:09:16.110Z",
+      "note": "22/11 nu payment aavyu sagar nu"
+    },
+    {
+      "id": "dxu2ITpPLMQ5M39teU5q",
+      "createdAt": "2025-11-19T17:59:04.881Z",
+      "amount": 6400,
+      "date": "2025-11-12T18:30:00.000Z",
+      "createdAtTs": "2025-11-19T17:59:05.069Z",
+      "source": "manual",
+      "note": "bhikhu bhai ne aapya 200 lekhe carting",
+      "type": "debit"
+    },
+    {
+      "id": "hIafgO5YQIHvaxArgYKQ",
+      "date": "2025-11-23T06:30:00.000Z",
+      "note": "ASHISH  NAKARANI",
+      "createdAtTs": "2025-11-26T18:53:22.084Z",
+      "source": "manual",
+      "type": "credit",
+      "amount": 33800,
+      "createdAt": "2025-11-26T18:53:21.019Z"
+    },
+    {
+      "id": "hSPA8NkJE9Bw2HLaJr9c",
+      "note": "navghan ne aapya",
+      "source": "manual",
+      "amount": 32700,
+      "type": "debit",
+      "createdAt": "2025-11-19T18:02:31.378Z",
+      "createdAtTs": "2025-11-19T18:02:31.561Z",
+      "date": "2025-11-17T18:30:00.000Z"
+    },
+    {
+      "id": "hZVcrOHdDj1hNvWFGb5E",
+      "source": "manual",
+      "date": "2025-11-18T18:30:00.000Z",
+      "note": "gopal (navghan)",
+      "createdAt": "2025-11-19T18:03:47.324Z",
+      "amount": 32500,
+      "createdAtTs": "2025-11-19T18:03:47.501Z",
+      "type": "debit"
+    },
+    {
+      "id": "jU6vI0lT0SjGG2WhaxCP",
+      "amount": 32300,
+      "partyName": "ASHISH NAKRANI",
+      "source": "manual",
+      "type": "credit",
+      "note": "ASHISH NAKRANI",
+      "createdAtTs": "2025-11-22T09:52:52.548Z",
+      "date": "2025-11-21T18:30:00.000Z",
+      "createdAt": "2025-11-22T09:52:51.728Z"
+    },
+    {
+      "id": "kqBRyui20R70eeIx2vYe",
+      "type": "debit",
+      "date": "2025-11-18T18:30:00.000Z",
+      "amount": 11800,
+      "note": "lala bhai (navghan)",
+      "createdAt": "2025-11-19T18:03:30.881Z",
+      "source": "manual",
+      "createdAtTs": "2025-11-19T18:03:31.060Z"
+    },
+    {
+      "id": "o5TCkDGbpooUqD1Btvmw",
+      "type": "debit",
+      "note": "PETROL",
+      "createdAt": "2025-11-27T10:30:51.854Z",
+      "amount": 200,
+      "date": "2025-11-27T06:30:00.000Z",
+      "createdAtTs": "2025-11-27T10:30:52.003Z",
+      "source": "manual"
+    },
+    {
+      "id": "qWJ1IN7NN5NahRZIh9gQ",
+      "source": "manual",
+      "amount": 1060,
+      "createdAtTs": "2025-11-19T18:02:04.197Z",
+      "date": "2025-11-16T18:30:00.000Z",
+      "note": "Petrol and oil",
+      "type": "debit",
+      "createdAt": "2025-11-19T18:02:04.013Z"
+    },
+    {
+      "id": "rQ6uqJe9GXdzxKv1VVc0",
+      "type": "credit",
+      "note": "Ashish",
+      "date": "2025-11-20T18:30:00.000Z",
+      "source": "manual",
+      "createdAtTs": "2025-11-21T11:20:34.285Z",
+      "createdAt": "2025-11-21T11:20:33.310Z",
+      "amount": 53700
+    },
+    {
+      "id": "s3aDfRNF0DCgCNuL4rx6",
+      "type": "debit",
+      "createdAt": "2025-11-19T18:04:29.198Z",
+      "createdAtTs": "2025-11-19T18:04:29.384Z",
+      "date": "2025-11-18T18:30:00.000Z",
+      "amount": 31000,
+      "source": "manual",
+      "note": "navghan ne cash"
+    },
+    {
+      "id": "tX4CvbavjMd9tVihFCmr",
+      "createdAtTs": "2025-11-19T18:08:20.180Z",
+      "date": "2025-11-18T18:30:00.000Z",
+      "type": "credit",
+      "partyName": "HARESH BHAI",
+      "createdAt": "2025-11-19T18:08:19.995Z",
+      "note": "hareshbhai nu payment aavyu",
+      "amount": 36000,
+      "source": "manual"
+    },
+    {
+      "id": "v8dwxZPgkim91Dlyomze",
+      "amount": 566,
+      "createdAt": "2025-11-19T18:09:04.390Z",
+      "type": "debit",
+      "createdAtTs": "2025-11-19T18:09:04.583Z",
+      "date": "2025-11-18T18:30:00.000Z",
+      "note": "extra kharcho",
+      "source": "manual"
+    },
+    {
+      "id": "vl3rNHSqtDD3bIan2LVk",
+      "note": "ASHISH NAKARANI",
+      "amount": 258065,
+      "source": "manual",
+      "createdAt": "2025-11-19T17:57:50.797Z",
+      "type": "credit",
+      "date": "2025-11-12T18:30:00.000Z",
+      "createdAtTs": "2025-11-19T17:57:51.838Z"
+    },
+    {
+      "id": "xZWrfNc81UWwHR1gaca0",
+      "source": "manual",
+      "type": "debit",
+      "createdAtTs": "2025-11-19T18:05:55.074Z",
+      "supplier": "MITUL SUPPLIER",
+      "amount": 100000,
+      "createdAt": "2025-11-19T18:05:53.981Z",
+      "note": "29500+39611+30890",
+      "date": "2025-11-18T18:30:00.000Z"
+    },
+    {
+      "id": "zEYOgQfdx2OgV3F3Za92",
+      "source": "manual",
+      "amount": 32300,
+      "date": "2025-11-23T18:30:00.000Z",
+      "type": "debit",
+      "supplier": "NAVAGHAN BHAI BOLIYA",
+      "note": "G PAY VIVEK BALAR",
+      "createdAt": "2025-11-27T10:21:30.678Z",
+      "createdAtTs": "2025-11-27T10:21:31.579Z"
+    }
+  ],
+  "invoices": [
+    {
+      "id": "Sna1lHJYYnmzbdZ0D8xB",
+      "paidAmount": 0,
+      "overdue": false,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "paid": false,
+      "orderIds": [
+        "fO3Evjp0l3Rt8aMtksZO"
+      ],
+      "partyName": "BHARAT BHAI VAGHASIYA",
+      "totalAmount": 37582,
+      "partialPayments": [],
+      "createdAt": "2025-11-25T05:32:15.407Z",
+      "invoiceNumber": "ROYAL2511251102",
+      "archived": false,
+      "dueDate": "2025-12-02T05:32:15.407Z"
+    },
+    {
+      "id": "oofwMKCSqxN6AYnCOLTl",
+      "invoiceNumber": "ROYAL2511262246",
+      "totalAmount": 78733.875,
+      "partialPayments": [],
+      "orderIds": [
+        "tQNyFSL8fn58FxEJ8b5U",
+        "TgZxwR6pTW5EKHVADIox"
+      ],
+      "archived": false,
+      "siteName": "V-21,GOPIN OM UBHEL",
+      "dueDate": "2025-12-03T17:16:20.594Z",
+      "overdue": false,
+      "paidAmount": 0,
+      "paid": false,
+      "createdAt": "2025-11-26T17:16:20.594Z",
+      "partyName": "BHARAT BHAI VAGHASIYA"
+    }
+  ],
+  "partyPayments": [
+    {
+      "id": "Cmo3rdWeTWUxIMAwuwaf",
+      "updatedAt": "2025-11-19T16:41:12.325Z",
+      "createdAt": "2025-11-19T16:41:12.325Z",
+      "amount": 36000,
+      "date": "2025-11-19T16:41:12.325Z",
+      "partyName": "HARESH BHAI ",
+      "note": "Full Peyment"
+    },
+    {
+      "id": "crKbDUbVK8HOn2FqQIoZ",
+      "ledgerEntryId": "baEjpI3kEDyAWYMEtfCj",
+      "amount": 34300,
+      "updatedAt": "2025-11-28T17:12:36.349Z",
+      "date": "2025-11-23T18:30:00.000Z",
+      "note": "22/11 nu payment aavyu sagar nu",
+      "partyName": "SAGAR BHAI",
+      "createdAt": "2025-11-28T16:09:16.887Z"
+    },
+    {
+      "id": "efMt8sKtr4GXon9yJT0F",
+      "date": "2025-11-18T18:30:00.000Z",
+      "createdAt": "2025-11-21T18:42:43.649Z",
+      "note": "hareshbhai nu payment aavyu",
+      "partyName": "HARESH BHAI",
+      "ledgerEntryId": "tX4CvbavjMd9tVihFCmr",
+      "amount": 36000,
+      "updatedAt": "2025-11-28T16:32:01.927Z"
+    },
+    {
+      "id": "fssM7wzPBQlXxHI8A5VL",
+      "amount": 32300,
+      "createdAt": "2025-11-22T09:52:52.779Z",
+      "partyName": "ASHISH NAKRANI",
+      "note": "ASHISH NAKRANI",
+      "ledgerEntryId": "jU6vI0lT0SjGG2WhaxCP",
+      "updatedAt": "2025-11-22T09:53:40.445Z",
+      "date": "2025-11-21T18:30:00.000Z"
+    },
+    {
+      "id": "mKzDRutvMebiycvxhtj9",
+      "updatedAt": "2025-11-27T10:18:27.585Z",
+      "createdAt": "2025-11-27T10:18:27.585Z",
+      "ledgerEntryId": "5dnO1ScWZcB3Pypuh1jU",
+      "amount": 34500,
+      "date": "2025-11-26T18:30:00.000Z",
+      "partyName": "SAGAR BHAI",
+      "note": "24/11 Ni Gadi Nu peymnet"
+    },
+    {
+      "id": "s8jriYboD6n3NM7YTOnh",
+      "amount": 34800,
+      "date": "2025-11-18T18:30:00.000Z",
+      "partyName": "SAGAR BHAI",
+      "createdAt": "2025-11-21T18:43:13.517Z",
+      "updatedAt": "2025-11-28T15:39:14.457Z",
+      "note": "sagar segva na aavya",
+      "ledgerEntryId": "ELQFw7ZqCsO8eQMksb1D"
+    }
+  ]
+}

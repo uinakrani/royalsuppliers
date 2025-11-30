@@ -355,24 +355,24 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 ml-2">
-                              <button
-                                onClick={() => setEditingPayment({ order, paymentId: payment.id })}
-                                className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
-                                style={{ WebkitTapHighlightColor: 'transparent' }}
-                                title={isFromLedger ? "Edit payment (from ledger)" : "Edit payment"}
-                              >
-                                <Edit size={14} />
-                              </button>
+                              {!isFromLedger && (
+                                <button
+                                  onClick={() => setEditingPayment({ order, paymentId: payment.id })}
+                                  className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                                  title="Edit payment"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                              )}
+                              {!isFromLedger && (
                               <button
                                 onClick={async () => {
                                   if (!order.id) return
-                                  const isLedgerPayment = !!payment.ledgerEntryId
                                   try {
                                     const confirmed = await sweetAlert.confirm({
                                       title: 'Remove Payment?',
-                                      message: isLedgerPayment
-                                        ? 'This payment is from a ledger entry. Removing it will trigger redistribution of the ledger entry. Continue?'
-                                        : 'Are you sure you want to remove this payment?',
+                                      message: 'Are you sure you want to remove this payment?',
                                       icon: 'warning',
                                       confirmText: 'Remove',
                                       cancelText: 'Cancel'
@@ -380,83 +380,6 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                     if (!confirmed) return
                                     
                                     await orderService.removePartialPayment(order.id, payment.id)
-                                    
-                                    // If this was a ledger payment, redistribute the ledger entry
-                                    if (isLedgerPayment && payment.ledgerEntryId) {
-                                      try {
-                                        const ledgerEntry = await ledgerService.getEntryById(payment.ledgerEntryId)
-                                        if (ledgerEntry && ledgerEntry.type === 'debit' && ledgerEntry.supplier) {
-                                          // Wait a bit for the payment removal to propagate
-                                          await new Promise(resolve => setTimeout(resolve, 500))
-                                          
-                                          // Redistribute using the same logic
-                                          const allOrders = await orderService.getAllOrders({ supplier: ledgerEntry.supplier })
-                                          
-                                          const ordersWithOutstanding = allOrders
-                                            .map(order => {
-                                              const existingPayments = order.partialPayments || []
-                                              const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== payment.ledgerEntryId)
-                                              const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-                                              const originalTotal = Number(order.originalTotal || 0)
-                                              const remaining = Math.max(0, originalTotal - totalPaid)
-                                              
-                                              const tempOrder: Order = {
-                                                ...order,
-                                                partialPayments: paymentsExcludingThis
-                                              }
-                                              
-                                              const isPaid = isOrderPaid(tempOrder)
-                                              
-                                              return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid }
-                                            })
-                                            .filter(({ remaining, isPaid }) => remaining > 0 && !isPaid)
-                                            .sort((a, b) => {
-                                              const aDate = new Date(a.order.date).getTime()
-                                              const bDate = new Date(b.order.date).getTime()
-                                              if (aDate !== bDate) return aDate - bDate
-                                              const aTime = new Date(a.order.createdAt || a.order.updatedAt || a.order.date).getTime()
-                                              const bTime = new Date(b.order.createdAt || b.order.updatedAt || b.order.date).getTime()
-                                              return aTime - bTime
-                                            })
-                                          
-                                          let remainingExpense = ledgerEntry.amount
-                                          const paymentsToAdd: Array<{ orderId: string; payment: any[] }> = []
-                                          
-                                          for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
-                                            if (remainingExpense <= 0) break
-                                            if (!order.id) continue
-                                            
-                                            const paymentAmount = Math.min(remainingExpense, remaining)
-                                            let paymentDate = payment.date || order.date || new Date().toISOString()
-                                            if (paymentDate && !paymentDate.includes('T')) {
-                                              paymentDate = new Date(paymentDate + 'T00:00:00').toISOString()
-                                            }
-                                            
-                                            const newPayment = {
-                                              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                                              amount: paymentAmount,
-                                              date: paymentDate,
-                                              note: `From ledger entry`,
-                                              ledgerEntryId: payment.ledgerEntryId,
-                                            }
-                                            
-                                            const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== payment.ledgerEntryId)
-                                            const updatedPayments = [...paymentsWithoutThisEntry, newPayment]
-                                            
-                                            paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
-                                            remainingExpense -= paymentAmount
-                                          }
-                                          
-                                          for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
-                                            await orderService.updateOrder(orderId, {
-                                              partialPayments: updatedPayments,
-                                            })
-                                          }
-                                        }
-                                      } catch (error) {
-                                        console.error('Error redistributing ledger entry:', error)
-                                      }
-                                    }
                                     
                                     if (onOrderUpdated) {
                                       await onOrderUpdated()
@@ -468,10 +391,11 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                 }}
                                 className="p-1 bg-red-50 text-red-600 rounded active:bg-red-100 transition-colors touch-manipulation"
                                 style={{ WebkitTapHighlightColor: 'transparent' }}
-                                title={payment.ledgerEntryId ? "Remove payment (from ledger)" : "Remove payment"}
+                                title="Remove payment"
                               >
                                 <Trash2 size={14} />
                               </button>
+                              )}
                             </div>
                           </div>
                         )
@@ -726,4 +650,3 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
     </>
   )
 }
-

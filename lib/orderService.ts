@@ -1,12 +1,12 @@
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
-  query, 
-  where, 
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  where,
   orderBy,
   Timestamp,
   deleteField
@@ -17,23 +17,39 @@ import { ledgerService } from './ledgerService'
 
 const ORDERS_COLLECTION = 'orders'
 
-// Helper function to check if an order is paid (within 250 of originalTotal)
-export const isOrderPaid = (order: Order): boolean => {
+// Helper function to check if supplier expenses are paid (within 250 of originalTotal)
+export const isExpensePaid = (order: Order): boolean => {
   const expenseAmount = Number(order.originalTotal || 0)
   if (expenseAmount <= 0) return false
-  
+
   const partialPayments = order.partialPayments || []
   const totalPaid = partialPayments.reduce((sum, p) => sum + p.amount, 0)
-  
-  // Order is paid if total payments are within 250 of original total
+
+  // Order expenses are paid if total payments are within 250 of original total
   return totalPaid >= (expenseAmount - 250)
 }
+
+// Helper function to check if customer has paid for the order (within 250 of total)
+export const isCustomerPaid = (order: Order): boolean => {
+  const sellingAmount = Number(order.total || 0)
+  if (sellingAmount <= 0) return false
+
+  const customerPayments = order.customerPayments || []
+  const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0)
+
+  // Customer payment is complete if total payments are within 250 of selling total
+  return totalPaid >= (sellingAmount - 250)
+}
+
+// Keep isOrderPaid for backward compatibility (checks expense payments)
+export const isOrderPaid = isExpensePaid
+
 
 export const orderService = {
   // Create order
   async createOrder(order: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number }): Promise<string> {
     const db = getDb()
-    
+
     if (!db) {
       const errorMsg = 'Firebase db is not initialized. Check your Firebase configuration and .env.local file.'
       console.error(errorMsg)
@@ -45,12 +61,12 @@ export const orderService = {
       })
       throw new Error(errorMsg)
     }
-    
+
     try {
       // Extract paidAmountForRawMaterials if provided (temporary field from form)
       const paidAmountForRawMaterials = (order as any).paidAmountForRawMaterials
       const expenseAmount = Number(order.originalTotal || 0)
-      
+
       // Prepare order data without the temporary field
       const { paidAmountForRawMaterials: _, ...orderDataWithoutTemp } = order as any
       const orderData: Omit<Order, 'id'> = {
@@ -69,7 +85,7 @@ export const orderService = {
         data: orderData,
         dbInitialized: !!db
       })
-      
+
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
           console.error('❌ Save operation timed out after 10 seconds')
@@ -77,11 +93,11 @@ export const orderService = {
           reject(new Error('Request timeout. This usually means Firestore security rules are blocking writes. Please check your Firestore rules in Firebase Console and ensure they allow writes to the "orders" collection.'))
         }, 10000)
       })
-      
+
       console.log('⏳ Attempting to save to Firestore...')
       const savePromise = addDoc(collection(db, ORDERS_COLLECTION), orderData)
       const docRef = await Promise.race([savePromise, timeoutPromise])
-      
+
       console.log('✅ Order created successfully with ID:', docRef.id)
 
       return docRef.id
@@ -92,7 +108,7 @@ export const orderService = {
         message: error?.message,
         stack: error?.stack
       })
-      
+
       if (error.code === 'permission-denied') {
         throw new Error('Permission denied. Please check your Firestore security rules in Firebase Console. Rules should allow: allow read, write: if true;')
       }
@@ -124,7 +140,7 @@ export const orderService = {
       const updateData: any = {
         updatedAt: new Date().toISOString(),
       }
-      
+
       // Only include fields that are defined and not undefined
       Object.keys(order).forEach(key => {
         const value = (order as any)[key]
@@ -141,7 +157,7 @@ export const orderService = {
           }
         }
       })
-      
+
       // Actually update the document in Firestore
       const orderRef = doc(db, ORDERS_COLLECTION, id)
       await updateDoc(orderRef, updateData)
@@ -181,14 +197,14 @@ export const orderService = {
       console.warn('Firebase is not configured. Returning empty array.')
       return []
     }
-    
+
     // Check if we need to avoid orderBy to prevent composite index requirement
     // When filtering by supplier, partyName, material, truckOwner, or truckNo, 
     // we'll sort in JavaScript instead
     const needsClientSideSort = !!(filters?.supplier || filters?.partyName || filters?.material || filters?.truckOwner || filters?.truckNo)
-    
+
     let q: any = collection(db, ORDERS_COLLECTION)
-    
+
     // Only use orderBy if we don't have filters that require composite indexes
     if (!needsClientSideSort) {
       q = query(q, orderBy('date', 'desc'))
@@ -217,12 +233,12 @@ export const orderService = {
 
     querySnapshot.forEach((doc) => {
       const data = doc.data()
-      
+
       // Convert Timestamp objects to ISO strings
       const orderData: any = {
         id: doc.id,
       }
-      
+
       // Process each field, converting Timestamps to strings
       const dataObj = data as Record<string, any>
       for (const key in dataObj) {
@@ -243,12 +259,17 @@ export const orderService = {
           }
         }
       }
-      
+
       // Ensure partialPayments is an array if it exists
       if (orderData.partialPayments && !Array.isArray(orderData.partialPayments)) {
         orderData.partialPayments = []
       }
-      
+
+      // Ensure customerPayments is an array if it exists
+      if (orderData.customerPayments && !Array.isArray(orderData.customerPayments)) {
+        orderData.customerPayments = []
+      }
+
       orders.push(orderData as Order)
     })
 
@@ -291,16 +312,16 @@ export const orderService = {
     if (!order) {
       throw new Error('Order not found')
     }
-    
+
     // Calculate expense amount (originalTotal only - raw material cost)
     const expenseAmount = Number(order.originalTotal || 0)
-    
+
     // Get existing partial payments
     const existingPayments = order.partialPayments || []
-    
+
     // Calculate current total from existing payments
     const currentTotal = existingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-    
+
     // Check if order is already paid (within 250 of original total)
     // Allow adding payments to paid orders if markAsPaid is true, otherwise warn (but don't block)
     const isPaid = isOrderPaid(order)
@@ -309,30 +330,30 @@ export const orderService = {
       // The UI should have already shown a confirmation dialog
       console.warn(`⚠️ Adding payment to already paid order. Current total: ${currentTotal}, Original: ${expenseAmount}`)
     }
-    
+
     // Calculate remaining amount
     const remainingAmount = expenseAmount - currentTotal
     const tolerance = 250 // Orders are considered paid if within 250 of original total
-    
+
     if (paymentAmount <= 0) {
       throw new Error('Payment amount must be greater than 0')
     }
-    
+
     // Check for ledger payments on this order
     const ledgerPayments = existingPayments.filter(p => p.ledgerEntryId)
     const hasLedgerPayments = ledgerPayments.length > 0
     const ledgerPaymentsTotal = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-    
+
     // Calculate new total if this payment is added
     const newTotalPaid = currentTotal + paymentAmount
-    
+
     // Warn if overpayment would occur (but allow it if markAsPaid is true)
     // The UI should have already shown a confirmation dialog, so we just log here
     if (newTotalPaid > expenseAmount && !markAsPaid) {
       const overpaymentAmount = newTotalPaid - expenseAmount
       console.warn(`⚠️ Overpayment detected: ${overpaymentAmount} over original total. Total: ${newTotalPaid}, Original: ${expenseAmount}${hasLedgerPayments ? `, Ledger payments: ${ledgerPaymentsTotal}` : ''}`)
     }
-    
+
     // Add new payment record
     const paymentDate = new Date().toISOString()
     const newPayment: PaymentRecord = {
@@ -342,12 +363,22 @@ export const orderService = {
       note: note || undefined,
     }
     const updatedPayments = [...existingPayments, newPayment]
-    
+
     // Prepare update data
+    const isFullyPaid = newTotalPaid >= (expenseAmount - 250)
+
     const updateData: any = {
       partialPayments: updatedPayments,
+      paid: isFullyPaid,
+      paymentDue: !isFullyPaid,
+      updatedAt: new Date().toISOString(),
     }
-    
+    if (isFullyPaid) {
+      updateData.paidAmount = deleteField()
+    } else {
+      updateData.paidAmount = newTotalPaid
+    }
+
     await this.updateOrder(id, updateData)
   },
 
@@ -358,37 +389,37 @@ export const orderService = {
     if (!db) {
       throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
     }
-    
+
     const order = await this.getOrderById(id)
     if (!order) {
       throw new Error('Order not found')
     }
-    
+
     const existingPayments = order.partialPayments || []
     const paymentIndex = existingPayments.findIndex(p => p.id === paymentId)
-    
+
     if (paymentIndex === -1) {
       throw new Error('Payment record not found')
     }
-    
+
     const paymentToUpdate = existingPayments[paymentIndex]
     const oldAmount = paymentToUpdate.amount
-    
+
     // Validate amount doesn't exceed original total
     const expenseAmount = Number(order.originalTotal || 0)
     const newAmount = updates.amount !== undefined ? updates.amount : paymentToUpdate.amount
-    
+
     // Calculate total from other payments (excluding the one being updated)
     const otherPaymentsTotal = existingPayments
       .filter((_, idx) => idx !== paymentIndex)
       .reduce((sum, p) => sum + p.amount, 0)
-    
+
     // Allow payments up to original total (with tolerance for "paid" status handled by isOrderPaid)
     if (otherPaymentsTotal + newAmount > expenseAmount) {
       const { formatIndianCurrency } = await import('./currencyUtils')
       throw new Error(`Total payments cannot exceed original total of ${formatIndianCurrency(expenseAmount)}`)
     }
-    
+
     // Update the payment record (preserve ledgerEntryId if provided)
     const updatedPayment: PaymentRecord = {
       ...paymentToUpdate,
@@ -396,16 +427,16 @@ export const orderService = {
       date: updates.date || paymentToUpdate.date,
       ...(preserveLedgerEntryId ? { ledgerEntryId: preserveLedgerEntryId } : {}),
     }
-    
+
     const updatedPayments = [...existingPayments]
     updatedPayments[paymentIndex] = updatedPayment
-    
+
     // Calculate total paid amount from all payments
     const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
-    
-    // Calculate expense amount to check if still fully paid
-    const isFullyPaid = totalPaid >= expenseAmount
-    
+
+    // Calculate expense amount to check if still fully paid (with 250 tolerance)
+    const isFullyPaid = totalPaid >= (expenseAmount - 250)
+
     try {
       const orderRef = doc(db, ORDERS_COLLECTION, id)
       const updateData: any = {
@@ -414,17 +445,17 @@ export const orderService = {
         updatedAt: new Date().toISOString(),
         partialPayments: updatedPayments,
       }
-      
+
       if (isFullyPaid) {
         updateData.paidAmount = deleteField()
       } else {
         updateData.paidAmount = totalPaid
       }
-      
+
       await updateDoc(orderRef, updateData)
-      
+
       // Note: No automatic ledger entry creation - user must manually create ledger entries if needed
-      
+
       console.log('Payment updated successfully:', paymentId)
     } catch (error: any) {
       console.error('Firestore error updating payment:', error)
@@ -441,38 +472,38 @@ export const orderService = {
     if (!db) {
       throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
     }
-    
+
     const order = await this.getOrderById(id)
     if (!order) {
       throw new Error('Order not found')
     }
-    
+
     const existingPayments = order.partialPayments || []
     const paymentToRemove = existingPayments.find(p => p.id === paymentId)
-    
+
     if (!paymentToRemove) {
       throw new Error('Payment record not found')
     }
-    
+
     const updatedPayments = existingPayments.filter(p => p.id !== paymentId)
-    
+
     try {
       const orderRef = doc(db, ORDERS_COLLECTION, id)
       const updateData: any = {
         updatedAt: new Date().toISOString(),
       }
-      
+
       if (updatedPayments.length > 0) {
         updateData.partialPayments = updatedPayments
       } else {
         // Remove field if no payments remain
         updateData.partialPayments = deleteField()
       }
-      
+
       await updateDoc(orderRef, updateData)
-      
+
       // Note: No automatic ledger entry creation - user must manually create ledger entries if needed
-      
+
       console.log('Payment removed successfully:', paymentId)
     } catch (error: any) {
       console.error('Firestore error removing payment:', error)
@@ -480,6 +511,165 @@ export const orderService = {
         throw new Error('Permission denied. Please check your Firestore security rules.')
       }
       throw new Error(`Failed to remove payment: ${error.message || 'Unknown error'}`)
+    }
+  },
+
+  // Add customer payment to an order
+  async addCustomerPayment(id: string, paymentAmount: number, note?: string): Promise<void> {
+    const order = await this.getOrderById(id)
+    if (!order) {
+      throw new Error('Order not found')
+    }
+
+    // Calculate selling amount (total - what customer should pay)
+    const sellingAmount = Number(order.total || 0)
+
+    // Get existing customer payments
+    const existingPayments = order.customerPayments || []
+
+    // Calculate current total from existing payments
+    const currentTotal = existingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+
+    if (paymentAmount <= 0) {
+      throw new Error('Payment amount must be greater than 0')
+    }
+
+    // Calculate new total if this payment is added
+    const newTotalPaid = currentTotal + paymentAmount
+
+    // Warn if overpayment would occur
+    if (newTotalPaid > sellingAmount) {
+      const overpaymentAmount = newTotalPaid - sellingAmount
+      console.warn(`⚠️ Customer overpayment detected: ${overpaymentAmount} over selling total. Total: ${newTotalPaid}, Selling: ${sellingAmount}`)
+    }
+
+    // Add new payment record
+    const paymentDate = new Date().toISOString()
+    const newPayment: PaymentRecord = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      amount: paymentAmount,
+      date: paymentDate,
+      note: note || undefined,
+    }
+    const updatedPayments = [...existingPayments, newPayment]
+
+    // Prepare update data
+    const updateData: any = {
+      customerPayments: updatedPayments,
+    }
+
+    await this.updateOrder(id, updateData)
+  },
+
+  // Update a specific customer payment record
+  async updateCustomerPayment(id: string, paymentId: string, updates: { amount?: number; date?: string }, preserveLedgerEntryId?: string): Promise<void> {
+    const db = getDb()
+    if (!db) {
+      throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
+    }
+
+    const order = await this.getOrderById(id)
+    if (!order) {
+      throw new Error('Order not found')
+    }
+
+    const existingPayments = order.customerPayments || []
+    const paymentIndex = existingPayments.findIndex(p => p.id === paymentId)
+
+    if (paymentIndex === -1) {
+      throw new Error('Payment record not found')
+    }
+
+    const paymentToUpdate = existingPayments[paymentIndex]
+
+    // Validate amount doesn't exceed selling total
+    const sellingAmount = Number(order.total || 0)
+    const newAmount = updates.amount !== undefined ? updates.amount : paymentToUpdate.amount
+
+    // Calculate total from other payments (excluding the one being updated)
+    const otherPaymentsTotal = existingPayments
+      .filter((_, idx) => idx !== paymentIndex)
+      .reduce((sum, p) => sum + p.amount, 0)
+
+    // Allow payments up to selling total (with tolerance for "paid" status handled by isCustomerPaid)
+    if (otherPaymentsTotal + newAmount > sellingAmount) {
+      const { formatIndianCurrency } = await import('./currencyUtils')
+      throw new Error(`Total customer payments cannot exceed selling total of ${formatIndianCurrency(sellingAmount)}`)
+    }
+
+    // Update the payment record (preserve ledgerEntryId if provided)
+    const updatedPayment: PaymentRecord = {
+      ...paymentToUpdate,
+      amount: newAmount,
+      date: updates.date || paymentToUpdate.date,
+      ...(preserveLedgerEntryId ? { ledgerEntryId: preserveLedgerEntryId } : {}),
+    }
+
+    const updatedPayments = [...existingPayments]
+    updatedPayments[paymentIndex] = updatedPayment
+
+    try {
+      const orderRef = doc(db, ORDERS_COLLECTION, id)
+      const updateData: any = {
+        updatedAt: new Date().toISOString(),
+        customerPayments: updatedPayments,
+      }
+
+      await updateDoc(orderRef, updateData)
+
+      console.log('Customer payment updated successfully:', paymentId)
+    } catch (error: any) {
+      console.error('Firestore error updating customer payment:', error)
+      if (error.code === 'permission-denied') {
+        throw new Error('Permission denied. Please check your Firestore security rules.')
+      }
+      throw new Error(`Failed to update customer payment: ${error.message || 'Unknown error'}`)
+    }
+  },
+
+  // Remove a specific customer payment record
+  async removeCustomerPayment(id: string, paymentId: string): Promise<void> {
+    const db = getDb()
+    if (!db) {
+      throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
+    }
+
+    const order = await this.getOrderById(id)
+    if (!order) {
+      throw new Error('Order not found')
+    }
+
+    const existingPayments = order.customerPayments || []
+    const paymentToRemove = existingPayments.find(p => p.id === paymentId)
+
+    if (!paymentToRemove) {
+      throw new Error('Payment record not found')
+    }
+
+    const updatedPayments = existingPayments.filter(p => p.id !== paymentId)
+
+    try {
+      const orderRef = doc(db, ORDERS_COLLECTION, id)
+      const updateData: any = {
+        updatedAt: new Date().toISOString(),
+      }
+
+      if (updatedPayments.length > 0) {
+        updateData.customerPayments = updatedPayments
+      } else {
+        // Remove field if no payments remain
+        updateData.customerPayments = deleteField()
+      }
+
+      await updateDoc(orderRef, updateData)
+
+      console.log('Customer payment removed successfully:', paymentId)
+    } catch (error: any) {
+      console.error('Firestore error removing customer payment:', error)
+      if (error.code === 'permission-denied') {
+        throw new Error('Permission denied. Please check your Firestore security rules.')
+      }
+      throw new Error(`Failed to remove customer payment: ${error.message || 'Unknown error'}`)
     }
   },
 
@@ -494,14 +684,14 @@ export const orderService = {
       const q = query(collection(db, ORDERS_COLLECTION))
       const querySnapshot = await getDocs(q)
       const partyNames = new Set<string>()
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         if (data.partyName && typeof data.partyName === 'string') {
           partyNames.add(data.partyName.trim())
         }
       })
-      
+
       return Array.from(partyNames).sort()
     } catch (error: any) {
       console.error('Error fetching party names:', error)
@@ -520,14 +710,14 @@ export const orderService = {
       const q = query(collection(db, ORDERS_COLLECTION))
       const querySnapshot = await getDocs(q)
       const truckOwners = new Set<string>()
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         if (data.truckOwner && typeof data.truckOwner === 'string') {
           truckOwners.add(data.truckOwner.trim())
         }
       })
-      
+
       return Array.from(truckOwners).sort()
     } catch (error: any) {
       console.error('Error fetching truck owners:', error)
@@ -546,14 +736,14 @@ export const orderService = {
       const q = query(collection(db, ORDERS_COLLECTION))
       const querySnapshot = await getDocs(q)
       const truckNumbers = new Set<string>()
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         if (data.truckNo && typeof data.truckNo === 'string') {
           truckNumbers.add(data.truckNo.trim())
         }
       })
-      
+
       return Array.from(truckNumbers).sort()
     } catch (error: any) {
       console.error('Error fetching truck numbers:', error)
@@ -572,14 +762,14 @@ export const orderService = {
       const q = query(collection(db, ORDERS_COLLECTION))
       const querySnapshot = await getDocs(q)
       const siteNames = new Set<string>()
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         if (data.siteName && typeof data.siteName === 'string') {
           siteNames.add(data.siteName.trim())
         }
       })
-      
+
       return Array.from(siteNames).sort()
     } catch (error: any) {
       console.error('Error fetching site names:', error)
@@ -598,14 +788,14 @@ export const orderService = {
       const q = query(collection(db, ORDERS_COLLECTION))
       const querySnapshot = await getDocs(q)
       const suppliers = new Set<string>()
-      
+
       querySnapshot.forEach((doc) => {
         const data = doc.data()
         if (data.supplier && typeof data.supplier === 'string') {
           suppliers.add(data.supplier.trim())
         }
       })
-      
+
       return Array.from(suppliers).sort()
     } catch (error: any) {
       console.error('Error fetching suppliers:', error)
@@ -613,4 +803,3 @@ export const orderService = {
     }
   },
 }
-
