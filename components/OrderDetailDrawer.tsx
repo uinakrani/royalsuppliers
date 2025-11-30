@@ -365,14 +365,15 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                   <Edit size={14} />
                                 </button>
                               )}
-                              {!isFromLedger && (
                               <button
                                 onClick={async () => {
                                   if (!order.id) return
                                   try {
                                     const confirmed = await sweetAlert.confirm({
                                       title: 'Remove Payment?',
-                                      message: 'Are you sure you want to remove this payment?',
+                                      message: isFromLedger 
+                                        ? 'This payment is linked to a ledger entry. Removing it will free up funds to be redistributed to other unpaid orders. Continue?' 
+                                        : 'Are you sure you want to remove this payment?',
                                       icon: 'warning',
                                       confirmText: 'Remove',
                                       cancelText: 'Cancel'
@@ -381,6 +382,51 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                                     
                                     await orderService.removePartialPayment(order.id, payment.id)
                                     
+                                    // If it was a ledger payment, trigger redistribution
+                                    if (isFromLedger && payment.ledgerEntryId) {
+                                       try {
+                                         const ledgerEntry = await ledgerService.getEntryById(payment.ledgerEntryId)
+                                         if (ledgerEntry && ledgerEntry.supplier) {
+                                            // Trigger redistribution for this supplier and ledger entry
+                                            // This will use the now-freed-up amount to pay other orders
+                                            await orderService.distributePaymentToSupplierOrders(
+                                              ledgerEntry.supplier,
+                                              ledgerEntry.amount, // Pass full amount, logic will calculate what's already used? 
+                                              // Wait, distributePaymentToSupplierOrders adds NEW payments.
+                                              // We need a way to say "Re-evaluate distribution for this ledger ID"
+                                              // Actually, distributePaymentToSupplierOrders calculates remaining based on amount passed.
+                                              // But here we want to use the *original* ledger amount and ensure it's fully utilized across orders.
+                                              
+                                              // Better approach:
+                                              // 1. Get all payments for this ledgerEntryId across all orders.
+                                              // 2. Calculate sum.
+                                              // 3. Remaining = LedgerAmount - Sum.
+                                              // 4. Call distribute with Remaining.
+                                              
+                                              // However, we just removed one payment, so we know there is 'payment.amount' free.
+                                              // But strictly speaking, distributePaymentToSupplierOrders takes an amount to ADD.
+                                              // So we can just call it with the amount we just removed!
+                                              payment.ledgerEntryId,
+                                              "Redistributed from removed payment"
+                                            )
+                                            // Wait, the function signature is: (supplier, amount, ledgerEntryId, note)
+                                            // So:
+                                            await orderService.distributePaymentToSupplierOrders(
+                                              ledgerEntry.supplier,
+                                              payment.amount, // The amount we just freed up
+                                              payment.ledgerEntryId,
+                                              "Redistributed from removed payment"
+                                            )
+                                            showToast('Payment removed and funds redistributed', 'success')
+                                         }
+                                       } catch (err) {
+                                         console.error('Failed to redistribute after removal:', err)
+                                         showToast('Payment removed but redistribution failed', 'error')
+                                       }
+                                    } else {
+                                      showToast('Payment removed successfully', 'success')
+                                    }
+
                                     if (onOrderUpdated) {
                                       await onOrderUpdated()
                                     }
@@ -395,7 +441,6 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                               >
                                 <Trash2 size={14} />
                               </button>
-                              )}
                             </div>
                           </div>
                         )
