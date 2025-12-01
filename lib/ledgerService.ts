@@ -328,7 +328,7 @@ export const ledgerService = {
     }
   },
 
-  async update(id: string, updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string }): Promise<void> {
+  async update(id: string, updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string }, options: { fromOrder?: boolean } = {}): Promise<void> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
     
@@ -376,6 +376,19 @@ export const ledgerService = {
     }
     
     await updateDoc(entryRef, updateData)
+
+    // Sync changes back to order payment if not initiated from order
+    if (!options.fromOrder) {
+      try {
+        await orderService.updatePaymentByLedgerEntryId(id, {
+          amount: updates.amount,
+          date: updateData.date, // Use normalized date
+          // Note: We don't sync note back to payment currently as payment note is often different or specific
+        })
+      } catch (error) {
+        console.error('Failed to sync ledger update to order payment:', error)
+      }
+    }
     
     // Log activity - always try to log even if oldEntry fetch failed
     // Always log updates (even if no changes detected, in case the comparison logic has issues)

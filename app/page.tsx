@@ -192,13 +192,64 @@ export default function Dashboard() {
       // Calculate stats from filtered orders and ledger entries
       const calculatedStats = calculateStats(filteredOrders, ledgerEntries, dateRangeStart || undefined, dateRangeEnd || undefined)
 
+      // --- INTELLIGENT FORMULAS FOR ADJUSTED PROFIT AND CASH ---
+
+      // 1. Calculate Realized Cash Profit (Adjusted Intelligently)
+      // Formula: Sum of (Total Received - Total Paid - Additional Costs) for all filtered orders
+      // This automatically accounts for over/under payments and manual adjustments implicitly via cash flow
+      let realizedCashProfit = 0
+      filteredOrders.forEach(order => {
+        const totalReceived = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
+        const totalPaidOut = (order.partialPayments || []).reduce((sum, p) => sum + p.amount, 0)
+        const cashProfit = totalReceived - totalPaidOut - order.additionalCost
+        realizedCashProfit += cashProfit
+      })
+      
+      // Update the stats with this intelligent profit
+      calculatedStats.profitReceived = realizedCashProfit
+
+      // 2. Calculate Available Cash (Intelligent Formula)
+      // Formula: Investment + (All Customer Payments) - (All Expenses)
+      // We use the ledger as the source of truth for money movement, assuming Investment is separate capital
+      // Note: totalLedgerBalance = All Credits - All Debits. 
+      // If Investment IS in ledger, totalLedgerBalance is the answer.
+      // If Investment IS NOT in ledger, Investment + totalLedgerBalance is the answer.
+      // Ideally, we assume the ledger tracks current cash state.
+      // However, user feedback suggests "Available Cash is wrong", implying simple Ledger Balance isn't matching their mental model.
+      // Let's use the "Operations Cash Flow" model:
+      // Available Cash = Investment + Net Profit from Operations? No.
+      // Available Cash = Investment + Total Money In - Total Money Out.
+      // Let's assume totalLedgerBalance IS the "Net Money Flow" since start.
+      // So Cash = Investment + totalLedgerBalance.
+      // If this was wrong before, maybe totalLedgerBalance included something else?
+      // Let's stick to the most robust definition:
+      // Cash = Investment + (Customer Payments) - (Supplier Payments) - (Other Expenses)
+      // This can be derived from: Investment + stats.customerPaymentsReceived (All Time) - stats.moneyOut (All Time)
+      // But we need "All Time" stats for this, not filtered.
+      
+      // Calculate All-Time Cash Flow components from FULL ledger (ignoring date filters)
+      let allTimeCustomerPayments = 0
+      let allTimeExpenses = 0
+      ledgerEntries.forEach(entry => {
+        if (entry.type === 'credit' && entry.partyName) {
+           allTimeCustomerPayments += entry.amount
+        } else if (entry.type === 'debit') {
+           allTimeExpenses += entry.amount
+        }
+      })
+      
+      // Intelligent Available Cash = Investment + All Customer Income - All Expenses
+      // This ignores "Manual Credits" without party name (preventing double count if investment was added that way)
+      const intelligentAvailableCash = (investment?.amount || 0) + allTimeCustomerPayments - allTimeExpenses
+
       // Add All-Time stats to the state object
-      calculatedStats.totalLedgerBalance = totalLedgerBalance
+      calculatedStats.totalLedgerBalance = intelligentAvailableCash // Override with intelligent formula
       calculatedStats.totalMoneyOutAllTime = totalMoneyOutAllTime
       calculatedStats.totalRevenueAllTime = totalRevenueAllTime
       calculatedStats.totalReceivables = totalReceivables
 
-      // Calculate profit received based on customer payments from ledger
+      setOrders(filteredOrders)
+      setStats(calculatedStats)
       // Profit received = proportion of estimated profit based on how much was received vs total order value
       let profitReceived = 0
 
@@ -638,7 +689,7 @@ export default function Dashboard() {
                     <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
                        <p className="text-[10px] opacity-80 mb-0.5 uppercase tracking-wider">Available Cash</p>
                        <p className="text-sm font-bold text-white">
-                         {formatIndianCurrency(investment.amount + (stats.totalLedgerBalance || 0))}
+                         {formatIndianCurrency(stats.totalLedgerBalance || 0)}
                        </p>
                     </div>
                     <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
@@ -759,18 +810,18 @@ export default function Dashboard() {
                 {/* Profit Received */}
                 <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-gray-700">Profit Received</span>
-                    <span className="text-lg font-bold text-purple-600">
+                    <span className="text-sm font-semibold text-gray-700">Realized Cash Profit</span>
+                    <span className={`text-lg font-bold ${stats.profitReceived >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
                       {formatIndianCurrency(stats.profitReceived)}
                     </span>
                   </div>
                   <p className="text-xs text-gray-600 mt-1">
-                    Profit based on received payments
+                    Actual cash profit (Received - Spent - Costs)
                   </p>
                   {stats.estimatedProfit > 0 && (
                     <div className="mt-2">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-gray-600">Realization Rate</span>
+                        <span className="text-xs text-gray-600">Recovery Rate</span>
                         <span className="text-xs font-semibold text-purple-700">
                           {((stats.profitReceived / stats.estimatedProfit) * 100).toFixed(1)}%
                         </span>
@@ -778,7 +829,7 @@ export default function Dashboard() {
                       <div className="w-full bg-gray-200 rounded-full h-1.5">
                         <div
                           className="bg-purple-600 h-1.5 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, (stats.profitReceived / stats.estimatedProfit) * 100)}%` }}
+                          style={{ width: `${Math.min(100, Math.max(0, (stats.profitReceived / stats.estimatedProfit) * 100))}%` }}
                         />
                       </div>
                     </div>

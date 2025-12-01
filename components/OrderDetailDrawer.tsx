@@ -355,16 +355,14 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 ml-2">
-                              {!isFromLedger && (
-                                <button
-                                  onClick={() => setEditingPayment({ order, paymentId: payment.id })}
-                                  className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
-                                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                                  title="Edit payment"
-                                >
-                                  <Edit size={14} />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => setEditingPayment({ order, paymentId: payment.id })}
+                                className="p-1 bg-blue-50 text-blue-600 rounded active:bg-blue-100 transition-colors touch-manipulation"
+                                style={{ WebkitTapHighlightColor: 'transparent' }}
+                                title="Edit payment"
+                              >
+                                <Edit size={14} />
+                              </button>
                               <button
                                 onClick={async () => {
                                   if (!order.id) return

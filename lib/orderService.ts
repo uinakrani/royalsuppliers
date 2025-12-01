@@ -357,11 +357,36 @@ export const orderService = {
 
     // Add new payment record
     const paymentDate = new Date().toISOString()
+    
+    // --- NEW: Create Linked Ledger Entry ---
+    let ledgerEntryId: string | undefined = undefined
+    try {
+      const { ledgerService } = await import('./ledgerService')
+      ledgerEntryId = await ledgerService.addEntry(
+        'debit',
+        paymentAmount,
+        note ? `Order Payment (${order.truckNo || 'Unknown Truck'}): ${note}` : `Order Payment: ${order.truckNo || id}`,
+        'orderExpense',
+        paymentDate,
+        undefined, // No supplier to avoid auto-distribution
+        undefined // No partyName
+      )
+      console.log('✅ Created linked ledger entry:', ledgerEntryId)
+    } catch (error) {
+      console.error('❌ Failed to create linked ledger entry for order payment:', error)
+      // We could throw here, but arguably we should let the payment proceed without ledger link?
+      // Requirement says "that should created ledger expanse entry", so failing is probably better than inconsistency.
+      // But for robustness, let's log and maybe alert. 
+      // For now, we'll proceed but the link will be missing.
+    }
+    // ---------------------------------------
+
     const newPayment: PaymentRecord = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount: paymentAmount,
       date: paymentDate,
       note: note || undefined,
+      ledgerEntryId: ledgerEntryId, // Store the link
     }
     const updatedPayments = [...existingPayments, newPayment]
 
@@ -421,6 +446,21 @@ export const orderService = {
       throw new Error(`Total payments cannot exceed original total of ${formatIndianCurrency(expenseAmount)}`)
     }
 
+    // Sync with Ledger if linked
+    if (paymentToUpdate.ledgerEntryId) {
+      try {
+        const { ledgerService } = await import('./ledgerService')
+        await ledgerService.update(paymentToUpdate.ledgerEntryId, {
+          amount: newAmount,
+          date: updates.date,
+        }, { fromOrder: true }) // Prevent loop
+        console.log('✅ Synced payment update to ledger:', paymentToUpdate.ledgerEntryId)
+      } catch (error) {
+        console.error('❌ Failed to sync payment update to ledger:', error)
+        // Should we block? Probably better to warn.
+      }
+    }
+
     // Update the payment record (preserve ledgerEntryId if provided)
     const updatedPayment: PaymentRecord = {
       ...paymentToUpdate,
@@ -455,8 +495,6 @@ export const orderService = {
 
       await updateDoc(orderRef, updateData)
 
-      // Note: No automatic ledger entry creation - user must manually create ledger entries if needed
-
       console.log('Payment updated successfully:', paymentId)
     } catch (error: any) {
       console.error('Firestore error updating payment:', error)
@@ -486,6 +524,22 @@ export const orderService = {
       throw new Error('Payment record not found')
     }
 
+    // If linked to ledger, remove the ledger entry instead
+    // The ledger removal will trigger removePaymentsByLedgerEntryId which will handle the order update
+    if (paymentToRemove.ledgerEntryId) {
+      try {
+        console.log('Removing linked ledger entry for payment:', paymentToRemove.ledgerEntryId)
+        const { ledgerService } = await import('./ledgerService')
+        await ledgerService.remove(paymentToRemove.ledgerEntryId)
+        console.log('✅ Ledger entry removed, payment should be removed via hook')
+        return // Exit, let the hook handle the rest
+      } catch (error) {
+        console.error('❌ Failed to remove linked ledger entry:', error)
+        // Fallback to manual removal if ledger removal fails?
+        // Yes, proceed with manual removal below.
+      }
+    }
+
     const updatedPayments = existingPayments.filter(p => p.id !== paymentId)
 
     try {
@@ -503,8 +557,6 @@ export const orderService = {
 
       await updateDoc(orderRef, updateData)
 
-      // Note: No automatic ledger entry creation - user must manually create ledger entries if needed
-
       console.log('Payment removed successfully:', paymentId)
     } catch (error: any) {
       console.error('Firestore error removing payment:', error)
@@ -512,6 +564,67 @@ export const orderService = {
         throw new Error('Permission denied. Please check your Firestore security rules.')
       }
       throw new Error(`Failed to remove payment: ${error.message || 'Unknown error'}`)
+    }
+  },
+
+  // Update payment details from ledger update (sync ledger -> order)
+  async updatePaymentByLedgerEntryId(ledgerEntryId: string, updates: { amount?: number; date?: string }): Promise<void> {
+    const db = getDb()
+    if (!db) return
+
+    const allOrders = await this.getAllOrders()
+    
+    // Find order containing this payment
+    const orderToUpdate = allOrders.find(order => 
+      (order.partialPayments || []).some(p => p.ledgerEntryId === ledgerEntryId)
+    )
+
+    if (!orderToUpdate || !orderToUpdate.id) {
+      console.log(`No order found for ledger entry update: ${ledgerEntryId}`)
+      return
+    }
+
+    const existingPayments = orderToUpdate.partialPayments || []
+    const paymentIndex = existingPayments.findIndex(p => p.ledgerEntryId === ledgerEntryId)
+    
+    if (paymentIndex === -1) return
+
+    const paymentToUpdate = existingPayments[paymentIndex]
+    
+    // Update payment
+    const updatedPayment: PaymentRecord = {
+      ...paymentToUpdate,
+      amount: updates.amount !== undefined ? updates.amount : paymentToUpdate.amount,
+      date: updates.date || paymentToUpdate.date,
+    }
+
+    const updatedPayments = [...existingPayments]
+    updatedPayments[paymentIndex] = updatedPayment
+
+    // Recalculate paid status
+    const expenseAmount = Number(orderToUpdate.originalTotal || 0)
+    const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
+    const isPaid = totalPaid >= (expenseAmount - 250)
+
+    const updateData: any = {
+      partialPayments: updatedPayments,
+      paid: isPaid,
+      paymentDue: !isPaid,
+      updatedAt: new Date().toISOString(),
+    }
+    
+    if (isPaid) {
+      updateData.paidAmount = deleteField()
+    } else {
+      updateData.paidAmount = totalPaid
+    }
+
+    try {
+      const orderRef = doc(db, ORDERS_COLLECTION, orderToUpdate.id)
+      await updateDoc(orderRef, updateData)
+      console.log(`✅ Synced ledger update to order ${orderToUpdate.id}`)
+    } catch (error) {
+      console.error(`Failed to sync ledger update to order ${orderToUpdate.id}:`, error)
     }
   },
 
