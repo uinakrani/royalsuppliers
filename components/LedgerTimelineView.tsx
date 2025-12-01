@@ -3,9 +3,11 @@ import { format } from 'date-fns';
 import { LedgerEntry } from '@/lib/ledgerService';
 import { formatIndianCurrency } from '@/lib/currencyUtils';
 import { ArrowDownRight, ArrowUpRight, Wallet } from 'lucide-react';
+import { InvestmentRecord } from '@/lib/investmentService';
 
 interface LedgerTimelineViewProps {
   entries: LedgerEntry[];
+  investment: InvestmentRecord | null;
 }
 
 interface DailyGroup {
@@ -17,11 +19,36 @@ interface DailyGroup {
   totalExpense: number;
 }
 
-export default function LedgerTimelineView({ entries }: LedgerTimelineViewProps) {
+export default function LedgerTimelineView({ entries, investment }: LedgerTimelineViewProps) {
   // Group entries by date and calculate daily stats
   const dailyGroups = useMemo(() => {
+    // Create a copy of entries to sort
+    const sortedEntries: LedgerEntry[] = [...entries];
+    
+    // If investment exists, add it as a synthetic entry
+    if (investment) {
+      // Ensure investment date is properly formatted
+      let investmentDate = investment.date;
+      if (!investmentDate.includes('T')) {
+        investmentDate = investmentDate + 'T00:00:00.000Z';
+      }
+      
+      // Only add if it doesn't duplicate an existing entry (basic check)
+      // Though investment is usually separate from ledger entries
+      sortedEntries.push({
+        id: 'investment-capital',
+        type: 'credit',
+        amount: investment.amount,
+        date: investmentDate,
+        note: investment.note || 'Initial Capital Investment',
+        source: 'manual',
+        // Use a special marker or party name to identify it
+        partyName: 'Investment Capital'
+      });
+    }
+
     // Sort entries by date ascending first to calculate running balance correctly
-    const sortedEntries = [...entries].sort((a, b) => {
+    sortedEntries.sort((a, b) => {
       const aTime = new Date(a.date).getTime();
       const bTime = new Date(b.date).getTime();
       return aTime - bTime;
@@ -53,9 +80,13 @@ export default function LedgerTimelineView({ entries }: LedgerTimelineViewProps)
     return dates.map(date => {
       const dayEntries = groups[date];
       // Sort entries within day by creation time descending (newest first)
+      // For investment, treat it as oldest in the day if multiple entries exist
       dayEntries.sort((a, b) => {
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (a.id === 'investment-capital') return 1; // Move to bottom (oldest)
+        if (b.id === 'investment-capital') return -1;
+        
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.date).getTime();
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.date).getTime();
         return bTime - aTime;
       });
 
@@ -83,13 +114,24 @@ export default function LedgerTimelineView({ entries }: LedgerTimelineViewProps)
         totalExpense: dayExpense
       } as DailyGroup;
     });
-  }, [entries]);
+  }, [entries, investment]);
 
   const renderTransactionNarrative = (entry: LedgerEntry) => {
     const isIncome = entry.type === 'credit';
     const amount = formatIndianCurrency(entry.amount);
     const party = isIncome ? entry.partyName : entry.supplier;
     const note = entry.note ? `(${entry.note})` : '';
+    const isInvestment = entry.id === 'investment-capital';
+    
+    if (isInvestment) {
+      return (
+        <span className="text-sm text-gray-700">
+          <span className="font-bold text-amber-600">Investment Capital</span> added
+          <span className="font-bold text-green-700 ml-1">{amount}</span>
+          {note && <span className="text-gray-500 text-xs ml-1">{note}</span>}
+        </span>
+      );
+    }
     
     if (isIncome) {
       return (

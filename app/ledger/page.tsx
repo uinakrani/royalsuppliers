@@ -55,8 +55,9 @@ export default function LedgerPage() {
   const [investmentMode, setInvestmentMode] = useState<'add' | 'reduce' | 'set'>('add')
 
   const balance = useMemo(() => {
-    return entries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
-  }, [entries])
+    const ledgerBalance = entries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
+    return (investment?.amount || 0) + ledgerBalance
+  }, [entries, investment])
 
   // Separate income (credit) and expenses (debit)
   // Sort by creation time (most recent first) - use createdAt, then date as fallback
@@ -1350,7 +1351,7 @@ export default function LedgerPage() {
                 <TruckLoading size={100} />
               </div>
             ) : (
-              <LedgerTimelineView entries={entries} />
+              <LedgerTimelineView entries={entries} investment={investment} />
             )}
           </div>
         ) : activeTab === 'investment' ? (
