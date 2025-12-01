@@ -337,6 +337,10 @@ export const ledgerService = {
     
     const entryRef = doc(db, LEDGER_COLLECTION, id)
     const updateData: any = {}
+
+    // Force date to be updated to now if any change is made
+    const now = new Date().toISOString()
+    updateData.date = now
     
     if (updates.amount !== undefined) {
       updateData.amount = updates.amount
@@ -350,15 +354,9 @@ export const ledgerService = {
       }
     }
     
-    if (updates.date !== undefined) {
-      let dateValue = updates.date
-      if (dateValue && !dateValue.includes('T')) {
-        // If date is just YYYY-MM-DD, add time component
-        dateValue = new Date(dateValue + 'T00:00:00').toISOString()
-      }
-      updateData.date = dateValue
-    }
-
+    // Note: We ignore updates.date because we force it to now as per requirements
+    // "If any change happens, it should be considered as the change of the day when the change made."
+    
     if (updates.supplier !== undefined) {
       if (updates.supplier && updates.supplier.trim()) {
         updateData.supplier = updates.supplier.trim()
@@ -382,11 +380,24 @@ export const ledgerService = {
       try {
         await orderService.updatePaymentByLedgerEntryId(id, {
           amount: updates.amount,
-          date: updateData.date, // Use normalized date
+          date: updateData.date, // Use the new date (now)
           // Note: We don't sync note back to payment currently as payment note is often different or specific
         })
       } catch (error) {
         console.error('Failed to sync ledger update to order payment:', error)
+      }
+      
+      // Trigger re-distribution if it's a supplier payment
+      const supplier = updateData.supplier !== undefined ? updateData.supplier : oldEntry?.supplier
+      const type = oldEntry?.type
+      
+      if (type === 'debit' && supplier) {
+         try {
+             console.log(`🔄 Triggering redistribution for updated ledger entry ${id}`)
+             await orderService.redistributeSupplierPayment(id, updateData.date)
+         } catch (e) {
+             console.error('Redistribution failed', e)
+         }
       }
     }
     
@@ -400,7 +411,7 @@ export const ledgerService = {
       const newAmount = updates.amount !== undefined ? updates.amount : oldAmount
 
       const oldDate = oldEntry?.date
-      const newDate = updates.date !== undefined ? updateData.date : oldDate
+      const newDate = updateData.date // Always changed to now
 
       const oldSupplier = (oldEntry?.supplier || '').trim() || undefined
       const newSupplier = updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldSupplier
@@ -450,5 +461,3 @@ export const ledgerService = {
     }
   },
 }
-
-

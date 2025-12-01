@@ -15,8 +15,6 @@ import { MATERIAL_OPTIONS } from '@/lib/constants'
 import { sweetAlert } from '@/lib/sweetalert'
 import { showToast } from '@/components/Toast'
 import { ledgerService } from '@/lib/ledgerService'
-import { getDb } from '@/lib/firebase'
-import { updateDoc, doc } from 'firebase/firestore'
 
 interface OrderFormWizardProps {
   order?: Order | null
@@ -931,202 +929,6 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     }
   }
 
-  // Redistribute ledger entry when a payment amount changes
-  const redistributeLedgerEntry = async (ledgerEntryId: string, expenseDate: string) => {
-    try {
-      console.log(`🔄 Redistributing ledger entry ${ledgerEntryId} (date: ${expenseDate})`)
-      
-      // Get the ledger entry
-      const ledgerEntry = await ledgerService.getEntryById(ledgerEntryId)
-      if (!ledgerEntry) {
-        console.warn(`❌ Ledger entry ${ledgerEntryId} not found`)
-        return
-      }
-      if (ledgerEntry.type !== 'debit' || !ledgerEntry.supplier) {
-        console.warn(`❌ Ledger entry is not an expense with supplier (type: ${ledgerEntry.type}, supplier: ${ledgerEntry.supplier})`)
-        return
-      }
-
-      console.log(`📦 Getting orders for supplier: ${ledgerEntry.supplier}`)
-      
-      // Get all orders for this supplier
-      const allOrders = await orderService.getAllOrders({ supplier: ledgerEntry.supplier })
-      
-      console.log(`📦 Found ${allOrders.length} orders for supplier ${ledgerEntry.supplier}`)
-      
-      // Calculate total amount currently allocated to orders from this ledger entry
-      let totalAllocated = 0
-      allOrders.forEach(order => {
-        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
-        const orderAllocated = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-        totalAllocated += orderAllocated
-        if (orderAllocated > 0) {
-          console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): allocated ${orderAllocated} from this ledger entry`)
-        }
-      })
-      
-      console.log(`💰 Total allocated to orders: ${totalAllocated}, Ledger entry amount: ${ledgerEntry.amount}`)
-
-      // NOTE: We do NOT automatically update the ledger entry amount
-      // The ledger entry amount should only be changed manually by the user
-      // We use the original ledger entry amount for redistribution
-
-      // Redistribute using the original ledger entry amount (not the calculated totalAllocated)
-      // This ensures we redistribute the actual ledger entry amount, not what's currently allocated
-      const supplier = ledgerEntry.supplier
-      const ordersWithOutstanding = allOrders
-        .map(order => {
-          const existingPayments = order.partialPayments || []
-          // Exclude payments from this ledger entry
-          const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-          const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-          const originalTotal = Number(order.originalTotal || 0)
-          const remaining = Math.max(0, originalTotal - totalPaid)
-          
-          const tempOrder: Order = {
-            ...order,
-            partialPayments: paymentsExcludingThis
-          }
-          
-          const isPaid = isOrderPaid(tempOrder)
-          
-          return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid }
-        })
-        .filter(({ remaining, isPaid, order }) => {
-          const shouldInclude = remaining > 0 && !isPaid
-          if (!shouldInclude) {
-            console.log(`  ⏭️  Skipping order ${order.id}: remaining=${remaining}, isPaid=${isPaid}`)
-          }
-          return shouldInclude
-        })
-        .sort((a, b) => {
-          const aDate = new Date(a.order.date).getTime()
-          const bDate = new Date(b.order.date).getTime()
-          if (aDate !== bDate) return aDate - bDate
-          const aTime = new Date(a.order.createdAt || a.order.updatedAt || a.order.date).getTime()
-          const bTime = new Date(b.order.createdAt || b.order.updatedAt || b.order.date).getTime()
-          return aTime - bTime
-        })
-
-      console.log(`✅ Found ${ordersWithOutstanding.length} orders with outstanding payments for redistribution`)
-      
-      if (ordersWithOutstanding.length === 0) {
-        console.warn(`⚠️ No orders with outstanding payments for supplier ${supplier}`)
-        return
-      }
-
-      // Preserve existing payments from this ledger entry (they may have been manually edited)
-      // Calculate how much is already allocated to preserve those amounts
-      const preservedPayments: Array<{ orderId: string; payment: PaymentRecord }> = []
-      let preservedAmount = 0
-      
-      allOrders.forEach(order => {
-        if (!order.id) return
-        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
-        ledgerPayments.forEach(payment => {
-          preservedPayments.push({ orderId: order.id!, payment })
-          preservedAmount += Number(payment.amount || 0)
-        })
-      })
-      
-      console.log(`💾 Preserving ${preservedPayments.length} existing payment(s) totaling ${preservedAmount}`)
-      
-      // Calculate remaining amount to redistribute
-      let remainingExpense = ledgerEntry.amount - preservedAmount
-      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
-
-      console.log(`💰 Starting redistribution: ledger entry amount=${ledgerEntry.amount}, preserved=${preservedAmount}, remaining to redistribute=${remainingExpense}`)
-
-      // First, preserve existing payments by adding them to paymentsToAdd
-      const preservedByOrder = new Map<string, PaymentRecord[]>()
-      preservedPayments.forEach(({ orderId, payment }) => {
-        if (!preservedByOrder.has(orderId)) {
-          preservedByOrder.set(orderId, [])
-        }
-        preservedByOrder.get(orderId)!.push(payment)
-      })
-
-      // Distribute remaining expense across orders (oldest first)
-      for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
-        if (remainingExpense <= 0) break
-        
-        if (!order.id) continue
-        
-        // Check if this order has preserved payments
-        const preservedForThisOrder = preservedByOrder.get(order.id) || []
-        const preservedAmountForOrder = preservedForThisOrder.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-        
-        // Calculate remaining capacity for this order (considering preserved payments)
-        const remainingCapacity = Math.max(0, remaining - preservedAmountForOrder)
-        
-        if (remainingCapacity <= 0) {
-          // Order already has preserved payment that fills the remaining amount
-          const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-          const updatedPayments = [...paymentsWithoutThisEntry, ...preservedForThisOrder]
-          paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
-          console.log(`  💾 Preserved payment of ${preservedAmountForOrder} for order ${order.id}`)
-          continue
-        }
-        
-        const paymentAmount = Math.min(remainingExpense, remainingCapacity)
-        
-        let paymentDate = expenseDate
-        if (paymentDate && !paymentDate.includes('T')) {
-          paymentDate = new Date(paymentDate + 'T00:00:00').toISOString()
-        }
-        
-        const payment: PaymentRecord = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          amount: paymentAmount,
-          date: paymentDate,
-          note: `From ledger entry`,
-          ledgerEntryId: ledgerEntryId,
-        }
-        
-        const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-        const updatedPayments = [...paymentsWithoutThisEntry, ...preservedForThisOrder, payment]
-        
-        paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
-        remainingExpense -= paymentAmount
-        
-        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (preserved: ${preservedAmountForOrder}, order remaining: ${remaining - preservedAmountForOrder - paymentAmount}, expense remaining: ${remainingExpense})`)
-      }
-      
-      // Handle orders with preserved payments that weren't in ordersWithOutstanding
-      preservedByOrder.forEach((preserved, orderId) => {
-        if (!paymentsToAdd.find(p => p.orderId === orderId)) {
-          const order = allOrders.find(o => o.id === orderId)
-          if (order) {
-            const existingPayments = order.partialPayments || []
-            const paymentsWithoutThisEntry = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-            const updatedPayments = [...paymentsWithoutThisEntry, ...preserved]
-            paymentsToAdd.push({ orderId, payment: updatedPayments })
-            console.log(`  💾 Preserved payment(s) for order ${orderId} (not in outstanding list)`)
-          }
-        }
-      })
-
-      console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingExpense} remaining undistributed`)
-
-      // Update orders with new payment distributions
-      for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
-        await orderService.updateOrder(orderId, {
-          partialPayments: updatedPayments,
-        })
-        console.log(`  ✅ Updated order ${orderId} with redistributed payment`)
-      }
-      
-      if (remainingExpense > 0) {
-        console.warn(`⚠️ Could not fully redistribute. Remaining undistributed: ${remainingExpense}`)
-      } else {
-        console.log(`✅ Successfully redistributed ledger entry ${ledgerEntryId}`)
-      }
-    } catch (error) {
-      console.error('❌ Error redistributing ledger entry:', error)
-      throw error
-    }
-  }
-
   const handleSubmit = async () => {
     // Validate material
     if (!formData.material || formData.material.length === 0) {
@@ -1388,7 +1190,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           })()}
 
           {/* Step Content */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-32" style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="max-w-2xl mx-auto w-full">
               {renderStep()}
             </div>
@@ -1428,4 +1230,3 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
   if (typeof window === 'undefined') return null
   return createPortal(wizardContent, document.body)
 }
-

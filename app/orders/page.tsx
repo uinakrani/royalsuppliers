@@ -2389,18 +2389,18 @@ export default function OrdersPage() {
                         })()}
                       </div>
 
-                      {/* Actions Column - Compact with view/edit/payment */}
-                      <div className="w-36 px-1 py-1 flex-shrink-0 flex items-center gap-1">
+                      {/* Actions Column - Compact with view/edit */}
+                      <div className="w-36 px-1 py-1 flex-shrink-0 flex items-center gap-2 justify-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             setSelectedOrderDetail(order)
                             setShowOrderDetailDrawer(true)
                           }}
-                          className="p-1.5 text-gray-600 hover:text-primary-600 transition-colors rounded-full hover:bg-primary-50"
+                          className="p-2 text-gray-600 hover:text-primary-600 transition-colors rounded-full hover:bg-primary-50 bg-white border border-gray-200 shadow-sm active:scale-95"
                           title="View"
                         >
-                          <FileText size={16} />
+                          <FileText size={18} />
                         </button>
                         <button
                           onClick={(e) => {
@@ -2408,24 +2408,10 @@ export default function OrdersPage() {
                             setEditingOrder(order)
                             setShowForm(true)
                           }}
-                          className="p-1 text-gray-600 hover:text-primary-600 transition-colors"
+                          className="p-2 text-gray-600 hover:text-primary-600 transition-colors rounded-full hover:bg-primary-50 bg-white border border-gray-200 shadow-sm active:scale-95"
                           title="Edit"
                         >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAddPaymentToOrder(order)
-                          }}
-                          className="flex-1 px-2 py-1 bg-primary-600 text-white text-[9px] font-medium rounded active:bg-primary-700 transition-colors touch-manipulation native-press"
-                          style={{
-                            WebkitTapHighlightColor: 'transparent',
-                            position: 'relative',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          Payment
+                          <Edit size={18} />
                         </button>
                       </div>
                     </div>
