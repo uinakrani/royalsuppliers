@@ -413,42 +413,46 @@ export const ledgerService = {
       } catch (error) {
         console.error('Failed to sync ledger update to order payment:', error)
       }
-      
-      // Trigger re-distribution if it's a supplier payment
-      const supplier = updateData.supplier !== undefined ? updateData.supplier : oldEntry?.supplier
-      const type = oldEntry?.type
-      
-      if (type === 'debit' && supplier) {
-         try {
-             console.log(`🔄 Triggering redistribution for updated ledger entry ${id}`)
-             await orderService.redistributeSupplierPayment(id, updateData.date)
-         } catch (e) {
-             console.error('Redistribution failed', e)
-         }
+    }
+
+    const type = oldEntry?.type
+    const supplier = updateData.supplier !== undefined ? updateData.supplier : oldEntry?.supplier
+
+    if (type === 'debit' && supplier) {
+      try {
+        console.log(`🔄 Triggering redistribution for updated supplier ledger entry ${id}`)
+        await orderService.redistributeSupplierPayment(id, updateData.date)
+      } catch (e) {
+        console.error('Redistribution failed', e)
       }
+    }
 
-      // Trigger re-distribution for party payments on credit updates
-      const partyName = updateData.partyName !== undefined ? updateData.partyName : oldEntry?.partyName
-      if (type === 'credit' && partyName) {
-        try {
-          console.log(`🔄 Triggering redistribution for updated party payment ledger entry ${id}`)
-          // First, reconcile to remove old payments from orders
-           const allLedgerEntries = await this.list();
-           const validLedgerIds = allLedgerEntries.map(e => e.id!).filter(Boolean);
-          await partyPaymentService.reconcilePartyPayments(partyName, validLedgerIds);
-          
-          // Then, re-distribute all valid payments for that party
-          const partyLedgerEntries = allLedgerEntries.filter(e => e.partyName === partyName && e.type === 'credit');
+    // Trigger re-distribution for party payments on credit updates
+    const partyName = updateData.partyName !== undefined ? updateData.partyName : oldEntry?.partyName
+    if (type === 'credit' && partyName) {
+      try {
+        console.log(`🔄 Triggering redistribution for updated party payment ledger entry ${id}`)
+        // First, reconcile to remove old payments from orders
+        const allLedgerEntries = await this.list()
+        const validLedgerIds = allLedgerEntries.map(e => e.id!).filter(Boolean)
+        await partyPaymentService.reconcilePartyPayments(partyName, validLedgerIds)
 
-          for(const entry of partyLedgerEntries) {
-            if(entry.id) {
-               await partyPaymentService.distributePaymentToPartyOrders(partyName, entry.amount, entry.id, entry.date, entry.note);
-            }
+        // Then, re-distribute all valid payments for that party
+        const partyLedgerEntries = allLedgerEntries.filter(e => e.partyName === partyName && e.type === 'credit')
+
+        for (const entry of partyLedgerEntries) {
+          if (entry.id) {
+            await partyPaymentService.distributePaymentToPartyOrders(
+              partyName,
+              entry.amount,
+              entry.id,
+              entry.date,
+              entry.note
+            )
           }
-          
-        } catch (e) {
-          console.error('Party payment redistribution failed', e)
         }
+      } catch (e) {
+        console.error('Party payment redistribution failed', e)
       }
     }
     
