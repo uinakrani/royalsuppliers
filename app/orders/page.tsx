@@ -1783,7 +1783,7 @@ export default function OrdersPage() {
           overflowY: 'auto',
           overflowX: viewMode === 'allOrders' ? 'auto' : 'visible',
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: selectedOrders.size > 0 ? '12.25rem' : '7.25rem'
+          paddingBottom: selectedOrders.size > 0 ? '16rem' : '9rem' // Increased padding to clear bottom bar
         }}
       >
         {/* Orders List */}

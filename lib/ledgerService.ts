@@ -390,35 +390,57 @@ export const ledgerService = {
       }
     }
     
-    // Log activity - always try to log even if oldEntry fetch failed
-    // Always log updates (even if no changes detected, in case the comparison logic has issues)
+    // Log activity - only if there are changes
     try {
-      // Normalize note values for comparison (treat empty string and undefined as the same)
+      // Normalize values for comparison
       const oldNote = (oldEntry?.note || '').trim() || undefined
       const newNote = updates.note !== undefined ? ((updates.note || '').trim() || undefined) : oldNote
+      
+      const oldAmount = oldEntry?.amount
+      const newAmount = updates.amount !== undefined ? updates.amount : oldAmount
+
+      const oldDate = oldEntry?.date
+      const newDate = updates.date !== undefined ? updateData.date : oldDate
+
+      const oldSupplier = (oldEntry?.supplier || '').trim() || undefined
+      const newSupplier = updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldSupplier
+
+      const oldPartyName = (oldEntry?.partyName || '').trim() || undefined
+      const newPartyName = updates.partyName !== undefined ? (updates.partyName?.trim() || undefined) : oldPartyName
+
+      // Check for changes
+      const hasChanges = 
+        oldAmount !== newAmount ||
+        oldNote !== newNote ||
+        oldDate !== newDate ||
+        oldSupplier !== newSupplier ||
+        oldPartyName !== newPartyName
+
+      if (!hasChanges) {
+        console.log('No changes detected for ledger entry update, skipping activity log.')
+        return
+      }
       
       const activityData = {
         ledgerEntryId: id,
         activityType: 'updated' as const,
-        amount: updates.amount !== undefined ? updates.amount : (oldEntry?.amount),
-        previousAmount: oldEntry?.amount,
+        amount: newAmount,
+        previousAmount: oldAmount,
         note: newNote,
         previousNote: oldNote,
-        date: updates.date !== undefined ? updateData.date : oldEntry?.date,
-        previousDate: oldEntry?.date,
-        supplier: updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldEntry?.supplier,
-        previousSupplier: oldEntry?.supplier,
-        partyName: updates.partyName !== undefined ? (updates.partyName?.trim() || undefined) : oldEntry?.partyName,
-        previousPartyName: oldEntry?.partyName,
+        date: newDate,
+        previousDate: oldDate,
+        supplier: newSupplier,
+        previousSupplier: oldSupplier,
+        partyName: newPartyName,
+        previousPartyName: oldPartyName,
         type: oldEntry?.type,
       }
       
       console.log('📝 Logging ledger activity for update:', {
         ledgerEntryId: id,
         activityType: 'updated',
-        noteChanged: oldNote !== newNote,
-        oldNote,
-        newNote,
+        hasChanges
       })
       await ledgerActivityService.logActivity(activityData)
       console.log('✅ Activity logged successfully')

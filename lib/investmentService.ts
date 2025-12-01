@@ -62,7 +62,18 @@ class InvestmentService {
                 // Update existing
                 const previousAmount = existingInvestment.amount
                 const previousDate = existingInvestment.date
-                const previousNote = existingInvestment.note
+                const previousNote = existingInvestment.note || ''
+
+                // Check for changes
+                const hasChanges = 
+                    previousAmount !== amount ||
+                    previousDate !== date ||
+                    previousNote.trim() !== (note || '').trim()
+
+                if (!hasChanges) {
+                    console.log('No changes detected for investment update, skipping.')
+                    return existingInvestment.id
+                }
 
                 await updateDoc(doc(db, this.collectionName, existingInvestment.id), {
                     amount,
