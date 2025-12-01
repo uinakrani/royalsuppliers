@@ -116,40 +116,53 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
     });
   }, [entries, investment]);
 
-  const renderTransactionNarrative = (entry: LedgerEntry) => {
+  const renderTransactionRow = (entry: LedgerEntry) => {
     const isIncome = entry.type === 'credit';
     const amount = formatIndianCurrency(entry.amount);
     const party = isIncome ? entry.partyName : entry.supplier;
-    const note = entry.note ? `(${entry.note})` : '';
+    const note = entry.note;
     const isInvestment = entry.id === 'investment-capital';
     
+    let title = '';
+    let subTitle = note || '';
+    let iconColor = '';
+    let amountColor = '';
+    let icon = null;
+
     if (isInvestment) {
-      return (
-        <span className="text-sm text-gray-700">
-          <span className="font-bold text-amber-600">Investment Capital</span> added
-          <span className="font-bold text-green-700 ml-1">{amount}</span>
-          {note && <span className="text-gray-500 text-xs ml-1">{note}</span>}
-        </span>
-      );
-    }
-    
-    if (isIncome) {
-      return (
-        <span className="text-sm text-gray-700">
-          Received <span className="font-bold text-green-700">{amount}</span>
-          {party && <span> from <span className="font-medium">{party}</span></span>}
-          {note && <span className="text-gray-500 text-xs ml-1">{note}</span>}
-        </span>
-      );
+      title = 'Investment Capital';
+      subTitle = note || 'Initial Capital';
+      iconColor = 'bg-amber-100 text-amber-600';
+      amountColor = 'text-green-700';
+      icon = <Wallet size={18} />;
+    } else if (isIncome) {
+      title = party || 'Income';
+      iconColor = 'bg-green-100 text-green-600';
+      amountColor = 'text-green-700';
+      icon = <ArrowDownRight size={18} />;
     } else {
-      return (
-        <span className="text-sm text-gray-700">
-          Spent <span className="font-bold text-red-700">{amount}</span>
-          {party && <span> for <span className="font-medium">{party}</span></span>}
-          {note && <span className="text-gray-500 text-xs ml-1">{note}</span>}
-        </span>
-      );
+      title = party || 'Expense';
+      iconColor = 'bg-red-100 text-red-600';
+      amountColor = 'text-red-700';
+      icon = <ArrowUpRight size={18} />;
     }
+
+    return (
+      <div key={entry.id} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0 active:bg-gray-50 transition-colors">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+          {subTitle && (
+            <div className="text-xs text-gray-500 truncate">{subTitle}</div>
+          )}
+        </div>
+        <div className={`text-sm font-bold whitespace-nowrap ${amountColor}`}>
+          {isIncome || isInvestment ? '+' : '-'}{amount}
+        </div>
+      </div>
+    );
   };
 
   if (dailyGroups.length === 0) {
@@ -162,59 +175,44 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
   }
 
   return (
-    <div className="space-y-6 p-3 pb-24">
+    <div className="pb-24 bg-gray-50 min-h-full">
       {dailyGroups.map((group) => (
-        <div key={group.date} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Daily Header */}
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-gray-900">
-                {format(new Date(group.date), 'dd MMM yyyy')}
-              </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Opening: {formatIndianCurrency(group.openingBalance)}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-gray-500 mb-0.5">Closing Balance</div>
-              <span className={`font-bold ${group.closingBalance >= 0 ? 'text-primary-700' : 'text-red-600'}`}>
+        <div key={group.date} className="mb-6">
+          {/* Sticky Header */}
+          <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur px-4 py-2 flex justify-between items-baseline border-b border-gray-100/50">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              {format(new Date(group.date), 'dd MMM yyyy')}
+            </h3>
+            <div className="flex items-baseline gap-1">
+              <span className="text-[10px] font-medium text-gray-400">End Balance</span>
+              <span className={`text-sm font-bold ${group.closingBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
                 {formatIndianCurrency(group.closingBalance)}
               </span>
             </div>
           </div>
 
-          {/* Transactions List */}
-          <div className="divide-y divide-gray-100">
-            {group.entries.map((entry) => (
-              <div key={entry.id} className="p-3 flex items-start gap-3 hover:bg-gray-50/50 transition-colors">
-                <div className={`p-1.5 rounded-full mt-0.5 flex-shrink-0 ${
-                  entry.type === 'credit' 
-                    ? 'bg-green-100 text-green-600' 
-                    : 'bg-red-100 text-red-600'
-                }`}>
-                  {entry.type === 'credit' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {renderTransactionNarrative(entry)}
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Card Content */}
+          <div className="mx-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {/* Opening Balance Row */}
+            <div className="px-4 py-2 bg-gray-50/30 border-b border-gray-100 flex justify-between items-center">
+              <span className="text-xs text-gray-400 font-medium">Opening Balance</span>
+              <span className="text-xs text-gray-500 font-semibold">
+                {formatIndianCurrency(group.openingBalance)}
+              </span>
+            </div>
 
-          {/* Daily Summary Footer */}
-          <div className="bg-gray-50/50 px-4 py-2 border-t border-gray-100 flex gap-4 text-xs">
-            {group.totalIncome > 0 && (
-              <div className="flex items-center gap-1 text-green-700 font-medium">
-                <ArrowDownRight size={12} />
-                +{formatIndianCurrency(group.totalIncome)}
-              </div>
-            )}
-            {group.totalExpense > 0 && (
-              <div className="flex items-center gap-1 text-red-700 font-medium">
-                <ArrowUpRight size={12} />
-                -{formatIndianCurrency(group.totalExpense)}
-              </div>
-            )}
+            {/* Transactions List */}
+            <div className="divide-y divide-gray-50">
+              {group.entries.map(renderTransactionRow)}
+            </div>
+            
+            {/* Closing Balance Row (Visual cue for end of day) */}
+            <div className="px-4 py-2 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
+               <span className="text-xs text-gray-500 font-medium">End of Day</span>
+               <span className={`text-xs font-bold ${group.closingBalance >= 0 ? 'text-gray-700' : 'text-red-600'}`}>
+                 {formatIndianCurrency(group.closingBalance)}
+               </span>
+            </div>
           </div>
         </div>
       ))}
