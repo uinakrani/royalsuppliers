@@ -20,8 +20,13 @@ import { ledgerActivityService, LedgerActivity } from '@/lib/ledgerActivityServi
 import { investmentService, InvestmentRecord, InvestmentActivity } from '@/lib/investmentService'
 import LedgerTimelineView from '@/components/LedgerTimelineView'
 
+import { invoiceService } from '@/lib/invoiceService'
+import { Invoice } from '@/types/invoice'
+
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
 
   // Tab state
@@ -97,10 +102,16 @@ export default function LedgerPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const items = await ledgerService.list()
+      const [items, allInvoices, allOrders] = await Promise.all([
+        ledgerService.list(),
+        invoiceService.getAllInvoices(),
+        orderService.getAllOrders()
+      ])
       setEntries(items)
+      setInvoices(allInvoices)
+      setOrders(allOrders)
     } catch (error) {
-      console.error('Failed to load ledger entries:', error)
+      console.error('Failed to load ledger data:', error)
       setEntries([])
     } finally {
       setLoading(false)
@@ -112,18 +123,30 @@ export default function LedgerPage() {
     try {
       const data = await investmentService.getInvestment()
       setInvestment(data)
-      if (data) {
-        setInvestmentAmount(data.amount.toString())
-        setInvestmentDate(data.date)
-        setInvestmentNote(data.note || '')
-      } else {
-        setInvestmentDate(new Date().toISOString().split('T')[0])
-      }
-
+      // Don't pre-fill form state here, do it when opening drawer
+      
       const history = await investmentService.getActivityLog()
       setInvestmentHistory(history)
     } catch (error) {
       console.error('Error loading investment:', error)
+    }
+  }
+
+  const openInvestmentDrawer = () => {
+    setInvestmentMode('add')
+    setInvestmentAmount('')
+    setInvestmentDate(new Date().toISOString().split('T')[0])
+    setInvestmentNote('')
+    setShowInvestmentDrawer(true)
+  }
+
+  const handleModeChange = (mode: 'add' | 'reduce' | 'set') => {
+    setInvestmentMode(mode)
+    if (mode === 'set' && investment) {
+      setInvestmentAmount(investment.amount.toString())
+      // Keep today's date for 'set' as well, as it's a new state update
+    } else {
+      setInvestmentAmount('')
     }
   }
 
@@ -171,8 +194,11 @@ export default function LedgerPage() {
   }, [activeTab, startDate, endDate])
 
   const handleSaveInvestment = async () => {
-    if (!investmentAmount || !investmentDate) {
-      showToast('Please fill in amount and date', 'error')
+    // Automatically use today's date
+    const today = new Date().toISOString().split('T')[0]
+    
+    if (!investmentAmount) {
+      showToast('Please fill in amount', 'error')
       return
     }
 
@@ -185,7 +211,8 @@ export default function LedgerPage() {
           ? Math.max(0, current - entered)
           : entered
 
-      await investmentService.setInvestment(nextAmount, investmentDate, investmentNote)
+      // Use 'today' instead of 'investmentDate' state
+      await investmentService.setInvestment(nextAmount, today, investmentNote)
 
       showToast('Investment updated successfully', 'success')
       setShowInvestmentDrawer(false)
@@ -1262,21 +1289,21 @@ export default function LedgerPage() {
             <div className="mt-2 grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setInvestmentMode('add')}
+                onClick={() => handleModeChange('add')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'add' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
                 Add Investment
               </button>
               <button
                 type="button"
-                onClick={() => setInvestmentMode('reduce')}
+                onClick={() => handleModeChange('reduce')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'reduce' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
                 Reduce Amount
               </button>
               <button
                 type="button"
-                onClick={() => setInvestmentMode('set')}
+                onClick={() => handleModeChange('set')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'set' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
                 Set Exact Value
@@ -1292,7 +1319,7 @@ export default function LedgerPage() {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        paddingBottom: '9.25rem' // NavBar (~4.75rem) + Buttons bar (~4rem) + spacing
+        paddingBottom: activeTab === 'entries' ? '9.25rem' : '5rem' // Adjust padding: Large for entries (floating buttons), standard for others (NavBar)
       }}>
         {activeTab === 'entries' ? (
           loading ? (
@@ -1351,7 +1378,13 @@ export default function LedgerPage() {
                 <TruckLoading size={100} />
               </div>
             ) : (
-              <LedgerTimelineView entries={entries} investment={investment} />
+              <LedgerTimelineView 
+                entries={entries} 
+                investment={investment} 
+                investmentHistory={investmentHistory}
+                invoices={invoices}
+                orders={orders}
+              />
             )}
           </div>
         ) : activeTab === 'investment' ? (
@@ -1372,7 +1405,10 @@ export default function LedgerPage() {
                     <h3 className="text-lg font-bold text-white">Current Investment</h3>
                   </div>
                   <button
-                    onClick={() => setShowInvestmentDrawer(true)}
+                    onClick={(e) => {
+                      createRipple(e)
+                      openInvestmentDrawer()
+                    }}
                     className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm"
                   >
                     <Edit2 size={18} className="text-white" />
@@ -1607,21 +1643,21 @@ export default function LedgerPage() {
             <div className="mt-2 grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setInvestmentMode('add')}
+                onClick={() => handleModeChange('add')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'add' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
                 Add Investment
               </button>
               <button
                 type="button"
-                onClick={() => setInvestmentMode('reduce')}
+                onClick={() => handleModeChange('reduce')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'reduce' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
                 Reduce Amount
               </button>
               <button
                 type="button"
-                onClick={() => setInvestmentMode('set')}
+                onClick={() => handleModeChange('set')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'set' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
                 Set Exact Value
@@ -1629,7 +1665,8 @@ export default function LedgerPage() {
             </div>
           </div>
 
-          <div>
+          {/* Date field removed as per requirement */}
+          {/* <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date
             </label>
@@ -1639,7 +1676,7 @@ export default function LedgerPage() {
               onChange={(e) => setInvestmentDate(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
             />
-          </div>
+          </div> */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

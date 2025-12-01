@@ -3,11 +3,17 @@ import { format } from 'date-fns';
 import { LedgerEntry } from '@/lib/ledgerService';
 import { formatIndianCurrency } from '@/lib/currencyUtils';
 import { ArrowDownRight, ArrowUpRight, Wallet } from 'lucide-react';
-import { InvestmentRecord } from '@/lib/investmentService';
+import { InvestmentRecord, InvestmentActivity } from '@/lib/investmentService';
+
+import { Invoice } from '@/types/invoice';
+import { Order } from '@/types/order';
 
 interface LedgerTimelineViewProps {
   entries: LedgerEntry[];
   investment: InvestmentRecord | null;
+  investmentHistory?: InvestmentActivity[];
+  invoices?: Invoice[];
+  orders?: Order[];
 }
 
 interface DailyGroup {
@@ -19,22 +25,63 @@ interface DailyGroup {
   totalExpense: number;
 }
 
-export default function LedgerTimelineView({ entries, investment }: LedgerTimelineViewProps) {
+export default function LedgerTimelineView({ entries, investment, investmentHistory = [], invoices = [], orders = [] }: LedgerTimelineViewProps) {
   // Group entries by date and calculate daily stats
   const dailyGroups = useMemo(() => {
     // Create a copy of entries to sort
     const sortedEntries: LedgerEntry[] = [...entries];
     
-    // If investment exists, add it as a synthetic entry
-    if (investment) {
-      // Ensure investment date is properly formatted
+    // 1. Process Investment History
+    if (investmentHistory && investmentHistory.length > 0) {
+      const activities = [...investmentHistory].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      activities.forEach(activity => {
+        let amount = 0;
+        let note = activity.note || '';
+        
+        if (activity.activityType === 'created') {
+          amount = activity.amount;
+          note = note || 'Initial Capital Investment';
+        } else if (activity.activityType === 'updated') {
+          const prev = activity.previousAmount || 0;
+          amount = activity.amount - prev;
+          
+          if (amount > 0) {
+             note = note || 'Capital Added';
+          } else if (amount < 0) {
+             note = note || 'Capital Reduced';
+          } else {
+             return;
+          }
+        } else {
+          return;
+        }
+
+        if (amount === 0) return;
+
+        let activityDate = activity.date;
+        if (!activityDate.includes('T')) {
+          activityDate = activityDate + 'T00:00:00.000Z';
+        }
+
+        sortedEntries.push({
+          id: `inv-act-${activity.id || Math.random()}`,
+          type: amount >= 0 ? 'credit' : 'debit',
+          amount: Math.abs(amount),
+          date: activityDate,
+          note: note,
+          source: 'manual',
+          partyName: 'Investment Capital'
+        });
+      });
+    } else if (investment) {
       let investmentDate = investment.date;
       if (!investmentDate.includes('T')) {
         investmentDate = investmentDate + 'T00:00:00.000Z';
       }
       
-      // Only add if it doesn't duplicate an existing entry (basic check)
-      // Though investment is usually separate from ledger entries
       sortedEntries.push({
         id: 'investment-capital',
         type: 'credit',
@@ -42,10 +89,61 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
         date: investmentDate,
         note: investment.note || 'Initial Capital Investment',
         source: 'manual',
-        // Use a special marker or party name to identify it
         partyName: 'Investment Capital'
       });
     }
+
+    // 2. Process Invoice Payments (Income)
+    invoices.forEach(invoice => {
+      if (invoice.partialPayments) {
+        invoice.partialPayments.forEach(payment => {
+          sortedEntries.push({
+            id: `inv-pay-${payment.id}`,
+            type: 'credit',
+            amount: payment.amount,
+            date: payment.date,
+            note: `Invoice: ${invoice.invoiceNumber}${payment.note ? ` - ${payment.note}` : ''}`,
+            source: 'manual',
+            partyName: invoice.partyName || 'Unknown Party'
+          });
+        });
+      }
+    });
+
+    // 3. Process Direct Order Payments (Income & Expense)
+    orders.forEach(order => {
+      if (order.customerPayments) {
+        order.customerPayments.forEach(payment => {
+          if (!payment.ledgerEntryId) {
+            sortedEntries.push({
+              id: `ord-cust-pay-${payment.id}`,
+              type: 'credit',
+              amount: payment.amount,
+              date: payment.date,
+              note: `Order Payment${payment.note ? ` - ${payment.note}` : ''}`,
+              source: 'manual',
+              partyName: order.partyName || 'Unknown Party'
+            });
+          }
+        });
+      }
+
+      if (order.partialPayments) {
+        order.partialPayments.forEach(payment => {
+          if (!payment.ledgerEntryId) {
+            sortedEntries.push({
+              id: `ord-part-pay-${payment.id}`,
+              type: 'debit',
+              amount: payment.amount,
+              date: payment.date,
+              note: `Order Expense${payment.note ? ` - ${payment.note}` : ''}`,
+              source: 'manual',
+              supplier: order.supplier || 'Unknown Supplier'
+            });
+          }
+        });
+      }
+    });
 
     // Sort entries by date ascending first to calculate running balance correctly
     sortedEntries.sort((a, b) => {
@@ -75,19 +173,20 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
     const dates = Object.keys(groups).sort().reverse();
     
     // Calculate opening/closing for each day
-    let currentBalance = runningBalance; // Start with final balance
+    let currentBalance = runningBalance;
     
     return dates.map(date => {
       const dayEntries = groups[date];
-      // Sort entries within day by creation time descending (newest first)
-      // For investment, treat it as oldest in the day if multiple entries exist
+      
+      // Sort within day DESCENDING (Newest -> Oldest) as requested
       dayEntries.sort((a, b) => {
-        if (a.id === 'investment-capital') return 1; // Move to bottom (oldest)
-        if (b.id === 'investment-capital') return -1;
+        // Investment Capital is conceptually the "start" (oldest), so it goes to the bottom
+        if (a.partyName === 'Investment Capital') return 1; 
+        if (b.partyName === 'Investment Capital') return -1;
         
         const aTime = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.date).getTime();
         const bTime = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.date).getTime();
-        return bTime - aTime;
+        return bTime - aTime; // DESCENDING
       });
 
       const dayIncome = dayEntries
@@ -114,14 +213,14 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
         totalExpense: dayExpense
       } as DailyGroup;
     });
-  }, [entries, investment]);
+  }, [entries, investment, investmentHistory, invoices, orders]);
 
   const renderTransactionRow = (entry: LedgerEntry) => {
     const isIncome = entry.type === 'credit';
     const amount = formatIndianCurrency(entry.amount);
     const party = isIncome ? entry.partyName : entry.supplier;
     const note = entry.note;
-    const isInvestment = entry.id === 'investment-capital';
+    const isInvestment = entry.partyName === 'Investment Capital';
     
     let title = '';
     let subTitle = note || '';
@@ -131,9 +230,9 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
 
     if (isInvestment) {
       title = 'Investment Capital';
-      subTitle = note || 'Initial Capital';
+      subTitle = note || (isIncome ? 'Capital Added' : 'Capital Reduced');
       iconColor = 'bg-amber-100 text-amber-600';
-      amountColor = 'text-green-700';
+      amountColor = isIncome ? 'text-green-700' : 'text-red-700';
       icon = <Wallet size={18} />;
     } else if (isIncome) {
       title = party || 'Income';
@@ -148,18 +247,20 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
     }
 
     return (
-      <div key={entry.id} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0 active:bg-gray-50 transition-colors">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${iconColor}`}>
-          {icon}
+      <div key={entry.id} className="px-3 py-2 flex items-center gap-2 border-b border-gray-50 last:border-0 active:bg-gray-50 transition-colors">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${iconColor} bg-opacity-20`}>
+          {React.cloneElement(icon as any, { size: 14 })}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+          <div className="flex justify-between items-baseline">
+             <div className="text-xs font-bold text-gray-900 truncate">{title}</div>
+             <div className={`text-xs font-bold whitespace-nowrap ${amountColor}`}>
+                {isIncome ? '+' : '-'}{amount}
+             </div>
+          </div>
           {subTitle && (
-            <div className="text-xs text-gray-500 truncate">{subTitle}</div>
+            <div className="text-[10px] text-gray-500 truncate leading-tight">{subTitle}</div>
           )}
-        </div>
-        <div className={`text-sm font-bold whitespace-nowrap ${amountColor}`}>
-          {isIncome || isInvestment ? '+' : '-'}{amount}
         </div>
       </div>
     );
@@ -177,26 +278,23 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
   return (
     <div className="pb-24 bg-gray-50 min-h-full">
       {dailyGroups.map((group) => (
-        <div key={group.date} className="mb-6">
+        <div key={group.date} className="mb-4">
           {/* Sticky Header */}
-          <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur px-4 py-2 flex justify-between items-baseline border-b border-gray-100/50">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              {format(new Date(group.date), 'dd MMM yyyy')}
+          <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur px-4 py-1.5 flex justify-between items-baseline border-b border-gray-100/50 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+              {format(new Date(group.date), 'EEE, dd MMM')}
             </h3>
-            <div className="flex items-baseline gap-1">
-              <span className="text-[10px] font-medium text-gray-400">End Balance</span>
-              <span className={`text-sm font-bold ${group.closingBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                {formatIndianCurrency(group.closingBalance)}
-              </span>
-            </div>
+            <span className={`text-xs font-bold ${group.closingBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+               {formatIndianCurrency(group.closingBalance)}
+            </span>
           </div>
 
           {/* Card Content */}
-          <div className="mx-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="mx-3 mt-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             {/* Opening Balance Row */}
-            <div className="px-4 py-2 bg-gray-50/30 border-b border-gray-100 flex justify-between items-center">
-              <span className="text-xs text-gray-400 font-medium">Opening Balance</span>
-              <span className="text-xs text-gray-500 font-semibold">
+            <div className="px-3 py-1.5 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Opening</span>
+              <span className="text-xs text-gray-600 font-semibold font-mono">
                 {formatIndianCurrency(group.openingBalance)}
               </span>
             </div>
@@ -206,10 +304,10 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
               {group.entries.map(renderTransactionRow)}
             </div>
             
-            {/* Closing Balance Row (Visual cue for end of day) */}
-            <div className="px-4 py-2 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
-               <span className="text-xs text-gray-500 font-medium">End of Day</span>
-               <span className={`text-xs font-bold ${group.closingBalance >= 0 ? 'text-gray-700' : 'text-red-600'}`}>
+            {/* Closing Balance Row */}
+            <div className="px-3 py-1.5 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
+               <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Closing</span>
+               <span className={`text-xs font-bold font-mono ${group.closingBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
                  {formatIndianCurrency(group.closingBalance)}
                </span>
             </div>
@@ -219,4 +317,3 @@ export default function LedgerTimelineView({ entries, investment }: LedgerTimeli
     </div>
   );
 }
-
