@@ -67,7 +67,7 @@ export const orderService = {
             payment.note ? `Order Payment (${orderInfo.truckNo || 'Unknown Truck'}): ${payment.note}` : `Order Payment: ${orderInfo.truckNo || orderInfo.id || 'Unknown Order'}`,
             'orderExpense',
             payment.date || new Date().toISOString(),
-            orderInfo.supplier, // Link supplier if available
+            undefined, // No supplier to avoid auto-distribution as per user request
             undefined // No partyName
           );
           

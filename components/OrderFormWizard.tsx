@@ -1058,7 +1058,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
 
   const wizardContent = (
     <div
-      className={`fixed inset-0 bg-white z-[99999] flex flex-col ${
+      className={`fixed inset-0 bg-white z-[99999] flex flex-col overflow-hidden ${
         isClosing ? 'native-modal-exit' : isMounted ? 'native-modal-enter' : 'opacity-0'
       }`}
       style={{
