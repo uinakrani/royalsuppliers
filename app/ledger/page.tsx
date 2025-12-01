@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { format } from 'date-fns'
-import { PlusCircle, MinusCircle, Wallet, Plus, History, Calendar, X, Edit2 } from 'lucide-react'
+import { PlusCircle, MinusCircle, Wallet, Plus, History, Calendar, X, Edit2, List, Activity } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import NavBar from '@/components/NavBar'
 import LedgerEntryWizard from '@/components/LedgerEntryWizard'
@@ -18,13 +18,14 @@ import { nativePopup } from '@/components/NativePopup'
 import { showToast } from '@/components/Toast'
 import { ledgerActivityService, LedgerActivity } from '@/lib/ledgerActivityService'
 import { investmentService, InvestmentRecord, InvestmentActivity } from '@/lib/investmentService'
+import LedgerTimelineView from '@/components/LedgerTimelineView'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'entries' | 'activity' | 'investment'>('entries')
+  const [activeTab, setActiveTab] = useState<'entries' | 'timeline' | 'activity' | 'investment'>('entries')
 
   // Activity log state
   const [activities, setActivities] = useState<LedgerActivity[]>([])
@@ -1161,47 +1162,62 @@ export default function LedgerPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 mt-2">
+        <div className="flex gap-1 mt-2 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={(e) => {
               createRipple(e)
               setActiveTab('entries')
             }}
-            className={`flex-1 py-2 rounded-lg font-medium transition-all duration-200 touch-manipulation ${activeTab === 'entries'
+            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'entries'
               ? 'bg-white text-primary-600 shadow-sm'
               : 'bg-white/20 text-white/80 active:bg-white/30'
               }`}
             style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
           >
+            <List size={14} />
             Entries
+          </button>
+          <button
+            onClick={(e) => {
+              createRipple(e)
+              setActiveTab('timeline')
+            }}
+            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'timeline'
+              ? 'bg-white text-primary-600 shadow-sm'
+              : 'bg-white/20 text-white/80 active:bg-white/30'
+              }`}
+            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
+          >
+            <Activity size={14} />
+            Timeline
           </button>
           <button
             onClick={(e) => {
               createRipple(e)
               setActiveTab('activity')
             }}
-            className={`flex-1 py-2 rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'activity'
+            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'activity'
               ? 'bg-white text-primary-600 shadow-sm'
               : 'bg-white/20 text-white/80 active:bg-white/30'
               }`}
             style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
           >
             <History size={14} />
-            Activity Log
+            Log
           </button>
           <button
             onClick={(e) => {
               createRipple(e)
               setActiveTab('investment')
             }}
-            className={`flex-1 py-2 rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'investment'
+            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'investment'
               ? 'bg-white text-primary-600 shadow-sm'
               : 'bg-white/20 text-white/80 active:bg-white/30'
               }`}
             style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
           >
             <Wallet size={14} />
-            Investment
+            Inv.
           </button>
         </div>
 
@@ -1327,6 +1343,16 @@ export default function LedgerPage() {
               </div>
             </div>
           )
+        ) : activeTab === 'timeline' ? (
+          <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <TruckLoading size={100} />
+              </div>
+            ) : (
+              <LedgerTimelineView entries={entries} />
+            )}
+          </div>
         ) : activeTab === 'investment' ? (
           /* Investment Tab */
           <div className="flex-1 overflow-y-auto p-3 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>

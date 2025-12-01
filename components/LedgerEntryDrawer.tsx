@@ -268,14 +268,21 @@ export default function LedgerEntryDrawer({ isOpen, onClose, onSave, type, initi
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={handleDateChange}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  style={{ fontSize: '16px' }}
-                  autoFocus
-                />
+                {mode === 'edit' ? (
+                   <div className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed">
+                     {date ? new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No date'}
+                     <span className="block text-xs mt-1 text-gray-400">Date cannot be changed when editing</span>
+                   </div>
+                ) : (
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={handleDateChange}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    style={{ fontSize: '16px' }}
+                    autoFocus
+                  />
+                )}
                 {errors.date && (
                   <p className="mt-1 text-xs text-red-600">{errors.date}</p>
                 )}

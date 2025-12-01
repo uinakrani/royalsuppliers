@@ -269,16 +269,27 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
 
       case 'date':
         return (
-          <DatePicker
-            value={formData.date}
-            onChange={(val) => {
-              setFormData({ ...formData, date: val })
-              setTimeout(() => handleAfterEdit(), 100)
-            }}
-            onClose={() => {}}
-            label="Select Date"
-            inline={true}
-          />
+          <div className="w-full">
+            {isEditMode ? (
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                <p className="text-sm text-gray-500 mb-1">Date cannot be changed for existing entries</p>
+                <p className="text-lg font-semibold text-gray-900">
+                  {format(new Date(formData.date), 'dd MMM yyyy')}
+                </p>
+              </div>
+            ) : (
+              <DatePicker
+                value={formData.date}
+                onChange={(val) => {
+                  setFormData({ ...formData, date: val })
+                  setTimeout(() => handleAfterEdit(), 100)
+                }}
+                onClose={() => {}}
+                label="Select Date"
+                inline={true}
+              />
+            )}
+          </div>
         )
 
       case 'supplier':
