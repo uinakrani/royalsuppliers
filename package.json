@@ -20,7 +20,6 @@
     "organize-backups": "ts-node --project tsconfig.scripts.json scripts/move-dumps-to-backups.ts"
   },
   "dependencies": {
-    "@netlify/plugin-nextjs": "^5.15.1",
     "date-fns": "^3.0.6",
     "firebase": "^10.7.1",
     "jspdf": "^2.5.1",

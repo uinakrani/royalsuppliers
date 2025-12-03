@@ -1,0 +1,18 @@
+# Ignore Next.js related files to prevent automatic plugin detection
+.next/
+.next-build/
+out/
+node_modules/
+.next
+
+# Keep the dist directory for deployment
+!dist/
+
+# Ignore API routes since we're using Netlify Functions
+app/api/
+
+# Keep necessary files
+!package.json
+!next.config.js
+!netlify.toml
+!netlify/
