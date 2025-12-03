@@ -13,6 +13,7 @@ import PaymentEditDrawer from '@/components/PaymentEditDrawer'
 import { ledgerService } from '@/lib/ledgerService'
 import { getDb } from '@/lib/firebase'
 import { updateDoc, doc } from 'firebase/firestore'
+import { getAdjustedProfit, hasProfitAdjustments } from '@/lib/orderCalculations'
 
 interface OrderDetailDrawerProps {
   order: Order | null
@@ -20,10 +21,11 @@ interface OrderDetailDrawerProps {
   onClose: () => void
   onEdit: (order: Order) => void
   onDelete: (id: string) => void
+  onAddPayment?: (order: Order) => Promise<void> | void
   onOrderUpdated?: () => void
 }
 
-export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDelete, onOrderUpdated }: OrderDetailDrawerProps) {
+export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDelete, onAddPayment, onOrderUpdated }: OrderDetailDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
   const [isClosing, setIsClosing] = useState(false)
@@ -67,87 +69,13 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
   }
 
   const handleAddPayment = async () => {
-    if (!order) return
-    
-    // Check if order is already paid
-    if (isOrderPaid(order)) {
-      showToast('Order is already paid', 'error')
-      return
-    }
-    
-    const { remainingAmount } = getExpenseInfo(order)
-
+    if (!order || !onAddPayment) return
     setAddingPayment(true)
     try {
-      const amountStr = await sweetAlert.prompt({
-        title: 'Add Payment',
-        message: `Remaining amount: ${formatIndianCurrency(remainingAmount)}`,
-        inputLabel: 'Payment Amount',
-        inputPlaceholder: 'Enter amount',
-        inputType: 'text',
-        formatCurrencyInr: true,
-        confirmText: 'Add Payment',
-        cancelText: 'Cancel',
-      })
-      
-      if (!amountStr) {
-        setAddingPayment(false)
-        return
-      }
-      
-      const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
-      if (!amount || Number.isNaN(amount) || amount <= 0) {
-        showToast('Invalid amount', 'error')
-        setAddingPayment(false)
-        return
-      }
-      
-      // Get the expense amount (originalTotal)
-      const { expenseAmount } = getExpenseInfo(order)
-      
-      // Check if payment exceeds the original total (expense amount)
-      if (amount > expenseAmount) {
-        showToast(`Payment amount cannot exceed original total (${formatIndianCurrency(expenseAmount)})`, 'error')
-        setAddingPayment(false)
-        return
-      }
-      
-      // Check if payment exceeds remaining amount
-      if (amount > remainingAmount) {
-        showToast(`Payment amount cannot exceed remaining amount (${formatIndianCurrency(remainingAmount)})`, 'error')
-        setAddingPayment(false)
-        return
-      }
-      
-      // Ask user what they want to do: Add Payment or Add and Mark as Paid
-      const actionChoice = await sweetAlert.confirm({
-        title: 'Add Payment',
-        message: `Payment amount: ${formatIndianCurrency(amount)}\nRemaining: ${formatIndianCurrency(remainingAmount)}\n\nWhat would you like to do?`,
-        icon: 'question',
-        confirmText: 'Add and Mark as Paid',
-        cancelText: 'Just Add Payment',
-      })
-      const markAsPaid = actionChoice || false
-      
-      const note = await sweetAlert.prompt({
-        title: 'Add Note (optional)',
-        inputLabel: 'Note',
-        inputPlaceholder: 'e.g. Cash payment / Bank transfer',
-        inputType: 'text',
-        required: false,
-        confirmText: 'Save',
-        cancelText: 'Skip',
-      })
-      
-      await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid)
-      showToast('Payment added successfully!', 'success')
-      
-      if (onOrderUpdated) {
-        onOrderUpdated()
-      }
+      await onAddPayment(order)
     } catch (error: any) {
       console.error('Error adding payment:', error)
-      showToast(error.message || 'Failed to add payment', 'error')
+      showToast(error?.message || 'Failed to add payment', 'error')
     } finally {
       setAddingPayment(false)
     }
@@ -156,6 +84,8 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
   if (!isOpen || !order) return null
 
   const { expenseAmount, totalPaid, remainingAmount } = getExpenseInfo(order)
+  const adjustedProfit = getAdjustedProfit(order)
+  const showAdjustedProfit = hasProfitAdjustments(order)
 
   return (
     <>
@@ -276,11 +206,22 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
               
               <div className="flex justify-between items-start">
                 <span className="text-sm font-medium text-gray-500">Profit</span>
-                <span className={`text-sm font-semibold ${
-                  order.profit >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {formatIndianCurrency(order.profit)}
-                </span>
+                <div className="text-right">
+                  {showAdjustedProfit ? (
+                    <div className="flex flex-col items-end leading-tight">
+                      <span className="text-xs text-gray-500 line-through">
+                        {formatIndianCurrency(order.profit)}
+                      </span>
+                      <span className={`text-sm font-semibold ${adjustedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatIndianCurrency(adjustedProfit)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className={`text-sm font-semibold ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatIndianCurrency(order.profit)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -644,6 +585,7 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
                           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                           amount: paymentAmount,
                           date: paymentDate,
+                          createdAt: new Date().toISOString(),
                           note: `From ledger entry`,
                           ledgerEntryId: payment.ledgerEntryId,
                         }

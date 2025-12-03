@@ -2,6 +2,7 @@ import { Order } from '@/types/order'
 import { DashboardStats } from '@/types/order'
 import { LedgerEntry } from '@/lib/ledgerService'
 import { startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns'
+import { getAdjustedProfit } from '@/lib/orderCalculations'
 
 export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], dateRangeStart?: Date, dateRangeEnd?: Date): DashboardStats => {
   const stats: DashboardStats = {
@@ -30,8 +31,9 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
     const orderCost = order.originalTotal + order.additionalCost
     stats.totalCost += orderCost
     stats.costAmount += orderCost // Same as totalCost for filtered orders
-    stats.totalProfit += order.profit
-    stats.estimatedProfit += order.profit // Estimated profit from filtered orders
+    const adjustedProfit = getAdjustedProfit(order)
+    stats.totalProfit += adjustedProfit
+    stats.estimatedProfit += adjustedProfit // Estimated profit from filtered orders
     
     // Raw material payments (payments MADE for raw materials - expenses)
     // Note: This is money going OUT, not money received

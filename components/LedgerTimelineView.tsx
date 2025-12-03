@@ -8,6 +8,23 @@ import { InvestmentRecord, InvestmentActivity } from '@/lib/investmentService';
 import { Invoice } from '@/types/invoice';
 import { Order } from '@/types/order';
 
+const ensureDate = (value?: string): Date | null => {
+  if (!value || typeof value !== 'string') return null;
+  const normalized = value.includes('T') ? value : `${value}T00:00:00.000Z`;
+  const parsed = new Date(normalized);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getTimelineTime = (entry: LedgerEntry): number => {
+  const dateObj = ensureDate(entry.createdAt || entry.date);
+  return dateObj ? dateObj.getTime() : 0;
+};
+
+const getTimelineDateKey = (entry: LedgerEntry): string => {
+  const dateObj = ensureDate(entry.createdAt || entry.date) || new Date();
+  return format(dateObj, 'yyyy-MM-dd');
+};
+
 interface LedgerTimelineViewProps {
   entries: LedgerEntry[];
   investment: InvestmentRecord | null;
@@ -71,6 +88,7 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
           type: amount >= 0 ? 'credit' : 'debit',
           amount: Math.abs(amount),
           date: activityDate,
+          createdAt: activity.timestamp || activityDate,
           note: note,
           source: 'manual',
           partyName: 'Investment Capital'
@@ -87,6 +105,7 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
         type: 'credit',
         amount: investment.amount,
         date: investmentDate,
+        createdAt: investment.updatedAt || investmentDate,
         note: investment.note || 'Initial Capital Investment',
         source: 'manual',
         partyName: 'Investment Capital'
@@ -97,11 +116,13 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
     invoices.forEach(invoice => {
       if (invoice.partialPayments) {
         invoice.partialPayments.forEach(payment => {
+          const recordedAt = payment.createdAt || payment.date
           sortedEntries.push({
             id: `inv-pay-${payment.id}`,
             type: 'credit',
             amount: payment.amount,
             date: payment.date,
+            createdAt: recordedAt,
             note: `Invoice: ${invoice.invoiceNumber}${payment.note ? ` - ${payment.note}` : ''}`,
             source: 'manual',
             partyName: invoice.partyName || 'Unknown Party'
@@ -115,11 +136,13 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
       if (order.customerPayments) {
         order.customerPayments.forEach(payment => {
           if (!payment.ledgerEntryId) {
+            const recordedAt = payment.createdAt || payment.date
             sortedEntries.push({
               id: `ord-cust-pay-${payment.id}`,
               type: 'credit',
               amount: payment.amount,
               date: payment.date,
+              createdAt: recordedAt,
               note: `Order Payment${payment.note ? ` - ${payment.note}` : ''}`,
               source: 'manual',
               partyName: order.partyName || 'Unknown Party'
@@ -131,11 +154,13 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
       if (order.partialPayments) {
         order.partialPayments.forEach(payment => {
           if (!payment.ledgerEntryId) {
+            const recordedAt = payment.createdAt || payment.date
             sortedEntries.push({
               id: `ord-part-pay-${payment.id}`,
               type: 'debit',
               amount: payment.amount,
               date: payment.date,
+              createdAt: recordedAt,
               note: `Order Expense${payment.note ? ` - ${payment.note}` : ''}`,
               source: 'manual',
               supplier: order.supplier || 'Unknown Supplier'
@@ -147,8 +172,8 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
 
     // Sort entries by date ascending first to calculate running balance correctly
     sortedEntries.sort((a, b) => {
-      const aTime = new Date(a.date).getTime();
-      const bTime = new Date(b.date).getTime();
+      const aTime = getTimelineTime(a);
+      const bTime = getTimelineTime(b);
       return aTime - bTime;
     });
 
@@ -160,7 +185,7 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
       const amount = entry.type === 'credit' ? entry.amount : -entry.amount;
       runningBalance += amount;
       
-      const dateKey = format(new Date(entry.date), 'yyyy-MM-dd');
+      const dateKey = getTimelineDateKey(entry);
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -184,8 +209,8 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
         if (a.partyName === 'Investment Capital') return 1; 
         if (b.partyName === 'Investment Capital') return -1;
         
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.date).getTime();
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.date).getTime();
+        const aTime = getTimelineTime(a);
+        const bTime = getTimelineTime(b);
         return bTime - aTime; // DESCENDING
       });
 
@@ -291,12 +316,12 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
 
           {/* Card Content */}
           <div className="mx-3 mt-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            {/* Opening Balance Row */}
+            {/* Closing Balance Row */}
             <div className="px-3 py-1.5 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center">
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Opening</span>
-              <span className="text-xs text-gray-600 font-semibold font-mono">
-                {formatIndianCurrency(group.openingBalance)}
-              </span>
+               <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Closing</span>
+               <span className={`text-xs font-bold font-mono ${group.closingBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                 {formatIndianCurrency(group.closingBalance)}
+               </span>
             </div>
 
             {/* Transactions List */}
@@ -304,12 +329,12 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
               {group.entries.map(renderTransactionRow)}
             </div>
             
-            {/* Closing Balance Row */}
+            {/* Opening Balance Row */}
             <div className="px-3 py-1.5 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
-               <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Closing</span>
-               <span className={`text-xs font-bold font-mono ${group.closingBalance >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                 {formatIndianCurrency(group.closingBalance)}
-               </span>
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Opening</span>
+              <span className="text-xs text-gray-600 font-semibold font-mono">
+                {formatIndianCurrency(group.openingBalance)}
+              </span>
             </div>
           </div>
         </div>

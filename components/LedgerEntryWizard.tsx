@@ -176,15 +176,9 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     }
   }
 
-  const handleSkip = () => {
-    // Skip optional steps
-    if (currentStep < stepOrder.length - 1) {
-      setCurrentStep(currentStep + 1)
-    }
-  }
-
   const canSave = (): boolean => {
-    return formData.amount > 0 && !!formData.date
+    const partyOk = type === 'credit' ? !!formData.partyName.trim() : true
+    return formData.amount > 0 && !!formData.date && partyOk
   }
 
   const handleStepClick = (stepIndex: number) => {
@@ -224,9 +218,9 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       case 'date':
         return !!formData.date
       case 'supplier':
-        return true // Optional
+        return type === 'debit' ? !!formData.supplier.trim() : true
       case 'partyName':
-        return true // Optional
+        return type === 'credit' ? !!formData.partyName.trim() : true
       case 'note':
         return true // Optional
       case 'review':
@@ -264,6 +258,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
             label={`Enter ${type === 'credit' ? 'Income' : 'Expense'} Amount`}
             inline={true}
             hideDoneButton={true}
+            showCurrency={true}
           />
         )
 
@@ -308,6 +303,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               setSuppliers([...suppliers, val])
             }}
             inline={true}
+            autoFocusSearch={false}
           />
         )
 
@@ -327,6 +323,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               setPartyNames([...partyNames, val])
             }}
             inline={true}
+            autoFocusSearch={false}
           />
         )
 
@@ -386,6 +383,10 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
   const handleSubmit = async () => {
     if (formData.amount <= 0) {
       alert('Please enter a valid amount')
+      return
+    }
+    if (type === 'credit' && !formData.partyName.trim()) {
+      alert('Please select a party name')
       return
     }
 
@@ -581,7 +582,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               </div>
             </div>
           ) : (
-            // Continue/Skip buttons for other steps
+            // Continue button for other steps
             <div className="flex gap-2">
               {currentStep > 0 && (
                 <button
@@ -593,20 +594,10 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                   Back
                 </button>
               )}
-              {/* Skip button for optional steps */}
-              {(currentStepData === 'supplier' || currentStepData === 'partyName') && (
-                <button
-                  onClick={handleSkip}
-                  className="h-10 px-3 bg-gray-50 text-gray-600 rounded-lg font-medium active:bg-gray-100 transition-all duration-100 flex items-center justify-center active:scale-[0.98] text-sm border border-gray-200"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  Skip
-                </button>
-              )}
               <button
                 onClick={handleNext}
                 disabled={!canProceed()}
-                className={`${currentStep > 0 && currentStepData !== 'supplier' && currentStepData !== 'partyName' ? 'flex-1' : currentStepData === 'supplier' || currentStepData === 'partyName' ? 'flex-1' : 'w-full'} h-10 bg-primary-600 text-white rounded-lg font-medium active:bg-primary-700 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm shadow-md`}
+                className="flex-1 h-10 bg-primary-600 text-white rounded-lg font-medium active:bg-primary-700 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 active:scale-[0.98] text-sm shadow-md"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 Continue

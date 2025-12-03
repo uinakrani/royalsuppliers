@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import { partyPaymentService } from '@/lib/partyPaymentService'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { investmentService, InvestmentRecord } from '@/lib/investmentService'
+import { getAdjustedProfit } from '@/lib/orderCalculations'
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -379,14 +380,13 @@ export default function Dashboard() {
           const receivedAmount = orderPaymentsReceived.get(order.id!) || 0
 
           if (order.total > 0) {
+            const adjustedProfit = getAdjustedProfit(order)
             if (receivedAmount >= order.total) {
               // If order is fully paid by received amount, all profit is received
-              profitReceived += order.profit
+              profitReceived += adjustedProfit
             } else if (receivedAmount > 0) {
               // If partially paid, calculate profit proportionally
-              // Calculate profit ratio: profit per rupee of order total
-              const profitRatio = order.profit / order.total
-              // Profit received = profit ratio * amount received
+              const profitRatio = adjustedProfit / order.total
               profitReceived += profitRatio * receivedAmount
             }
           }

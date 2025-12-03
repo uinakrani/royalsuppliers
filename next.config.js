@@ -1,3 +1,17 @@
+const disableTraceFileWriter = () => {
+  try {
+    const traceReporter = require('next/dist/trace/report/to-json')
+    if (traceReporter?.default) {
+      traceReporter.default.report = () => {}
+      traceReporter.default.flushAll = async () => {}
+    }
+  } catch (error) {
+    // Ignore failures – tracing is best-effort and should never block the build
+  }
+}
+
+disableTraceFileWriter()
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
@@ -156,6 +170,8 @@ const withPWA = require('next-pwa')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: '.next-build',
+  outputFileTracing: false,
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
     if (!isServer) {

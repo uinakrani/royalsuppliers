@@ -3,6 +3,7 @@ export interface InvoicePayment {
   amount: number
   date: string // ISO date string
   note?: string
+  createdAt?: string
 }
 
 export interface Invoice {

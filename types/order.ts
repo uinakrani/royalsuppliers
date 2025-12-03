@@ -4,6 +4,8 @@ export interface PaymentRecord {
   date: string // ISO date string
   note?: string // Optional note for the payment
   ledgerEntryId?: string // ID of ledger entry that created this payment (for tracking)
+  createdAt?: string // When the payment record was captured in the system
+  updatedAt?: string // Last time the record was modified
 }
 
 export interface Order {
@@ -30,6 +32,12 @@ export interface Order {
   archived?: boolean // whether order is archived (when invoice is fully paid)
   adjustmentAmount?: number // Manual adjustment to the profit (positive adds to profit, negative deducts)
   adjustmentNote?: string // Reason for the adjustment
+  expenseAdjustment?: number // Auto adjustment from paying more/less for raw materials
+  revenueAdjustment?: number // Auto adjustment from party paying more/less than total
+  paid?: boolean // Supplier expense settled status
+  paymentDue?: boolean // Whether supplier payment is still due
+  paidAmount?: number // Track partial supplier payments
+  partyPaid?: boolean // Whether customer/party has settled the order
   createdAt?: string
   updatedAt?: string
 }

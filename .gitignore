@@ -5,6 +5,7 @@
 /.pwa
 /out
 /.next
+/.next-build
 
 # testing
 /coverage

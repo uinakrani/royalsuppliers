@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { Order, PaymentRecord } from '@/types/order'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
-import { X, Edit, Trash2, Plus, Calendar, User, Truck, Package, DollarSign, TrendingUp, FileText } from 'lucide-react'
+import { X, Edit, Trash2, Calendar, User, Truck, Package, DollarSign, TrendingUp, FileText } from 'lucide-react'
 import { sweetAlert } from '@/lib/sweetalert'
 import { showToast } from '@/components/Toast'
 import { orderService, isOrderPaid } from '@/lib/orderService'
@@ -16,7 +16,6 @@ interface OrderDetailPopupProps {
   onClose: () => void
   onEdit: (order: Order) => void
   onDelete: (orderId: string) => void
-  onAddPayment: (order: Order) => void
   onEditPayment: (order: Order, paymentId: string) => void
   onRemovePayment: (order: Order, paymentId: string) => void
   onOrderUpdated?: () => Promise<void>
@@ -30,13 +29,14 @@ const safeParseDate = (dateString: string | null | undefined): Date | null => {
   return isNaN(date.getTime()) ? null : date
 }
 
+const MANUAL_PARTY_PAYMENT_ID = 'manual-party-adjustment'
+
 export default function OrderDetailPopup({
   order,
   isOpen,
   onClose,
   onEdit,
   onDelete,
-  onAddPayment,
   onEditPayment,
   onRemovePayment,
   onOrderUpdated,
@@ -51,32 +51,59 @@ export default function OrderDetailPopup({
 
   useEffect(() => {
     if (order) {
-      const adj = order.adjustmentAmount || 0
-      setActualPaidAmount((order.total + adj).toString())
+    const totalCustomerPayments = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
+    const initialValue = totalCustomerPayments > 0 ? totalCustomerPayments : order.total
+    setActualPaidAmount(initialValue.toString())
     }
   }, [order])
 
   const handleSaveAdjustment = async () => {
     if (!order?.id) return
     const actual = parseFloat(actualPaidAmount)
-    if (isNaN(actual)) {
-      showToast('Invalid amount', 'error')
-      return
-    }
-    const adjustment = actual - order.total
+  if (isNaN(actual) || actual < 0) {
+    showToast('Invalid amount', 'error')
+    return
+  }
 
-    try {
-      await orderService.updateOrder(order.id, {
-        ...order,
-        adjustmentAmount: adjustment
-      })
-      setIsEditingAdjustment(false)
-      if (onOrderUpdated) await onOrderUpdated()
-      showToast('Profit adjustment saved', 'success')
-    } catch (error) {
-      console.error(error)
-      showToast('Failed to save adjustment', 'error')
-    }
+  const existingPayments = order.customerPayments || []
+  const manualPayment = existingPayments.find(p => p.id === MANUAL_PARTY_PAYMENT_ID)
+  const stablePayments = existingPayments.filter(p => p.id !== MANUAL_PARTY_PAYMENT_ID)
+  const recordedAmount = stablePayments.reduce((sum, p) => sum + p.amount, 0)
+
+  if (actual + 0.01 < recordedAmount) {
+    showToast(
+      `Actual amount cannot be less than recorded receipts (${formatIndianCurrency(recordedAmount)})`,
+      'error'
+    )
+    return
+  }
+
+  const manualAmount = Number((actual - recordedAmount).toFixed(2))
+  const updatedPayments: PaymentRecord[] = [...stablePayments]
+
+  if (manualAmount > 0.01) {
+    const recordedAt = manualPayment?.createdAt || new Date().toISOString()
+    updatedPayments.push({
+      id: manualPayment?.id || MANUAL_PARTY_PAYMENT_ID,
+      amount: manualAmount,
+      date: recordedAt,
+      createdAt: recordedAt,
+      note: 'Manual adjustment via order details',
+    })
+  }
+
+  try {
+    await orderService.updateOrder(order.id, {
+      customerPayments: updatedPayments,
+    })
+    setIsEditingAdjustment(false)
+    setActualPaidAmount(actual.toString())
+    if (onOrderUpdated) await onOrderUpdated()
+    showToast('Party payment saved', 'success')
+  } catch (error) {
+    console.error(error)
+    showToast('Failed to save party payment', 'error')
+  }
   }
 
   useEffect(() => {
@@ -153,6 +180,13 @@ export default function OrderDetailPopup({
   const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
   const partialPayments = order.partialPayments || []
   const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+  const totalCustomerPayments = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
+  const totalExpensePayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
+  const expenseAdjustment = Number(order.expenseAdjustment || 0)
+  const revenueAdjustment = Number(order.revenueAdjustment || 0)
+  const manualAdjustmentValue = Number(order.adjustmentAmount || 0)
+  const adjustedProjectedProfit = order.profit + expenseAdjustment + revenueAdjustment + manualAdjustmentValue
+  const realizedProfit = totalCustomerPayments - totalExpensePayments - order.additionalCost + manualAdjustmentValue
 
   const popupContent = (
     <>
@@ -295,14 +329,14 @@ export default function OrderDetailPopup({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <DollarSign size={16} className="text-yellow-700" />
-                  <span className="font-semibold text-gray-900 text-xs">Actual Party Payment</span>
+                  <span className="font-semibold text-gray-900 text-xs">Profit Adjustments</span>
                 </div>
                 {!isEditingAdjustment ? (
                   <button
                     onClick={() => setIsEditingAdjustment(true)}
                     className="text-primary-600 text-xs font-medium"
                   >
-                    Adjust
+                    Adjust Party Payment
                   </button>
                 ) : (
                   <div className="flex gap-2">
@@ -315,7 +349,7 @@ export default function OrderDetailPopup({
               {isEditingAdjustment ? (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-600 w-16">Paid Amount:</span>
+                    <span className="text-xs text-gray-600 w-20">Actual Paid:</span>
                     <input
                       type="number"
                       value={actualPaidAmount}
@@ -325,33 +359,52 @@ export default function OrderDetailPopup({
                     />
                   </div>
                   <div className="text-[10px] text-gray-500">
-                    Original Total: {formatIndianCurrency(order.total)}
+                    Expected Total: {formatIndianCurrency(order.total)}
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2 text-xs text-gray-700">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Realized Profit (Payments):</span>
-                    {(() => {
-                      const totalReceived = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
-                      const totalPaidOut = (order.partialPayments || []).reduce((sum, p) => sum + p.amount, 0)
-                      const realizedProfit = totalReceived - totalPaidOut - order.additionalCost
-                      return (
-                        <span className={`font-bold text-sm ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                          {formatIndianCurrency(realizedProfit)}
-                        </span>
-                      )
-                    })()}
+                    <span>Realized Profit (Payments)</span>
+                    <span className={`font-bold ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                      {formatIndianCurrency(realizedProfit)}
+                    </span>
                   </div>
-                  {order.adjustmentAmount ? (
-                    <div className="flex justify-between items-center text-[10px] text-gray-500">
-                      <span>Manual Adjustment:</span>
-                      <span>{formatIndianCurrency(order.adjustmentAmount)}</span>
+                  <div className="border-t border-yellow-200 pt-2 space-y-1 text-[10px] text-gray-600">
+                    <div className="flex justify-between">
+                      <span>Projected Profit (Original)</span>
+                      <span className="font-medium text-gray-700">{formatIndianCurrency(order.profit)}</span>
                     </div>
-                  ) : null}
-                  <div className="flex justify-between items-center text-[10px] text-gray-500 border-t border-yellow-200 pt-1 mt-1">
-                     <span>Projected Profit:</span>
-                     <span className="font-medium text-gray-700">{formatIndianCurrency(order.profit)}</span>
+                    {Math.abs(expenseAdjustment) > 0.01 && (
+                      <div className="flex justify-between">
+                        <span>Raw Expense Adjustment</span>
+                        <span className={`${expenseAdjustment >= 0 ? 'text-green-700' : 'text-red-600'} font-semibold`}>
+                          {formatIndianCurrency(expenseAdjustment)}
+                        </span>
+                      </div>
+                    )}
+                    {Math.abs(revenueAdjustment) > 0.01 && (
+                      <div className="flex justify-between">
+                        <span>Party Payment Adjustment</span>
+                        <span className={`${revenueAdjustment >= 0 ? 'text-green-700' : 'text-red-600'} font-semibold`}>
+                          {formatIndianCurrency(revenueAdjustment)}
+                        </span>
+                      </div>
+                    )}
+                    {Math.abs(manualAdjustmentValue) > 0.01 && (
+                      <div className="flex justify-between">
+                        <span>Manual Adjustment</span>
+                        <span className={`${manualAdjustmentValue >= 0 ? 'text-green-700' : 'text-red-600'} font-semibold`}>
+                          {formatIndianCurrency(manualAdjustmentValue)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold text-gray-900 text-xs border-t border-yellow-200 pt-2 mt-1">
+                      <span>Projected Profit (Adjusted)</span>
+                      <span className={`${adjustedProjectedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                        {formatIndianCurrency(adjustedProjectedProfit)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -382,19 +435,6 @@ export default function OrderDetailPopup({
                   <DollarSign size={16} className="text-blue-600" />
                   <span className="font-semibold text-gray-900">Raw Material Payments</span>
                 </div>
-                <button
-                  onClick={() => {
-                    handleClose()
-                    setTimeout(() => {
-                      onAddPayment(order)
-                    }, 300)
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium active:bg-blue-700 transition-colors touch-manipulation"
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <Plus size={14} />
-                  Add Payment
-                </button>
               </div>
 
               {partialPayments.length === 0 ? (

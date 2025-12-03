@@ -181,10 +181,12 @@ export const invoiceService = {
     const newPaid = currentPaid + amount
     const isFullyPaid = newPaid >= invoice.totalAmount
     
+    const paymentDate = new Date().toISOString()
     const newPayment: InvoicePayment = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount,
-      date: new Date().toISOString(),
+      date: paymentDate,
+      createdAt: paymentDate,
       // note will be conditionally appended
     }
     if (note && note.trim()) {

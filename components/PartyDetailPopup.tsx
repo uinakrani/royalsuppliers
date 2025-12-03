@@ -11,6 +11,7 @@ import { sweetAlert } from '@/lib/sweetalert'
 import { showToast } from '@/components/Toast'
 import { partyPaymentService } from '@/lib/partyPaymentService'
 import { createRipple } from '@/lib/rippleEffect'
+import { getAdjustedProfit, hasProfitAdjustments } from '@/lib/orderCalculations'
 
 interface PartyGroup {
   partyName: string
@@ -330,6 +331,8 @@ export default function PartyDetailPopup({
                   const existingPayments = order.partialPayments || []
                   const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
                   const remainingAmount = expenseAmount - totalPaid
+                  const adjustedProfit = getAdjustedProfit(order)
+                  const hasAdjustment = hasProfitAdjustments(order)
 
                   return (
                     <div
@@ -371,11 +374,22 @@ export default function PartyDetailPopup({
                         </div>
                         <div className="text-right ml-2 flex-shrink-0">
                           <p className="text-xs font-bold text-primary-600">{formatIndianCurrency(order.total)}</p>
-                          <p className={`text-[10px] font-semibold mt-0.5 ${
-                            order.profit >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            Profit: {formatIndianCurrency(order.profit)}
-                          </p>
+                          <div className="text-[10px] font-semibold mt-0.5 text-right leading-tight">
+                            {hasAdjustment ? (
+                              <>
+                                <span className="text-gray-500 line-through block">
+                                  Profit: {formatIndianCurrency(order.profit)}
+                                </span>
+                                <span className={`${adjustedProfit >= 0 ? 'text-green-600' : 'text-red-600'} block`}>
+                                  {formatIndianCurrency(adjustedProfit)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className={`${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                Profit: {formatIndianCurrency(order.profit)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       

@@ -383,6 +383,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             label="Enter Rate"
             inline={true}
             hideDoneButton={true}
+            showCurrency={true}
           />
         )
 
@@ -486,6 +487,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             label="Enter Original Rate"
             inline={true}
             hideDoneButton={true}
+            showCurrency={true}
           />
         )
 
@@ -502,6 +504,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             label="Enter Additional Cost"
             inline={true}
             hideDoneButton={true}
+            showCurrency={true}
           />
         )
 
@@ -563,10 +566,12 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           cancelText: 'Skip',
         })
 
+        const recordedAt = new Date().toISOString()
         const newPayment: PaymentRecord = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           amount,
-          date: new Date().toISOString(),
+          date: recordedAt,
+          createdAt: recordedAt,
           note: note || undefined,
         }
 
@@ -815,7 +820,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           </p>
         </div>
 
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-3">
           {STEP_ORDER.slice(0, -1).map((step, idx) => {
             const Icon = getStepIcon(step)
             const value = getStepValue(step)
@@ -986,10 +991,23 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
           }
           
           // Build the payment object, preserving all fields
-          const validatedPayment: PaymentRecord = {
+        let createdAt = payment.createdAt
+        if (createdAt && typeof createdAt === 'string' && !createdAt.includes('T')) {
+          try {
+            createdAt = new Date(createdAt + 'T00:00:00').toISOString()
+          } catch {
+            createdAt = date
+          }
+        }
+        if (!createdAt || typeof createdAt !== 'string') {
+          createdAt = date
+        }
+
+        const validatedPayment: PaymentRecord = {
             id: String(payment.id), // Ensure id is a string
             amount: amount,
             date: date,
+          createdAt,
             ...(payment.note && payment.note.trim() && { note: payment.note.trim() }),
             ...(payment.ledgerEntryId && { ledgerEntryId: String(payment.ledgerEntryId) }),
           }

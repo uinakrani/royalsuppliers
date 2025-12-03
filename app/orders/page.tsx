@@ -26,6 +26,7 @@ import { createRipple } from '@/lib/rippleEffect'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { getDb } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
+import { getAdjustedProfit, hasProfitAdjustments } from '@/lib/orderCalculations'
 
 interface PartyGroup {
   partyName: string
@@ -793,186 +794,7 @@ export default function OrdersPage() {
         return
       }
 
-      console.log(`📦 Getting orders for supplier: ${ledgerEntry.supplier}`)
-
-      // Get all orders for this supplier
-      const allOrders = await orderService.getAllOrders({ supplier: ledgerEntry.supplier })
-
-      console.log(`📦 Found ${allOrders.length} orders for supplier ${ledgerEntry.supplier}`)
-
-      // Calculate total amount currently allocated to orders from this ledger entry
-      let totalAllocated = 0
-      allOrders.forEach(order => {
-        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
-        const orderAllocated = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-        totalAllocated += orderAllocated
-        if (orderAllocated > 0) {
-          console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): allocated ${orderAllocated} from this ledger entry`)
-        }
-      })
-
-      console.log(`💰 Total allocated to orders: ${totalAllocated}, Ledger entry amount: ${ledgerEntry.amount}`)
-
-      // NOTE: We do NOT automatically update the ledger entry amount
-      // The ledger entry amount should only be changed manually by the user
-      // We use the original ledger entry amount for redistribution
-
-      // Redistribute using the original ledger entry amount (not the calculated totalAllocated)
-      // This ensures we redistribute the actual ledger entry amount, not what's currently allocated
-      const supplier = ledgerEntry.supplier
-      const ordersWithOutstanding = allOrders
-        .map(order => {
-          const existingPayments = order.partialPayments || []
-          // Exclude payments from this ledger entry
-          const paymentsExcludingThis = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-          const totalPaid = paymentsExcludingThis.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-          const originalTotal = Number(order.originalTotal || 0)
-          const remaining = Math.max(0, originalTotal - totalPaid)
-
-          const tempOrder: Order = {
-            ...order,
-            partialPayments: paymentsExcludingThis
-          }
-
-          const isPaid = isOrderPaid(tempOrder)
-
-          return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid, totalPaid, originalTotal }
-        })
-        .filter(({ remaining, isPaid, order, totalPaid, originalTotal }) => {
-          const shouldInclude = remaining > 0 && !isPaid
-          if (!shouldInclude) {
-            if (remaining <= 0) {
-              console.log(`  ⏭️  Skipping order ${order.id} (${order.siteName || 'N/A'}): remaining=${remaining} <= 0 (originalTotal=${originalTotal}, totalPaid=${totalPaid})`)
-            } else if (isPaid) {
-              console.log(`  ⏭️  Skipping order ${order.id} (${order.siteName || 'N/A'}): marked as PAID (remaining=${remaining}, originalTotal=${originalTotal}, totalPaid=${totalPaid})`)
-            }
-          } else {
-            console.log(`  ✅ Including order ${order.id} (${order.siteName || 'N/A'}): remaining=${remaining}, originalTotal=${originalTotal}, totalPaid=${totalPaid}`)
-          }
-          return shouldInclude
-        })
-        .sort((a, b) => {
-          const aDate = new Date(a.order.date).getTime()
-          const bDate = new Date(b.order.date).getTime()
-          if (aDate !== bDate) return aDate - bDate
-          const aTime = new Date(a.order.createdAt || a.order.updatedAt || a.order.date).getTime()
-          const bTime = new Date(b.order.createdAt || b.order.updatedAt || b.order.date).getTime()
-          return aTime - bTime
-        })
-
-      console.log(`✅ Found ${ordersWithOutstanding.length} orders with outstanding payments for redistribution`)
-
-      if (ordersWithOutstanding.length === 0) {
-        console.warn(`⚠️ No orders with outstanding payments for supplier ${supplier}`)
-        return
-      }
-
-      // Preserve existing payments from this ledger entry (they may have been manually edited)
-      // Calculate how much is already allocated to preserve those amounts
-      const preservedPayments: Array<{ orderId: string; payment: PaymentRecord }> = []
-      let preservedAmount = 0
-
-      allOrders.forEach(order => {
-        if (!order.id) return
-        const ledgerPayments = (order.partialPayments || []).filter(p => p.ledgerEntryId === ledgerEntryId)
-        ledgerPayments.forEach(payment => {
-          preservedPayments.push({ orderId: order.id!, payment })
-          preservedAmount += Number(payment.amount || 0)
-        })
-      })
-
-      console.log(`💾 Preserving ${preservedPayments.length} existing payment(s) totaling ${preservedAmount}`)
-
-      // Calculate remaining amount to redistribute
-      let remainingExpense = ledgerEntry.amount - preservedAmount
-      const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
-
-      console.log(`💰 Starting redistribution: ledger entry amount=${ledgerEntry.amount}, preserved=${preservedAmount}, remaining to redistribute=${remainingExpense}`)
-
-      // First, preserve existing payments by adding them to paymentsToAdd
-      const preservedByOrder = new Map<string, PaymentRecord[]>()
-      preservedPayments.forEach(({ orderId, payment }) => {
-        if (!preservedByOrder.has(orderId)) {
-          preservedByOrder.set(orderId, [])
-        }
-        preservedByOrder.get(orderId)!.push(payment)
-      })
-
-      // Distribute remaining expense across orders (oldest first)
-      for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
-        if (remainingExpense <= 0) break
-
-        if (!order.id) continue
-
-        // Check if this order has preserved payments
-        const preservedForThisOrder = preservedByOrder.get(order.id) || []
-        const preservedAmountForOrder = preservedForThisOrder.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-
-        // Calculate remaining capacity for this order (considering preserved payments)
-        const remainingCapacity = Math.max(0, remaining - preservedAmountForOrder)
-
-        if (remainingCapacity <= 0) {
-          // Order already has preserved payment that fills the remaining amount
-          const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-          const updatedPayments = [...paymentsWithoutThisEntry, ...preservedForThisOrder]
-          paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
-          console.log(`  💾 Preserved payment of ${preservedAmountForOrder} for order ${order.id}`)
-          continue
-        }
-
-        const paymentAmount = Math.min(remainingExpense, remainingCapacity)
-
-        let paymentDate = expenseDate
-        if (paymentDate && !paymentDate.includes('T')) {
-          paymentDate = new Date(paymentDate + 'T00:00:00').toISOString()
-        }
-
-        const payment: PaymentRecord = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          amount: paymentAmount,
-          date: paymentDate,
-          note: `From ledger entry`,
-          ledgerEntryId: ledgerEntryId,
-        }
-
-        const paymentsWithoutThisEntry = currentPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-        const updatedPayments = [...paymentsWithoutThisEntry, ...preservedForThisOrder, payment]
-
-        paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
-        remainingExpense -= paymentAmount
-
-        console.log(`  ✓ Adding payment of ${paymentAmount} to order ${order.id} (preserved: ${preservedAmountForOrder}, order remaining: ${remaining - preservedAmountForOrder - paymentAmount}, expense remaining: ${remainingExpense})`)
-      }
-
-      // Handle orders with preserved payments that weren't in ordersWithOutstanding
-      preservedByOrder.forEach((preserved, orderId) => {
-        if (!paymentsToAdd.find(p => p.orderId === orderId)) {
-          const order = allOrders.find(o => o.id === orderId)
-          if (order) {
-            const existingPayments = order.partialPayments || []
-            const paymentsWithoutThisEntry = existingPayments.filter(p => p.ledgerEntryId !== ledgerEntryId)
-            const updatedPayments = [...paymentsWithoutThisEntry, ...preserved]
-            paymentsToAdd.push({ orderId, payment: updatedPayments })
-            console.log(`  💾 Preserved payment(s) for order ${orderId} (not in outstanding list)`)
-          }
-        }
-      })
-
-      console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingExpense} remaining undistributed`)
-
-      // Update orders with new payment distributions
-      for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
-        await orderService.updateOrder(orderId, {
-          partialPayments: updatedPayments,
-        })
-        console.log(`  ✅ Updated order ${orderId} with redistributed payment`)
-      }
-
-      if (remainingExpense > 0) {
-        console.warn(`⚠️ Could not fully redistribute. Remaining undistributed: ${remainingExpense}`)
-      } else {
-        console.log(`✅ Successfully redistributed ledger entry ${ledgerEntryId}`)
-      }
+    console.log('Redistribution is handled server-side by orderService.redistributeSupplierPayment; skipping duplicate client distribution.')
     } catch (error) {
       console.error('❌ Error redistributing ledger entry:', error)
       throw error
@@ -1288,7 +1110,7 @@ export default function OrdersPage() {
     const groups: PartyGroup[] = []
     partyMap.forEach((partyOrders, partyName) => {
       const totalSelling = partyOrders.reduce((sum, order) => sum + order.total, 0)
-      const totalProfit = partyOrders.reduce((sum, order) => sum + order.profit, 0)
+      const totalProfit = partyOrders.reduce((sum, order) => sum + getAdjustedProfit(order), 0)
 
       // Get all payments for this party
       const partyPaymentRecords = partyPayments.filter(p => p.partyName === partyName)
@@ -1307,7 +1129,7 @@ export default function OrdersPage() {
             id: payment.id!,
             amount: payment.amount,
             date: payment.date,
-            note: payment.note
+            ...(payment.note ? { note: payment.note } : {})
           },
           ledgerEntryId: payment.ledgerEntryId // Include ledger entry ID if linked
         })
@@ -2359,33 +2181,51 @@ export default function OrdersPage() {
                         
                         {/* Profit Display Logic */}
                         {(() => {
-                          const totalReceived = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0);
-                          const totalPaidOut = (order.partialPayments || []).reduce((sum, p) => sum + p.amount, 0);
-                          
-                          // If no customer payments received, just show original profit
-                          if (totalReceived === 0) {
+                          const expenseAdj = Number(order.expenseAdjustment || 0)
+                          const revenueAdj = Number(order.revenueAdjustment || 0)
+                          const manualAdj = Number(order.adjustmentAmount || 0)
+                          const adjustedProjected = order.profit + expenseAdj + revenueAdj + manualAdj
+                          const hasProjectedAdjustments = Math.abs(adjustedProjected - order.profit) > 0.01
+
+                          const totalReceived = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
+                          const totalPaidOut = (order.partialPayments || []).reduce((sum, p) => sum + p.amount, 0)
+                          const customerSettled = isPartyPaid
+                          const supplierSettled = isPaid
+                          const showRealized = customerSettled && supplierSettled
+
+                          if (showRealized) {
+                            const realizedProfit = totalReceived - totalPaidOut - order.additionalCost + manualAdj
+
+                            return (
+                              <>
+                                <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
+                                  {formatIndianCurrency(order.profit)}
+                                </div>
+                                <div className={`font-bold text-[11px] leading-tight ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                  {formatIndianCurrency(realizedProfit)}
+                                </div>
+                              </>
+                            )
+                          }
+
+                          if (!customerSettled || !hasProjectedAdjustments) {
                             return (
                               <div className={`font-semibold text-[11px] leading-tight ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatIndianCurrency(order.profit)}
                               </div>
-                            );
+                            )
                           }
 
-                          // If payments exist, show both: Original (crossed) and Realized (Bold)
-                          const realizedProfit = totalReceived - totalPaidOut - order.additionalCost;
-                          
                           return (
                             <>
-                              {/* Standard (Projected) Profit */}
-                              <div className={`font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60`}>
+                              <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
                                 {formatIndianCurrency(order.profit)}
                               </div>
-                              {/* Realized Profit */}
-                              <div className={`font-bold text-[11px] leading-tight ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                {formatIndianCurrency(realizedProfit)}
+                              <div className={`font-bold text-[11px] leading-tight ${adjustedProjected >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                {formatIndianCurrency(adjustedProjected)}
                               </div>
                             </>
-                          );
+                          )
                         })()}
                       </div>
 
@@ -2448,7 +2288,6 @@ export default function OrdersPage() {
             setShowForm(true)
           }}
           onDelete={handleDeleteOrder}
-          onAddPayment={handleAddPaymentToOrder}
           onEditPayment={handleEditPayment}
           onRemovePayment={handleRemovePayment}
           onOrderUpdated={async () => {
