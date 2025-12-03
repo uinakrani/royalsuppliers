@@ -1,12 +1,13 @@
 [build]
-  command = "npm run build:static"
-  publish = "dist"
+  command = "next build && next export"
+  publish = "out"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION = "18"
-  NETLIFY_SKIP_NEXTJS_PLUGIN = "true"
-  NEXT_TELEMETRY_DISABLED = "1"
-
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  
 # SPA fallback for static app
 [[redirects]]
   from = "/api/*"
