@@ -21,6 +21,7 @@ import OrderDetailPopup from '@/components/OrderDetailPopup'
 import SelectionSheet from '@/components/SelectionSheet'
 import SupplierDetailPopup from '@/components/SupplierDetailPopup'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { Suspense } from 'react'
 import { Invoice, InvoicePayment } from '@/types/invoice'
 import { createRipple } from '@/lib/rippleEffect'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
@@ -65,7 +66,7 @@ const safeGetTime = (dateString: string | null | undefined): number => {
   return date ? date.getTime() : 0
 }
 
-export default function OrdersPage() {
+function OrdersPageContent() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -2624,6 +2625,21 @@ export default function OrdersPage() {
       {/* Bottom Navigation - Fixed at bottom */}
       <NavBar />
     </div>
+  )
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading Orders...</p>
+        </div>
+      </div>
+    }>
+      <OrdersPageContent />
+    </Suspense>
   )
 }
 
