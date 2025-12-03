@@ -45,6 +45,12 @@ try {
     process.exit(1);
   }
 
+  // Copy public files to dist
+  if (fs.existsSync('public')) {
+    copyDir('public', 'dist');
+    console.log('✅ Public files copied to dist/');
+  }
+
   console.log('🎉 Custom build process completed successfully!');
 } catch (error) {
   console.error('❌ Build file copy failed:', error.message);
