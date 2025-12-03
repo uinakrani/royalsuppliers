@@ -1,11 +1,13 @@
 [build]
-  command = "npm run build:netlify"
+  command = "npm run build:static"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "18"
+  NETLIFY_SKIP_NEXTJS_PLUGIN = "true"
+  NEXT_TELEMETRY_DISABLED = "1"
 
-# SPA fallback for Next.js
+# SPA fallback for static app
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

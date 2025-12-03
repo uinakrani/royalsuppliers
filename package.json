@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:netlify": "next build && node -e \"const fs = require('fs'); const path = require('path'); function copyDir(src, dest) { if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true }); const entries = fs.readdirSync(src); for (const entry of entries) { const srcPath = path.join(src, entry); const destPath = path.join(dest, entry); if (fs.statSync(srcPath).isDirectory()) { copyDir(srcPath, destPath); } else { fs.copyFileSync(srcPath, destPath); } } } copyDir('.next', 'dist'); console.log('Build files copied to dist/');\"",
+    "build:netlify": "npm run build && node scripts/copy-build.js",
+    "build:static": "npm run build && node scripts/copy-build.js && node scripts/generate-static.js",
     "start": "next start",
     "lint": "next lint",
     "export-db": "ts-node --project tsconfig.scripts.json scripts/export-db.ts",
