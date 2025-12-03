@@ -28,3 +28,4 @@ export const hasProfitAdjustments = (order: Order): boolean => {
   return Math.abs(adjusted - order.profit) > 0.01
 }
 
+
