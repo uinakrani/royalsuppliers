@@ -170,7 +170,6 @@ const withPWA = require('next-pwa')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  distDir: '.next-build',
   outputFileTracing: false,
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
