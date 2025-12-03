@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 
 interface TruckLoadingProps {
@@ -20,13 +21,13 @@ export default function TruckLoading({ size = 200, className = '', text, inline 
       <div className={`flex items-center gap-2 ${className}`}>
         <div style={{ width: size, height: size, position: 'relative' }}>
           {!gifError ? (
-            <img 
+            <Image
               src={gifUrl}
               alt="Loading..."
-              style={{ 
-                width: '100%', 
-                height: '100%',
-                objectFit: 'contain'
+              fill
+              sizes={`${size}px`}
+              style={{
+                objectFit: 'contain',
               }}
               onError={() => setGifError(true)}
             />
@@ -61,14 +62,13 @@ export default function TruckLoading({ size = 200, className = '', text, inline 
         }}
       >
         {!gifError ? (
-          <img 
+          <Image
             src={gifUrl}
             alt="Loading materials..."
-            style={{ 
-              width: '100%', 
-              height: '100%',
+            fill
+            sizes={`${size}px`}
+            style={{
               objectFit: 'contain',
-              display: 'block'
             }}
             onError={() => setGifError(true)}
           />
