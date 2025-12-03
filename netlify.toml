@@ -1,39 +1,14 @@
 [build]
-  command = "node scripts/custom-build.js"
-  publish = "dist"
-  functions = "netlify/functions"
+  command = "npm run build"
 
 [build.environment]
   NODE_VERSION = "18"
 
-[build.processing]
-  skip_processing = false
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
-[build.processing.css]
-  bundle = false
-  minify = false
-
-[build.processing.js]
-  bundle = false
-  minify = false
-
-[build.processing.html]
-  pretty_urls = false
-
-# API routes via Netlify Functions
-[[redirects]]
-  from = "/api/backup"
-  to = "/.netlify/functions/backup"
-  status = 200
-
-[[redirects]]
-  from = "/api/backup/status"
-  to = "/.netlify/functions/backup-status"
-  status = 200
-
-# SPA fallback
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[functions]
+  directory = "netlify/functions"
+  external_node_modules = ["firebase-admin"]
+  included_files = ["lib/**"]
 
