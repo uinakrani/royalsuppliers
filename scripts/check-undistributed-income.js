@@ -110,7 +110,8 @@ async function distributeIncomeToOrders(entryId, incomeAmount, partyName, income
         totalPaid,
         remaining,
         existingPayments,
-        profit: order.profit || 0
+        profit: order.profit || 0,
+        date: order.date || '1970-01-01'
       };
     }).filter(Boolean);
 
@@ -180,21 +181,37 @@ async function distributeIncomeToOrders(entryId, incomeAmount, partyName, income
       }
     }
 
-    // Strategy 3: If still income remaining and we have overpaid orders, apply to any order (will be treated as overpayment)
-    if (remainingIncome > 0 && paymentsToAdd.length > 0) {
-      // Find the last order we paid to apply the remainder
-      const lastPayment = paymentsToAdd[paymentsToAdd.length - 1];
-      const additionalPayment = createPayment(remainingIncome, incomeDate, entryId);
-      const updatedPayments = [...lastPayment.payment, additionalPayment];
+    // Strategy 3: If still income remaining, add it to the party's last order as overpayment
+    if (remainingIncome > 0) {
+      // Find the party's most recent order (by date)
+      const sortedOrders = [...orderStatuses].sort((a, b) =>
+        new Date(b.date || '1970-01-01').getTime() - new Date(a.date || '1970-01-01').getTime()
+      );
 
-      // Replace the last payment with the updated one
-      paymentsToAdd[paymentsToAdd.length - 1] = {
-        ...lastPayment,
-        payment: updatedPayments
-      };
+      if (sortedOrders.length > 0) {
+        const lastOrder = sortedOrders[0];
+        const additionalPayment = createPayment(remainingIncome, incomeDate, entryId);
 
-      console.log(`  💰 OVERPAYMENT: Applied remaining ${remainingIncome} to order ${lastPayment.orderId} (will be deducted from profit as revenue adjustment)`);
-      remainingIncome = 0;
+        // Check if we already have payments for this order, if not, create new payment array
+        const existingPaymentUpdate = paymentsToAdd.find(p => p.orderId === lastOrder.id);
+        let updatedPayments;
+
+        if (existingPaymentUpdate) {
+          // Add to existing payment update
+          updatedPayments = [...existingPaymentUpdate.payment, additionalPayment];
+          // Update the existing payment update
+          existingPaymentUpdate.payment = updatedPayments;
+        } else {
+          // Create new payment update for the last order
+          updatedPayments = [...lastOrder.existingPayments, additionalPayment];
+          paymentsToAdd.push({ orderId: lastOrder.id, payment: updatedPayments, orderStatus: lastOrder });
+        }
+
+        console.log(`  💰 OVERPAYMENT: Applied remaining ${remainingIncome} to party's last order ${lastOrder.id} (will be deducted from profit as revenue adjustment)`);
+        remainingIncome = 0;
+      } else {
+        console.warn(`⚠️ Could not find any orders for party ${partyName} to apply overpayment`);
+      }
     }
 
     console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingIncome} remaining undistributed`);

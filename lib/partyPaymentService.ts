@@ -234,27 +234,65 @@ export const partyPaymentService = {
       console.log(`  ✅ Updated order ${orderId} with new customer payment distribution`);
     }
 
-    // Commit all the batch updates
-    await batch.commit();
+    // Handle overpayment by adding it to the party's most recent order
+    if (remainingAmount > 0) {
+      // Find the party's most recent order (by date)
+      const sortedOrders = [...allOrders].sort((a, b) =>
+        new Date(b.date || '1970-01-01').getTime() - new Date(a.date || '1970-01-01').getTime()
+      );
 
-    // Handle overpayment by adding it to the last processed order's profit
-    if (remainingAmount > 0 && paymentsToAdd.length > 0) {
-      const lastProcessedOrderId = paymentsToAdd[paymentsToAdd.length - 1].orderId;
-      const lastProcessedOrder = allOrders.find(o => o.id === lastProcessedOrderId);
-      if (lastProcessedOrder && lastProcessedOrder.id) {
-        console.log(
-          `💰 Overpayment of ₹${remainingAmount} detected. Applying to order ${lastProcessedOrder.id} as revenue adjustment.`,
-        );
-        const orderRef = doc(db, 'orders', lastProcessedOrder.id);
+      const lastOrder = sortedOrders[0];
+      if (lastOrder && lastOrder.id) {
+        console.log(`💰 Overpayment of ₹${remainingAmount} detected. Applying to party's last order ${lastOrder.id}.`);
 
-        const existingRevenueAdj = Number(lastProcessedOrder.revenueAdjustment || 0);
+        const recordedAt = new Date().toISOString();
+        const overpaymentRecord: PaymentRecord = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          amount: remainingAmount,
+          date: paymentDate,
+          createdAt: recordedAt,
+          ledgerEntryId,
+          note: note || 'Overpayment applied to last order',
+        };
+
+        // Check if we already have payments for this order in our batch
+        const existingPaymentUpdate = paymentsToAdd.find(p => p.orderId === lastOrder.id);
+        let updatedPayments;
+
+        if (existingPaymentUpdate) {
+          // Add to existing payment update
+          updatedPayments = [...existingPaymentUpdate.payment, overpaymentRecord];
+          existingPaymentUpdate.payment = updatedPayments;
+        } else {
+          // Create new payment update for the last order
+          const existingPayments = lastOrder.customerPayments || [];
+          updatedPayments = [...existingPayments, overpaymentRecord];
+          paymentsToAdd.push({ orderId: lastOrder.id, payment: updatedPayments });
+        }
+
+        // Update the order with the new payment
+        const sellingTotal = lastOrder.total || 0;
+        const newTotalPaid = updatedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        const isNowPartyPaid = newTotalPaid >= (sellingTotal - PAYMENT_TOLERANCE);
+
+        const orderRef = doc(db, 'orders', lastOrder.id);
         const batch2 = writeBatch(db);
         batch2.update(orderRef, {
-          revenueAdjustment: existingRevenueAdj + remainingAmount,
+          customerPayments: updatedPayments,
+          partyPaid: isNowPartyPaid,
+          revenueAdjustment: calculateRevenueAdjustment(sellingTotal, updatedPayments),
         });
         await batch2.commit();
+
+        console.log(`  ✅ Applied overpayment to party's last order ${lastOrder.id}`);
+        remainingAmount = 0;
+      } else {
+        console.warn(`⚠️ Could not find any orders for party ${partyName} to apply overpayment`);
       }
     }
+
+    // Commit the main batch updates
+    await batch.commit();
     console.log('✅ Party payment distribution complete.');
   },
 
