@@ -218,7 +218,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       case 'date':
         return !!formData.date
       case 'supplier':
-        return type === 'debit' ? !!formData.supplier.trim() : true
+        return true // Supplier is optional for expense entries
       case 'partyName':
         return type === 'credit' ? !!formData.partyName.trim() : true
       case 'note':
@@ -289,22 +289,41 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
 
       case 'supplier':
         return (
-          <SelectList
-            options={suppliers}
-            value={formData.supplier}
-            onChange={(val) => {
-              setFormData({ ...formData, supplier: val })
-              setTimeout(() => handleAfterEdit(), 100)
-            }}
-            onClose={() => {}}
-            label="Select Supplier"
-            allowCustom={true}
-            onCustomAdd={(val) => {
-              setSuppliers([...suppliers, val])
-            }}
-            inline={true}
-            autoFocusSearch={false}
-          />
+          <div className="w-full">
+            <SelectList
+              options={suppliers}
+              value={formData.supplier}
+              onChange={(val) => {
+                setFormData({ ...formData, supplier: val })
+                setTimeout(() => handleAfterEdit(), 100)
+              }}
+              onClose={() => {}}
+              label="Select Supplier (Optional)"
+              allowCustom={true}
+              onCustomAdd={(val) => {
+                setSuppliers([...suppliers, val])
+              }}
+              inline={true}
+              autoFocusSearch={false}
+            />
+            {formData.supplier && (
+              <div className="mt-2 flex justify-end">
+                <button
+                  onClick={() => {
+                    setFormData({ ...formData, supplier: '' })
+                    setTimeout(() => handleAfterEdit(), 100)
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 active:text-gray-800 transition-colors"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  Clear Selection
+                </button>
+              </div>
+            )}
+            <div className="mt-2 text-xs text-gray-500 text-center">
+              You can skip this step to create a general expense entry
+            </div>
+          </div>
         )
 
       case 'partyName':
