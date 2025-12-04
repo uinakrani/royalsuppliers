@@ -2020,11 +2020,6 @@ function OrdersPageContent() {
                 const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
                 const customerPayments = order.customerPayments || []
                 const totalCustomerPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0)
-
-                // Debug logging for the specific order
-                if (order.total === 39611) {
-                  console.log(`Order ${order.id}: total=${order.total}, customerPayments=`, customerPayments, `totalCustomerPaid=${totalCustomerPaid}`)
-                }
                 const expenseAmount = Number(order.originalTotal || 0)
                 const isPaid = isOrderPaid(order)
                 const isPartyPaid = isCustomerPaid(order)
@@ -2132,9 +2127,6 @@ function OrdersPageContent() {
                             <div className="text-[10px] text-gray-500 line-through leading-tight">
                               {formatIndianCurrency(order.total)}
                             </div>
-                            {order.total === 39611 && (
-                              <div className="text-[8px] text-red-500">DEBUG: paid={totalCustomerPaid}</div>
-                            )}
                           </>
                         ) : (
                           <div className="font-bold text-primary-600 text-[11px] leading-tight">
