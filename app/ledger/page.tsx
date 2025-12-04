@@ -628,6 +628,11 @@ export default function LedgerPage() {
         )
       } else {
         console.log(`✅ Successfully distributed income ${incomeAmount} across orders`)
+        // Show success message telling user where to see the distributed amounts
+        nativePopup.success(
+          'Income Distributed',
+          `₹${incomeAmount.toLocaleString('en-IN')} has been distributed to ${paymentsToAdd.length} orders for party "${partyName}". Check the Orders page to see the updated "Total Received" amounts in the Total column.`
+        )
       }
     } catch (error) {
       console.error('❌ Error distributing income to orders:', error)
