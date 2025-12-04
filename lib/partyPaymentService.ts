@@ -175,6 +175,7 @@ export const partyPaymentService = {
 
     let remainingAmount = amount;
     const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = [];
+    const batch = writeBatch(db);
 
     // Distribute income proportionally across all orders based on their total value
     for (const order of allOrders) {
@@ -233,25 +234,27 @@ export const partyPaymentService = {
       console.log(`  ✅ Updated order ${orderId} with new customer payment distribution`);
     }
 
-    // Handle overpayment by adding it to the last paid order's profit
-    if (remainingAmount > 0 && unpaidOrders.length > 0) {
-      const lastPaidOrder = unpaidOrders[unpaidOrders.length - 1];
-      if (lastPaidOrder && lastPaidOrder.id) {
-        console.log(
-          `💰 Overpayment of ₹${remainingAmount} detected. Applying to order ${lastPaidOrder.id} as profit adjustment.`,
-        );
-        const orderRef = doc(db, 'orders', lastPaidOrder.id);
-        const currentAdjustment = lastPaidOrder.adjustmentAmount || 0;
-        const newAdjustment = currentAdjustment + remainingAmount;
+    // Commit all the batch updates
+    await batch.commit();
 
-        const existingRevenueAdj = Number(lastPaidOrder.revenueAdjustment || 0);
-        batch.update(orderRef, {
+    // Handle overpayment by adding it to the last processed order's profit
+    if (remainingAmount > 0 && paymentsToAdd.length > 0) {
+      const lastProcessedOrderId = paymentsToAdd[paymentsToAdd.length - 1].orderId;
+      const lastProcessedOrder = allOrders.find(o => o.id === lastProcessedOrderId);
+      if (lastProcessedOrder && lastProcessedOrder.id) {
+        console.log(
+          `💰 Overpayment of ₹${remainingAmount} detected. Applying to order ${lastProcessedOrder.id} as revenue adjustment.`,
+        );
+        const orderRef = doc(db, 'orders', lastProcessedOrder.id);
+
+        const existingRevenueAdj = Number(lastProcessedOrder.revenueAdjustment || 0);
+        const batch2 = writeBatch(db);
+        batch2.update(orderRef, {
           revenueAdjustment: existingRevenueAdj + remainingAmount,
         });
+        await batch2.commit();
       }
     }
-
-    await batch.commit();
     console.log('✅ Party payment distribution complete.');
   },
 
