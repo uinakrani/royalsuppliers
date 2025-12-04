@@ -2199,35 +2199,9 @@ function OrdersPageContent() {
                           const supplierSettled = isPaid
                           const showRealized = customerSettled && supplierSettled
 
-                          // Always show adjusted profit if there are any adjustments (including revenue adjustments)
-                          if (hasProjectedAdjustments) {
-                            if (showRealized) {
-                              const realizedProfit = totalReceived - totalPaidOut - order.additionalCost + manualAdj
-                              return (
-                                <>
-                                  <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
-                                    {formatIndianCurrency(adjustedProjected)}
-                                  </div>
-                                  <div className={`font-bold text-[11px] leading-tight ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                    {formatIndianCurrency(realizedProfit)}
-                                  </div>
-                                </>
-                              )
-                            } else {
-                              return (
-                                <>
-                                  <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
-                                    {formatIndianCurrency(order.profit)}
-                                  </div>
-                                  <div className={`font-bold text-[11px] leading-tight ${adjustedProjected >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                    {formatIndianCurrency(adjustedProjected)}
-                                  </div>
-                                </>
-                              )
-                            }
-                          }
-
                           if (showRealized) {
+                            // When both customer and supplier are settled, show the realized profit
+                            // This includes revenue adjustments from over/under payments
                             const realizedProfit = totalReceived - totalPaidOut - order.additionalCost + manualAdj
                             return (
                               <>
@@ -2236,6 +2210,21 @@ function OrdersPageContent() {
                                 </div>
                                 <div className={`font-bold text-[11px] leading-tight ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                                   {formatIndianCurrency(realizedProfit)}
+                                </div>
+                              </>
+                            )
+                          }
+
+                          if (customerSettled && hasProjectedAdjustments) {
+                            // Customer is paid but supplier isn't - show adjusted profit (including revenue adjustments)
+                            // This shows the profit impact of over/under payments before final settlement
+                            return (
+                              <>
+                                <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
+                                  {formatIndianCurrency(order.profit)}
+                                </div>
+                                <div className={`font-bold text-[11px] leading-tight ${adjustedProjected >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                  {formatIndianCurrency(adjustedProjected)}
                                 </div>
                               </>
                             )
