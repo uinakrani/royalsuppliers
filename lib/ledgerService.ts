@@ -407,11 +407,21 @@ export const ledgerService = {
     // Sync changes back to order payment if not initiated from order
     if (!options.fromOrder) {
       try {
-        await orderService.updatePaymentByLedgerEntryId(id, {
-          amount: updates.amount,
-          date: updateData.date, // Use the new date (now)
-          // Note: We don't sync note back to payment currently as payment note is often different or specific
-        })
+        if (type === 'credit') {
+          // For income entries, update customer payments
+          await orderService.updateCustomerPaymentByLedgerEntryId(id, {
+            amount: updates.amount,
+            date: updateData.date, // Use the new date (now)
+            // Note: We don't sync note back to payment currently as payment note is often different or specific
+          })
+        } else if (type === 'debit') {
+          // For expense entries, update supplier payments
+          await orderService.updatePaymentByLedgerEntryId(id, {
+            amount: updates.amount,
+            date: updateData.date, // Use the new date (now)
+            // Note: We don't sync note back to payment currently as payment note is often different or specific
+          })
+        }
       } catch (error) {
         console.error('Failed to sync ledger update to order payment:', error)
       }

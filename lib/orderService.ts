@@ -720,6 +720,66 @@ export const orderService = {
     }
   },
 
+  // Update customer payment details from ledger update (sync ledger -> order)
+  async updateCustomerPaymentByLedgerEntryId(ledgerEntryId: string, updates: { amount?: number; date?: string }): Promise<void> {
+    const db = getDb()
+    if (!db) return
+
+    const allOrders = await this.getAllOrders()
+
+    // Find order containing this customer payment
+    const orderToUpdate = allOrders.find(order =>
+      (order.customerPayments || []).some(p => p.ledgerEntryId === ledgerEntryId)
+    )
+
+    if (!orderToUpdate || !orderToUpdate.id) {
+      console.log(`No order found for customer payment ledger entry update: ${ledgerEntryId}`)
+      return
+    }
+
+    const existingPayments = orderToUpdate.customerPayments || []
+    const paymentIndex = existingPayments.findIndex(p => p.ledgerEntryId === ledgerEntryId)
+
+    if (paymentIndex === -1) return
+
+    const paymentToUpdate = existingPayments[paymentIndex]
+
+    // Update payment
+    const updatedPayment: PaymentRecord = {
+      ...paymentToUpdate,
+      amount: updates.amount !== undefined ? updates.amount : paymentToUpdate.amount,
+      date: updates.date || paymentToUpdate.date,
+      createdAt: paymentToUpdate.createdAt || paymentToUpdate.date,
+    }
+
+    const updatedPayments = [...existingPayments]
+    updatedPayments[paymentIndex] = updatedPayment
+
+    // Recalculate revenue adjustment
+    const sellingTotal = Number(orderToUpdate.total || 0)
+    const totalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
+    const isCustomerPaid = totalPaid >= (sellingTotal - PAYMENT_TOLERANCE)
+
+    const updateData: any = {
+      customerPayments: updatedPayments,
+      partyPaid: isCustomerPaid,
+      updatedAt: new Date().toISOString(),
+      revenueAdjustment: calculateRevenueAdjustment(sellingTotal, updatedPayments),
+    }
+
+    try {
+      const orderRef = doc(db, ORDERS_COLLECTION, orderToUpdate.id)
+      await updateDoc(orderRef, updateData)
+      console.log(`Updated customer payment for ledger entry ${ledgerEntryId} in order ${orderToUpdate.id}`)
+    } catch (error: any) {
+      console.error('Firestore error updating customer payment:', error)
+      if (error.code === 'permission-denied') {
+        throw new Error('Permission denied. Please check your Firestore security rules.')
+      }
+      throw new Error(`Failed to update customer payment: ${error.message || 'Unknown error'}`)
+    }
+  },
+
   // Update payment details from ledger update (sync ledger -> order)
   async updatePaymentByLedgerEntryId(ledgerEntryId: string, updates: { amount?: number; date?: string }): Promise<void> {
     const db = getDb()
