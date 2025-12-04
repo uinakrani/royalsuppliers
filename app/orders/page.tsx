@@ -2188,15 +2188,47 @@ function OrdersPageContent() {
                           const adjustedProjected = order.profit + expenseAdj + revenueAdj + manualAdj
                           const hasProjectedAdjustments = Math.abs(adjustedProjected - order.profit) > 0.01
 
+                          // Debug logging for profit adjustments
+                          if (Math.abs(revenueAdj) > 0.01) {
+                            console.log(`Order ${order.id}: profit=${order.profit}, revenueAdj=${revenueAdj}, adjusted=${adjustedProjected}, hasAdjustments=${hasProjectedAdjustments}`)
+                          }
+
                           const totalReceived = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
                           const totalPaidOut = (order.partialPayments || []).reduce((sum, p) => sum + p.amount, 0)
                           const customerSettled = isPartyPaid
                           const supplierSettled = isPaid
                           const showRealized = customerSettled && supplierSettled
 
+                          // Always show adjusted profit if there are any adjustments (including revenue adjustments)
+                          if (hasProjectedAdjustments) {
+                            if (showRealized) {
+                              const realizedProfit = totalReceived - totalPaidOut - order.additionalCost + manualAdj
+                              return (
+                                <>
+                                  <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
+                                    {formatIndianCurrency(adjustedProjected)}
+                                  </div>
+                                  <div className={`font-bold text-[11px] leading-tight ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                    {formatIndianCurrency(realizedProfit)}
+                                  </div>
+                                </>
+                              )
+                            } else {
+                              return (
+                                <>
+                                  <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
+                                    {formatIndianCurrency(order.profit)}
+                                  </div>
+                                  <div className={`font-bold text-[11px] leading-tight ${adjustedProjected >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                    {formatIndianCurrency(adjustedProjected)}
+                                  </div>
+                                </>
+                              )
+                            }
+                          }
+
                           if (showRealized) {
                             const realizedProfit = totalReceived - totalPaidOut - order.additionalCost + manualAdj
-
                             return (
                               <>
                                 <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
@@ -2209,23 +2241,10 @@ function OrdersPageContent() {
                             )
                           }
 
-                          if (!customerSettled || !hasProjectedAdjustments) {
-                            return (
-                              <div className={`font-semibold text-[11px] leading-tight ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatIndianCurrency(order.profit)}
-                              </div>
-                            )
-                          }
-
                           return (
-                            <>
-                              <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
-                                {formatIndianCurrency(order.profit)}
-                              </div>
-                              <div className={`font-bold text-[11px] leading-tight ${adjustedProjected >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                {formatIndianCurrency(adjustedProjected)}
-                              </div>
-                            </>
+                            <div className={`font-semibold text-[11px] leading-tight ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatIndianCurrency(order.profit)}
+                            </div>
                           )
                         })()}
                       </div>
