@@ -18,7 +18,9 @@
     "reset-raw-material-payments": "ts-node --project tsconfig.scripts.json scripts/reset-raw-material-payments.ts",
     "cleanup-backups": "ts-node --project tsconfig.scripts.json scripts/cleanup-old-backups.ts",
     "organize-backups": "ts-node --project tsconfig.scripts.json scripts/move-dumps-to-backups.ts",
-    "distribute-income": "ts-node --project tsconfig.scripts.json scripts/manual-distribute-income.ts"
+    "distribute-income": "ts-node --project tsconfig.scripts.json scripts/manual-distribute-income.ts",
+    "test-income-distribution": "ts-node --project tsconfig.scripts.json scripts/test-income-distribution.ts",
+    "redistribute-party-payments": "ts-node --project tsconfig.scripts.json scripts/redistribute-party-payments.ts"
   },
   "dependencies": {
     "@netlify/plugin-nextjs": "^5.15.1",
