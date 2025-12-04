@@ -12,7 +12,7 @@ interface TruckLoadingProps {
 
 export default function TruckLoading({ size = 200, className = '', text, inline = false }: TruckLoadingProps) {
   // Try to load GIF from public folder, fallback to animated SVG
-  const gifUrl = '/truck-unloading.gif'
+  const gifUrl = '/truck-unloading.gif?v=2'
   
   const [gifError, setGifError] = useState(false)
   
