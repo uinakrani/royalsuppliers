@@ -3,6 +3,7 @@ import { DashboardStats } from '@/types/order'
 import { LedgerEntry } from '@/lib/ledgerService'
 import { startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns'
 import { getAdjustedProfit } from '@/lib/orderCalculations'
+import { PAYMENT_TOLERANCE } from './orderService'
 
 export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], dateRangeStart?: Date, dateRangeEnd?: Date): DashboardStats => {
   const stats: DashboardStats = {
@@ -46,8 +47,8 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
     stats.rawMaterialPaymentsOutstanding += rawMaterialOutstanding
 
     // Determine order payment status based on partialPayments
-    // Order is considered paid if total payments are within 250 of original total
-    const tolerance = 250
+    // Order is considered paid if total payments are within tolerance of original total
+    const tolerance = PAYMENT_TOLERANCE
     if (totalRawMaterialPaid >= (order.originalTotal - tolerance) && order.originalTotal > 0) {
       // Fully paid if total payments are within 250 of original total
       stats.paidOrders++

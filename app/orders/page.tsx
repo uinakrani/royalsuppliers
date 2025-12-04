@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { orderService, isOrderPaid, isCustomerPaid } from '@/lib/orderService'
+import { orderService, isOrderPaid, isCustomerPaid, PAYMENT_TOLERANCE } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
 import { partyPaymentService, PartyPayment } from '@/lib/partyPaymentService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
@@ -463,7 +463,7 @@ function OrdersPageContent() {
     if (isPaid) {
       const confirmed = await sweetAlert.confirm({
         title: 'Order Already Paid',
-        message: `This order is already marked as paid (within ₹250 tolerance). Adding more payments may cause overpayment. Continue?`,
+        message: `This order is already marked as paid (within ₹${PAYMENT_TOLERANCE} tolerance). Adding more payments may cause overpayment. Continue?`,
         icon: 'warning',
         confirmText: 'Continue',
         cancelText: 'Cancel'
@@ -662,7 +662,7 @@ function OrdersPageContent() {
         // Only ask "mark as paid" if order is not paid and won't overpay
         // Check if this payment would make the order paid (within tolerance)
         const newTotalAfterPayment = totalPaid + amount
-        const wouldBecomePaid = newTotalAfterPayment >= (expenseAmount - 250)
+        const wouldBecomePaid = newTotalAfterPayment >= (expenseAmount - PAYMENT_TOLERANCE)
 
         if (wouldBecomePaid) {
           const actionChoice = await sweetAlert.confirm({

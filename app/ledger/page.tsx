@@ -10,7 +10,7 @@ import LedgerEntryWizard from '@/components/LedgerEntryWizard'
 import BottomSheet from '@/components/BottomSheet'
 import { createRipple } from '@/lib/rippleEffect'
 import TruckLoading from '@/components/TruckLoading'
-import { orderService, isOrderPaid, isCustomerPaid } from '@/lib/orderService'
+import { orderService, isOrderPaid, isCustomerPaid, PAYMENT_TOLERANCE } from '@/lib/orderService'
 import { PaymentRecord, Order } from '@/types/order'
 import { getDb } from '@/lib/firebase'
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore'
@@ -372,14 +372,14 @@ export default function LedgerPage() {
 
           const isPaid = isOrderPaid(tempOrder)
           const difference = originalTotal - totalPaid
-          const tolerance = originalTotal - 250
+          const tolerance = originalTotal - PAYMENT_TOLERANCE
           
           console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): originalTotal=${originalTotal}, totalPaid=${totalPaid}, remaining=${remaining}, difference=${difference}, isPaid=${isPaid}, tolerance=${tolerance} (paid if >= ${tolerance})`)
 
           return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid, difference, totalPaid, originalTotal }
         })
         .filter(({ remaining, isPaid, order, totalPaid, originalTotal }) => {
-          // Filter out orders that are already paid (within 250 tolerance)
+          // Filter out orders that are already paid (within tolerance)
           // Only include unpaid or partially paid orders
           const shouldInclude = remaining > 0 && !isPaid
           if (!shouldInclude) {
@@ -521,7 +521,7 @@ export default function LedgerPage() {
 
           const isPaid = isCustomerPaid(tempOrder)
           const difference = sellingTotal - totalPaid
-          const tolerance = sellingTotal - 250
+          const tolerance = sellingTotal - PAYMENT_TOLERANCE
 
           console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): sellingTotal=${sellingTotal}, totalPaid=${totalPaid}, remaining=${remaining}, difference=${difference}, isPaid=${isPaid}, tolerance=${tolerance} (paid if >= ${tolerance})`)
 

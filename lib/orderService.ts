@@ -19,7 +19,7 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 
 
 const ORDERS_COLLECTION = 'orders'
-export const PAYMENT_TOLERANCE = 250
+export const PAYMENT_TOLERANCE = 100
 
 const coerceIsoString = (value: any, fallback?: string): string | undefined => {
   if (!value) return fallback
@@ -75,7 +75,7 @@ const calculateRevenueAdjustment = (sellingTotal: number, payments: PaymentRecor
   return roundDelta(totalPaid - expected)
 }
 
-// Helper function to check if supplier expenses are paid (within 250 of originalTotal)
+// Helper function to check if supplier expenses are paid (within tolerance of originalTotal)
 export const isExpensePaid = (order: Order): boolean => {
   const expenseAmount = Number(order.originalTotal || 0)
   if (expenseAmount <= 0) return false
@@ -83,11 +83,11 @@ export const isExpensePaid = (order: Order): boolean => {
   const partialPayments = order.partialPayments || []
   const totalPaid = partialPayments.reduce((sum, p) => sum + p.amount, 0)
 
-  // Order expenses are paid if total payments are within 250 of original total
+  // Order expenses are paid if total payments are within tolerance of original total
   return totalPaid >= (expenseAmount - PAYMENT_TOLERANCE)
 }
 
-// Helper function to check if customer has paid for the order (within 250 of total)
+// Helper function to check if customer has paid for the order (within tolerance of total)
 export const isCustomerPaid = (order: Order): boolean => {
   const sellingAmount = Number(order.total || 0)
   if (sellingAmount <= 0) return false
@@ -95,7 +95,7 @@ export const isCustomerPaid = (order: Order): boolean => {
   const customerPayments = order.customerPayments || []
   const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0)
 
-  // Customer payment is complete if total payments are within 250 of selling total
+  // Customer payment is complete if total payments are within tolerance of selling total
   return totalPaid >= (sellingAmount - PAYMENT_TOLERANCE)
 }
 

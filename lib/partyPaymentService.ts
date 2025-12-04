@@ -1,7 +1,7 @@
 ﻿
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, writeBatch } from 'firebase/firestore';
 import { getDb } from './firebase';
-import { orderService } from './orderService';
+import { orderService, PAYMENT_TOLERANCE } from './orderService';
 import { PaymentRecord } from '@/types/order';
 
 export interface PartyPayment {
@@ -222,7 +222,7 @@ export const partyPaymentService = {
 
       const sellingTotal = order.total || 0;
       const newTotalPaid = updatedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const isNowPartyPaid = newTotalPaid >= (sellingTotal - 250); // 250 tolerance
+      const isNowPartyPaid = newTotalPaid >= (sellingTotal - PAYMENT_TOLERANCE);
 
       const orderRef = doc(db, 'orders', orderId);
       batch.update(orderRef, {
@@ -281,7 +281,7 @@ export const partyPaymentService = {
       if (validPayments.length < order.customerPayments.length) {
         const orderRef = doc(db, 'orders', order.id);
         const newTotalPaid = validPayments.reduce((sum, p) => sum + p.amount, 0);
-        const isNowPartyPaid = newTotalPaid >= ((order.total || 0) - 250);
+        const isNowPartyPaid = newTotalPaid >= ((order.total || 0) - PAYMENT_TOLERANCE);
 
         batch.update(orderRef, {
           customerPayments: validPayments,
