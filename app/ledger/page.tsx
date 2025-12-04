@@ -329,10 +329,9 @@ export default function LedgerPage() {
       if (drawerType === 'debit' && data.supplier && data.supplier.trim()) {
         await distributeExpenseToOrders(entryId, data.amount, data.supplier.trim(), data.date)
       }
-      // If this is an income entry with a party name, distribute it to orders
+      // Income distribution is now handled automatically in ledgerService.addEntry
+      // If this is an income entry with a party name, create linked party payment
       if (drawerType === 'credit' && data.partyName && data.partyName.trim()) {
-        await distributeIncomeToOrders(entryId, data.amount, data.partyName.trim(), data.date)
-        // Create linked party payment for this income entry
         await createPartyPaymentFromIncome(entryId, data.partyName.trim(), data.amount, data.date, data.note)
       }
     }

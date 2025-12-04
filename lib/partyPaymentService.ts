@@ -149,30 +149,42 @@ export const partyPaymentService = {
 
     console.log(`🔄 Distributing income of ₹${amount} to party: ${partyName}`);
 
-    // Get all orders for this party that are not fully paid by the party
+    // Get all orders for this party
     const allOrders = await orderService.getAllOrders({ partyName });
-    const unpaidOrders = allOrders.filter(order => !order.partyPaid);
 
-    // Sort by date (oldest first) to pay off oldest debts first
-    unpaidOrders.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Sort by date (oldest first)
+    allOrders.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    console.log(`Found ${unpaidOrders.length} unpaid orders for party ${partyName}`);
+    console.log(`Found ${allOrders.length} orders for party ${partyName}`);
+
+    // Calculate total order value across all orders for this party
+    const totalOrderValue = allOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+
+    if (totalOrderValue <= 0) {
+      console.warn(`No valid order totals found for party ${partyName}`);
+      return;
+    }
 
     let remainingAmount = amount;
-    const batch = writeBatch(db);
+    const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = [];
 
-    for (const order of unpaidOrders) {
+    // Distribute income proportionally across all orders based on their total value
+    for (const order of allOrders) {
       if (remainingAmount <= 0) break;
       if (!order.id) continue;
 
       const sellingTotal = order.total || 0;
       const existingPayments = order.customerPayments || [];
-      const paidSoFar = existingPayments.reduce((sum, p) => sum + p.amount, 0);
-      const amountDue = Math.max(0, sellingTotal - paidSoFar);
+      const paidSoFar = existingPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const remaining = Math.max(0, sellingTotal - paidSoFar);
 
-      if (amountDue <= 0) continue;
+      // Calculate proportional amount based on order's share of total value
+      const proportionalAmount = Math.round((sellingTotal / totalOrderValue) * amount * 100) / 100;
 
-      const paymentForThisOrder = Math.min(remainingAmount, amountDue);
+      // But don't pay more than the remaining amount for this order
+      const paymentForThisOrder = Math.min(proportionalAmount, remainingAmount, remaining);
+
+      if (paymentForThisOrder <= 0) continue;
 
       const recordedAt = new Date().toISOString();
       const paymentRecord: PaymentRecord = {
@@ -185,18 +197,32 @@ export const partyPaymentService = {
       };
 
       const newCustomerPayments = [...existingPayments, paymentRecord];
-      const newTotalPaid = paidSoFar + paymentForThisOrder;
+
+      paymentsToAdd.push({ orderId: order.id, payment: newCustomerPayments });
+
+      console.log(`  ✓ Adding customer payment of ${paymentForThisOrder} to order ${order.id} (proportional share: ${proportionalAmount}, actual: ${paymentForThisOrder}, income remaining: ${remainingAmount})`);
+      remainingAmount -= paymentForThisOrder;
+    }
+
+    console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingAmount} remaining undistributed`);
+
+    // Update orders with new payment distributions
+    for (const { orderId, payment: updatedPayments } of paymentsToAdd) {
+      const order = allOrders.find(o => o.id === orderId);
+      if (!order) continue;
+
+      const sellingTotal = order.total || 0;
+      const newTotalPaid = updatedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const isNowPartyPaid = newTotalPaid >= (sellingTotal - 250); // 250 tolerance
 
-      const orderRef = doc(db, 'orders', order.id);
+      const orderRef = doc(db, 'orders', orderId);
       batch.update(orderRef, {
-        customerPayments: newCustomerPayments,
+        customerPayments: updatedPayments,
         partyPaid: isNowPartyPaid,
-        revenueAdjustment: calculateRevenueAdjustment(sellingTotal, newCustomerPayments),
+        revenueAdjustment: calculateRevenueAdjustment(sellingTotal, updatedPayments),
       });
 
-      console.log(`✅ Applied ₹${paymentForThisOrder} to order ${order.id}`);
-      remainingAmount -= paymentForThisOrder;
+      console.log(`  ✅ Updated order ${orderId} with new customer payment distribution`);
     }
 
     // Handle overpayment by adding it to the last paid order's profit
