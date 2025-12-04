@@ -2119,12 +2119,20 @@ function OrdersPageContent() {
 
                       {/* Total Column */}
                       <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
-                        <div className="font-bold text-primary-600 text-[11px] leading-tight">
-                          {formatIndianCurrency(order.total)}
-                        </div>
-                        <div className="text-[10px] text-green-600 font-semibold leading-tight">
-                          {formatIndianCurrency(totalCustomerPaid)}
-                        </div>
+                        {totalCustomerPaid > 0 ? (
+                          <>
+                            <div className="font-bold text-green-600 text-[11px] leading-tight">
+                              {formatIndianCurrency(totalCustomerPaid)}
+                            </div>
+                            <div className="text-[10px] text-gray-500 line-through leading-tight">
+                              {formatIndianCurrency(order.total)}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="font-bold text-primary-600 text-[11px] leading-tight">
+                            {formatIndianCurrency(order.total)}
+                          </div>
+                        )}
                       </div>
 
                       {/* Truck Owner / No. / Supplier Column */}

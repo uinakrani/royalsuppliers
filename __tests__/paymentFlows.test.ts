@@ -248,6 +248,54 @@ describe('Payment Flows', () => {
       expect(adjustedProfit).toBe(0); // 200 (original profit) + (-200) (adjustment) = 0
     });
 
+    it('should calculate revenue adjustment when party pays slightly less than expected', () => {
+      const order: Order = {
+        id: 'order-test-3',
+        date: '2024-01-01',
+        partyName: 'Customer Z',
+        siteName: 'Site Z',
+        material: 'Material Z',
+        weight: 10,
+        rate: 100,
+        total: 39611, // Expected payment
+        truckOwner: 'Truck Z',
+        truckNo: 'TRUCK-123',
+        supplier: 'Supplier Z',
+        originalWeight: 10,
+        originalRate: 80,
+        originalTotal: 800,
+        additionalCost: 0,
+        profit: 38811, // 39611 - 800 - 0 = 38811
+        customerPayments: [
+          {
+            id: 'payment-1',
+            amount: 39600, // Paid ₹11 less than expected (39611)
+            date: '2024-01-01',
+            note: 'Partial payment',
+          },
+        ],
+      };
+
+      // Calculate expected revenue adjustment: totalPaid - expectedTotal = 39600 - 39611 = -11
+      const expectedAdjustment = -11;
+
+      const calculateRevenueAdjustment = (sellingTotal: number, payments: PaymentRecord[]): number => {
+        const expected = Number(sellingTotal || 0);
+        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const delta = totalPaid - expected;
+        return Math.abs(delta) < 0.01 ? 0 : Number(delta.toFixed(2));
+      };
+
+      const revenueAdjustment = calculateRevenueAdjustment(order.total, order.customerPayments || []);
+      expect(revenueAdjustment).toBe(expectedAdjustment);
+
+      // Test profit calculation with revenue adjustment
+      const orderWithAdjustment = { ...order, revenueAdjustment };
+      const adjustedProfit = getAdjustedProfit(orderWithAdjustment);
+      // Original profit 38,811 should be reduced by ₹11 = 38,800
+      expect(adjustedProfit).toBe(38800);
+    });
+
     it('should calculate revenue adjustment when party pays more than expected', () => {
       const order: Order = {
         id: 'order-test-2',
