@@ -503,7 +503,7 @@ export default function LedgerPage() {
       console.log(`📦 Found ${allOrders.length} orders for party ${partyName}`)
 
       // Calculate outstanding amounts for each order (excluding payments from this ledger entry)
-      // Only include orders where customer hasn't paid
+      // Include ALL orders for the party, not just unpaid ones
       const ordersWithOutstanding = allOrders
         .map(order => {
           const existingPayments = order.customerPayments || []
@@ -523,25 +523,16 @@ export default function LedgerPage() {
           const isPaid = isCustomerPaid(tempOrder)
           const difference = sellingTotal - totalPaid
           const tolerance = sellingTotal - 250
-          
+
           console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): sellingTotal=${sellingTotal}, totalPaid=${totalPaid}, remaining=${remaining}, difference=${difference}, isPaid=${isPaid}, tolerance=${tolerance} (paid if >= ${tolerance})`)
 
           return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid, difference, totalPaid, sellingTotal }
         })
-        .filter(({ remaining, isPaid, order, totalPaid, sellingTotal }) => {
-          // Filter out orders that are already paid (within 250 tolerance)
-          // Only include unpaid or partially paid orders
-          const shouldInclude = remaining > 0 && !isPaid
-          if (!shouldInclude) {
-            if (remaining <= 0) {
-              console.log(`  ⏭️  Skipping order ${order.id} (${order.siteName || 'N/A'}): remaining=${remaining} <= 0 (sellingTotal=${sellingTotal}, totalPaid=${totalPaid})`)
-            } else if (isPaid) {
-              console.log(`  ⏭️  Skipping order ${order.id} (${order.siteName || 'N/A'}): marked as PAID (remaining=${remaining}, sellingTotal=${sellingTotal}, totalPaid=${totalPaid}, difference=${sellingTotal - totalPaid})`)
-            }
-          } else {
-            console.log(`  ✅ Including order ${order.id} (${order.siteName || 'N/A'}): remaining=${remaining}, sellingTotal=${sellingTotal}, totalPaid=${totalPaid}`)
-          }
-          return shouldInclude
+        .filter(({ order }) => {
+          // Include ALL orders for the party, regardless of payment status
+          // This allows income to be distributed to the "total" of their orders
+          console.log(`  ✅ Including order ${order.id} (${order.siteName || 'N/A'}): will distribute income proportionally`)
+          return true
         })
         .sort((a, b) => {
           // Sort by date (oldest first), then by creation time
@@ -553,30 +544,31 @@ export default function LedgerPage() {
           return aTime - bTime
         })
 
-      console.log(`✅ Found ${ordersWithOutstanding.length} orders with outstanding customer payments`)
+      console.log(`✅ Found ${ordersWithOutstanding.length} orders for party ${partyName}`)
 
       if (ordersWithOutstanding.length === 0) {
-        console.warn(`No orders with outstanding customer payments for party ${partyName}`)
+        console.warn(`No orders found for party ${partyName}`)
         nativePopup.warning(
-          'No Unpaid Orders',
-          `No unpaid orders found for party "${partyName}". All orders are already paid or have no outstanding amount.`
+          'No Orders Found',
+          `No orders found for party "${partyName}".`
         )
         return
       }
 
-      // Calculate total outstanding across all unpaid orders
-      const totalOutstanding = ordersWithOutstanding.reduce((sum, { remaining }) => sum + remaining, 0)
-      console.log(`💰 Total outstanding across ${ordersWithOutstanding.length} unpaid orders: ${totalOutstanding}`)
+      // Calculate total order value across all orders for this party
+      const totalOrderValue = ordersWithOutstanding.reduce((sum, { sellingTotal }) => sum + sellingTotal, 0)
+      console.log(`💰 Total order value across ${ordersWithOutstanding.length} orders: ${totalOrderValue}`)
 
-      if (incomeAmount > totalOutstanding) {
-        console.warn(`⚠️ Income amount (${incomeAmount}) exceeds total outstanding (${totalOutstanding})`)
+      if (totalOrderValue <= 0) {
+        console.warn(`No valid order totals found for party ${partyName}`)
+        return
       }
 
       let remainingIncome = incomeAmount
       const paymentsToAdd: Array<{ orderId: string; payment: PaymentRecord[] }> = []
 
-      // Distribute income across orders (oldest first, fill completely before next)
-      for (const { order, remaining, currentPayments } of ordersWithOutstanding) {
+      // Distribute income proportionally across all orders based on their total value
+      for (const { order, sellingTotal, currentPayments, remaining } of ordersWithOutstanding) {
         if (remainingIncome <= 0) break
 
         if (!order.id) {
@@ -584,7 +576,13 @@ export default function LedgerPage() {
           continue
         }
 
-        const paymentAmount = Math.min(remainingIncome, remaining)
+        // Calculate proportional amount based on order's share of total value
+        const proportionalAmount = Math.round((sellingTotal / totalOrderValue) * incomeAmount * 100) / 100
+
+        // But don't pay more than the remaining amount for this order
+        const paymentAmount = Math.min(proportionalAmount, remainingIncome, remaining)
+
+        if (paymentAmount <= 0) continue
 
         // Convert date to ISO string if needed
         let paymentDate = incomeDate
@@ -607,7 +605,7 @@ export default function LedgerPage() {
         paymentsToAdd.push({ orderId: order.id, payment: updatedPayments })
         remainingIncome -= paymentAmount
 
-        console.log(`  ✓ Adding customer payment of ${paymentAmount} to order ${order.id} (order remaining: ${remaining - paymentAmount}, income remaining: ${remainingIncome})`)
+        console.log(`  ✓ Adding customer payment of ${paymentAmount} to order ${order.id} (proportional share: ${proportionalAmount}, actual: ${paymentAmount}, income remaining: ${remainingIncome})`)
       }
 
       console.log(`📊 Distribution summary: ${paymentsToAdd.length} orders will be updated, ${remainingIncome} remaining undistributed`)
@@ -626,7 +624,7 @@ export default function LedgerPage() {
         // Show user-friendly warning
         nativePopup.warning(
           'Partial Distribution',
-          `₹${incomeAmount.toLocaleString('en-IN')} was entered for party "${partyName}", but only ₹${(incomeAmount - remainingIncome).toLocaleString('en-IN')} could be distributed to unpaid orders. ₹${remainingIncome.toLocaleString('en-IN')} remains undistributed because all orders are already paid or there aren't enough unpaid orders.`
+          `₹${incomeAmount.toLocaleString('en-IN')} was entered for party "${partyName}", but only ₹${(incomeAmount - remainingIncome).toLocaleString('en-IN')} could be distributed proportionally to their orders. ₹${remainingIncome.toLocaleString('en-IN')} remains undistributed.`
         )
       } else {
         console.log(`✅ Successfully distributed income ${incomeAmount} across orders`)
