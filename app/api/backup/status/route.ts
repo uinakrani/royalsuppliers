@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getLastBackupTime, isBackupNeeded } from '@/lib/backupService'
+import { getLastBackupTime, isBackupNeeded } from '../../../../lib/backupService'
 
 export const dynamic = 'force-dynamic'
 

@@ -1,0 +1,17 @@
+# Netlify headers for static deployment
+/*
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Cache static assets
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# API routes handled by Netlify Functions
+/api/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization
+

@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { exportAndUploadBackup } from '@/lib/backupService'
+import { exportAndUploadBackup } from '../../../lib/backupService'
 
 export const dynamic = 'force-dynamic'
 
