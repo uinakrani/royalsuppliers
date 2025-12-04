@@ -102,18 +102,20 @@ export const ledgerService = {
       }
     }
 
-    // If this is an income payment (credit with party name), distribute to unpaid orders
+    // If this is an income payment (credit with party name), distribute to orders
     if (type === 'credit' && partyName && partyName.trim()) {
+      console.log(`💰 Income entry created: ₹${amount} for party "${partyName.trim()}" (ID: ${ref.id})`);
       try {
+        console.log(`🚀 Starting automatic distribution for income entry ${ref.id}`);
         partyPaymentService.distributePaymentToPartyOrders(
           partyName.trim(),
           amount,
           ref.id,
           dateValue,
           note
-        ).catch(err => console.error('Failed to distribute party payment:', err))
+        ).catch(err => console.error('❌ Failed to distribute party payment:', err))
       } catch (e) {
-        console.error('Error initiating party payment distribution:', e)
+        console.error('❌ Error initiating party payment distribution:', e)
       }
     }
     

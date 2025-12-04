@@ -145,9 +145,12 @@ export const partyPaymentService = {
     note?: string
   ): Promise<void> {
     const db = getDb();
-    if (!db) return;
+    if (!db) {
+      console.error('❌ Firebase not configured for party payment distribution');
+      return;
+    }
 
-    console.log(`🔄 Distributing income of ₹${amount} to party: ${partyName}`);
+    console.log(`🔄 Distributing income of ₹${amount} to party: ${partyName} (ledger entry: ${ledgerEntryId})`);
 
     // Get all orders for this party
     const allOrders = await orderService.getAllOrders({ partyName });
@@ -155,7 +158,12 @@ export const partyPaymentService = {
     // Sort by date (oldest first)
     allOrders.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    console.log(`Found ${allOrders.length} orders for party ${partyName}`);
+    console.log(`📋 Found ${allOrders.length} orders for party ${partyName}`);
+
+    if (allOrders.length === 0) {
+      console.warn(`⚠️ No orders found for party ${partyName}. Cannot distribute income.`);
+      return;
+    }
 
     // Calculate total order value across all orders for this party
     const totalOrderValue = allOrders.reduce((sum, order) => sum + (order.total || 0), 0);
