@@ -257,63 +257,7 @@ export default function LedgerPage() {
         partyName: newPartyName,
       })
 
-      // Handle party name changes for income entries
-      if (editingEntry.type === 'credit') {
-        if (oldPartyName && !newPartyName) {
-          // Party was removed - revert the customer payments that were added
-          await revertIncomeDistribution(editingEntry.id, oldPartyName)
-          // Also remove linked party payment
-          await deleteLinkedPartyPayment(editingEntry.id)
-        } else if (oldPartyName && newPartyName && oldPartyName !== newPartyName) {
-          // Party was changed - revert old payments and distribute new ones
-          await revertIncomeDistribution(editingEntry.id, oldPartyName)
-          await distributeIncomeToOrders(editingEntry.id, data.amount, newPartyName, data.date)
-          // Update linked party payment with new party name
-          await updateLinkedPartyPaymentPartyName(editingEntry.id, newPartyName)
-          // Also update amount/date/note in linked party payment
-          await updateLinkedPartyPayment(editingEntry.id, data.amount, data.date, data.note)
-        } else if (!oldPartyName && newPartyName) {
-          // Party was added - distribute income to orders
-          await distributeIncomeToOrders(editingEntry.id, data.amount, newPartyName, data.date)
-          // Create linked party payment for this income entry
-          await createPartyPaymentFromIncome(editingEntry.id, newPartyName, data.amount, data.date, data.note)
-        } else if (oldPartyName && newPartyName && oldPartyName === newPartyName) {
-          // Party unchanged - if amount or date changed, recalculate distribution
-          const oldAmount = editingEntry.amount
-          const oldDate = editingEntry.date
-          if (oldAmount !== data.amount || oldDate !== data.date) {
-            // Revert old distribution and apply new one with updated amount/date
-            await revertIncomeDistribution(editingEntry.id, oldPartyName)
-            await distributeIncomeToOrders(editingEntry.id, data.amount, newPartyName, data.date)
-            // Update linked party payment fields
-            await updateLinkedPartyPayment(editingEntry.id, data.amount, data.date, data.note)
-          }
-        }
-      }
-
-      // Handle supplier changes for expense entries
-      if (editingEntry.type === 'debit') {
-        if (oldSupplier && !newSupplier) {
-          // Supplier was removed - revert the partial payments that were added
-          await revertExpenseDistribution(editingEntry.id, oldSupplier)
-        } else if (oldSupplier && newSupplier && oldSupplier !== newSupplier) {
-          // Supplier was changed - revert old payments and distribute new ones
-          await revertExpenseDistribution(editingEntry.id, oldSupplier)
-          await distributeExpenseToOrders(editingEntry.id, data.amount, newSupplier, data.date)
-        } else if (!oldSupplier && newSupplier) {
-          // Supplier was added - distribute expense to orders
-          await distributeExpenseToOrders(editingEntry.id, data.amount, newSupplier, data.date)
-        } else if (oldSupplier && newSupplier && oldSupplier === newSupplier) {
-          // Supplier unchanged - if amount or date changed, recalculate distribution
-          const oldAmount = editingEntry.amount
-          const oldDate = editingEntry.date
-          if (oldAmount !== data.amount || oldDate !== data.date) {
-            // Revert old distribution and apply new one with updated amount/date
-            await revertExpenseDistribution(editingEntry.id, oldSupplier)
-            await distributeExpenseToOrders(editingEntry.id, data.amount, newSupplier, data.date)
-          }
-        }
-      }
+      // No automatic distribution for income entries
     } else {
       const entryId = await ledgerService.addEntry(
         drawerType,
@@ -325,15 +269,7 @@ export default function LedgerPage() {
         data.partyName
       )
 
-      // If this is an expense entry with a supplier, distribute it to orders
-      if (drawerType === 'debit' && data.supplier && data.supplier.trim()) {
-        await distributeExpenseToOrders(entryId, data.amount, data.supplier.trim(), data.date)
-      }
-      // Income distribution is now handled automatically in ledgerService.addEntry
-      // If this is an income entry with a party name, create linked party payment
-      if (drawerType === 'credit' && data.partyName && data.partyName.trim()) {
-        await createPartyPaymentFromIncome(entryId, data.partyName.trim(), data.amount, data.date, data.note)
-      }
+      
     }
     // Drawer will close automatically on success
   }
@@ -747,12 +683,7 @@ export default function LedgerPage() {
 
       // Before deleting ledger entry, clean up related data
       if (entryToDeleteObj) {
-        // Delete linked party payment if it's an income entry
-        if (entryToDeleteObj.type === 'credit' && entryToDeleteObj.partyName) {
-          await deleteLinkedPartyPayment(entryToDelete)
-        }
-
-        // Revert expense distribution if it's an expense entry with supplier
+        // No automatic party payment management if it's an expense entry with supplier
         if (entryToDeleteObj.type === 'debit' && entryToDeleteObj.supplier) {
           await revertExpenseDistribution(entryToDelete, entryToDeleteObj.supplier)
         }
@@ -1699,3 +1630,7 @@ export default function LedgerPage() {
     </div>
   )
 }
+
+
+
+
