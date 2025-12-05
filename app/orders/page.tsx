@@ -2119,20 +2119,9 @@ function OrdersPageContent() {
 
                       {/* Total Column */}
                       <div className="w-24 px-1 py-1 flex-shrink-0 border-r border-gray-100">
-                        {totalCustomerPaid > 0 ? (
-                          <>
-                            <div className="font-bold text-green-600 text-[11px] leading-tight">
-                              {formatIndianCurrency(totalCustomerPaid)}
-                            </div>
-                            <div className="text-[10px] text-gray-500 line-through leading-tight">
-                              {formatIndianCurrency(order.total)}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="font-bold text-primary-600 text-[11px] leading-tight">
-                            {formatIndianCurrency(order.total)}
-                          </div>
-                        )}
+                        <div className="font-bold text-primary-600 text-[11px] leading-tight">
+                          {formatIndianCurrency(order.total)}
+                        </div>
                       </div>
 
                       {/* Truck Owner / No. / Supplier Column */}
@@ -2167,19 +2156,6 @@ function OrdersPageContent() {
                         <div className="font-semibold text-gray-800 text-[11px] leading-tight">
                           {formatIndianCurrency(order.originalTotal)}
                         </div>
-                        <div className="text-[10px] text-green-600 font-semibold leading-tight">
-                          {formatIndianCurrency(totalRawPayments)}
-                        </div>
-                        {isPaid && (
-                          <span className="bg-green-500 text-white px-1 py-0.5 rounded text-[8px] font-bold">
-                            PAID
-                          </span>
-                        )}
-                        {isPartyPaid && (
-                          <span className="bg-blue-500 text-white px-1 py-0.5 rounded text-[8px] font-bold ml-1">
-                            PARTY PAID
-                          </span>
-                        )}
                       </div>
 
                       {/* Additional Cost / Profit Column */}
@@ -2189,61 +2165,9 @@ function OrdersPageContent() {
                         </div>
                         
                         {/* Profit Display Logic */}
-                        {(() => {
-                          const expenseAdj = Number(order.expenseAdjustment || 0)
-                          const revenueAdj = Number(order.revenueAdjustment || 0)
-                          const manualAdj = Number(order.adjustmentAmount || 0)
-                          const adjustedProjected = order.profit + expenseAdj + revenueAdj + manualAdj
-                          const hasProjectedAdjustments = Math.abs(adjustedProjected - order.profit) > 0.01
-
-                          // Debug logging for profit adjustments
-                          if (Math.abs(revenueAdj) > 0.01) {
-                            console.log(`Order ${order.id}: profit=${order.profit}, revenueAdj=${revenueAdj}, adjusted=${adjustedProjected}, hasAdjustments=${hasProjectedAdjustments}`)
-                          }
-
-                          const totalReceived = (order.customerPayments || []).reduce((sum, p) => sum + p.amount, 0)
-                          const totalPaidOut = (order.partialPayments || []).reduce((sum, p) => sum + p.amount, 0)
-                          const customerSettled = isPartyPaid
-                          const supplierSettled = isPaid
-                          const showRealized = customerSettled && supplierSettled
-
-                          if (showRealized) {
-                            // When both customer and supplier are settled, show the realized profit
-                            // This includes revenue adjustments from over/under payments
-                            const realizedProfit = totalReceived - totalPaidOut - order.additionalCost + manualAdj
-                            return (
-                              <>
-                                <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
-                                  {formatIndianCurrency(order.profit)}
-                                </div>
-                                <div className={`font-bold text-[11px] leading-tight ${realizedProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                  {formatIndianCurrency(realizedProfit)}
-                                </div>
-                              </>
-                            )
-                          }
-
-                          if (customerSettled && hasProjectedAdjustments) {
-                            // Customer is paid but supplier isn't - show adjusted profit (including revenue adjustments)
-                            // This shows the profit impact of over/under payments before final settlement
-                            return (
-                              <>
-                                <div className="font-semibold text-[11px] leading-tight text-gray-500 line-through opacity-60">
-                                  {formatIndianCurrency(order.profit)}
-                                </div>
-                                <div className={`font-bold text-[11px] leading-tight ${adjustedProjected >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                  {formatIndianCurrency(adjustedProjected)}
-                                </div>
-                              </>
-                            )
-                          }
-
-                          return (
-                            <div className={`font-semibold text-[11px] leading-tight ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatIndianCurrency(order.profit)}
-                            </div>
-                          )
-                        })()}
+                        <div className={`font-semibold text-[11px] leading-tight ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatIndianCurrency(order.profit)}
+                        </div>
                       </div>
 
                       {/* Actions Column - Compact with view/edit */}
