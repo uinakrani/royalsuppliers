@@ -32,7 +32,7 @@ async function redistributePartyPayments(partyName: string) {
     const incomeEntries: any[] = [];
 
     for (const doc of ledgerSnapshot.docs) {
-      const entry = { id: doc.id, ...doc.data() };
+      const entry = { id: doc.id, ...doc.data() } as any;
       totalIncome += entry.amount;
       incomeEntries.push(entry);
       console.log(`Income entry ${entry.id}: ₹${entry.amount}`);

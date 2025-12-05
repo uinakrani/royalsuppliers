@@ -407,14 +407,14 @@ export const ledgerService = {
     // Sync changes back to order payment if not initiated from order
     if (!options.fromOrder) {
       try {
-        if (type === 'credit') {
+        if (oldEntry?.type === 'credit') {
           // For income entries, update customer payments
           await orderService.updateCustomerPaymentByLedgerEntryId(id, {
             amount: updates.amount,
             date: updateData.date, // Use the new date (now)
             // Note: We don't sync note back to payment currently as payment note is often different or specific
           })
-        } else if (type === 'debit') {
+        } else if (oldEntry?.type === 'debit') {
           // For expense entries, update supplier payments
           await orderService.updatePaymentByLedgerEntryId(id, {
             amount: updates.amount,
