@@ -1338,11 +1338,39 @@ function OrdersPageContent() {
     return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
   }
 
+  const partyGroups = useMemo(
+    () => getPartyGroups(),
+    [filteredOrders, orders, selectedMonth, ledgerEntries]
+  )
+
+  const partySummaries = useMemo(
+    () =>
+      partyGroups.map((group) => {
+        const outstandingAmount = Math.max(0, group.totalSelling - group.totalPaid)
+        const remainingProfit = group.totalProfit - outstandingAmount
+        const useAdjustedProfit = outstandingAmount <= 250
+        const effectiveProfit = useAdjustedProfit ? remainingProfit : group.totalProfit
+        return {
+          ...group,
+          outstandingAmount,
+          remainingProfit,
+          useAdjustedProfit,
+          effectiveProfit,
+        }
+      }),
+    [partyGroups]
+  )
+
+  const totalPartyProfit = useMemo(
+    () => partySummaries.reduce((sum, group) => sum + group.effectiveProfit, 0),
+    [partySummaries]
+  )
+
   // Keep the party detail popup in sync after income edits while it stays open
   useEffect(() => {
     if (!showPartyDetailDrawer || !selectedPartyGroup?.partyName) return
 
-    const updatedGroup = getPartyGroups().find(
+    const updatedGroup = partySummaries.find(
       (group) => group.partyName === selectedPartyGroup.partyName
     )
 
@@ -1371,7 +1399,7 @@ function OrdersPageContent() {
       setSelectedPartyGroup(updatedGroup)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, filteredOrders, selectedPartyGroup, showPartyDetailDrawer])
+  }, [partyGroups, selectedPartyGroup, showPartyDetailDrawer])
 
   const getSupplierGroups = useCallback((): SupplierGroup[] => {
     // Group orders by supplier
@@ -1811,9 +1839,18 @@ function OrdersPageContent() {
         ) : viewMode === 'byParty' ? (
           <>
             {/* By Party View - Ultra Compact Design */}
+            <div className="px-3 pb-1">
+              <div className="bg-white rounded-xl border border-green-200 shadow-sm px-3 py-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-green-700">Total Profit (all parties)</span>
+                <span className="text-lg font-bold text-green-800">
+                  {formatIndianCurrency(totalPartyProfit)}
+                </span>
+              </div>
+            </div>
             <div className="p-2 space-y-2">
-            {getPartyGroups().map((group, index) => {
+            {partySummaries.map((group, index) => {
               const balance = group.totalSelling - group.totalPaid
+              const { outstandingAmount, remainingProfit, useAdjustedProfit: showProfitCalc, effectiveProfit } = group
               const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
               const paymentPercentage = group.totalSelling > 0 ? (group.totalPaid / group.totalSelling) * 100 : 0
 
@@ -1909,10 +1946,10 @@ function OrdersPageContent() {
                             {formatIndianCurrency(Math.abs(balance))}
                           </div>
                         </div>
-                        <div className={`p-2 rounded-lg ${group.totalProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                          <div className={`text-[10px] font-medium mb-0.5 ${group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Total Profit</div>
-                          <div className={`text-sm font-bold ${group.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {formatIndianCurrency(group.totalProfit)}
+                        <div className={`p-2 rounded-lg ${effectiveProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className={`text-[10px] font-medium mb-0.5 ${effectiveProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Total Profit</div>
+                          <div className={`text-sm font-bold ${effectiveProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {formatIndianCurrency(effectiveProfit)}
                           </div>
                         </div>
                         <div className="bg-blue-50 p-2 rounded-lg">
@@ -1928,6 +1965,14 @@ function OrdersPageContent() {
                           </div>
                         </div>
                       </div>
+                      {showProfitCalc && (
+                        <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
+                          <div className="text-[10px] font-semibold text-green-700 mb-0.5">Profit after clearing dues</div>
+                          <div className="text-xs font-bold text-gray-900">
+                            {`${formatIndianCurrency(group.totalProfit)} - ${formatIndianCurrency(outstandingAmount)} = ${formatIndianCurrency(remainingProfit)}`}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Footer - Minimal */}
@@ -2458,7 +2503,7 @@ function OrdersPageContent() {
           onPaymentAdded={async () => {
             // Ledger subscription handles data updates, just refresh selected group
             if (selectedPartyGroup?.partyName) {
-              const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)
+              const updatedGroup = partySummaries.find(g => g.partyName === selectedPartyGroup.partyName)
               if (updatedGroup) {
                 setSelectedPartyGroup(updatedGroup)
               }
@@ -2467,7 +2512,7 @@ function OrdersPageContent() {
           onPaymentRemoved={async () => {
             // Ledger subscription handles data updates, just refresh selected group
             if (selectedPartyGroup?.partyName) {
-              const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)
+              const updatedGroup = partySummaries.find(g => g.partyName === selectedPartyGroup.partyName)
               if (updatedGroup) {
                 setSelectedPartyGroup(updatedGroup)
               }

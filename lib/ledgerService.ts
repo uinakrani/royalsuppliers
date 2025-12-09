@@ -65,17 +65,19 @@ const getPartyPaymentService = async () => {
   return partyPaymentServicePromise
 }
 
-// Helper method to sort ledger entries
+// Helper method to sort ledger entries (newest date first)
 function sortLedgerEntries(items: LedgerEntry[]): LedgerEntry[] {
-  return items.sort((a, b) => {
-    const aTime = a.createdAt
-      ? new Date(a.createdAt).getTime()
-      : (a.date ? new Date(a.date).getTime() : 0)
-    const bTime = b.createdAt
-      ? new Date(b.createdAt).getTime()
-      : (b.date ? new Date(b.date).getTime() : 0)
-    return bTime - aTime // Descending order (newest first)
-  })
+  const getTime = (entry: LedgerEntry) => {
+    // Prefer the entry date chosen by the user; fall back to createdAt
+    const dateTime = entry.date ? new Date(entry.date).getTime() : NaN
+    const createdTime = entry.createdAt ? new Date(entry.createdAt).getTime() : NaN
+
+    if (!isNaN(dateTime)) return dateTime
+    if (!isNaN(createdTime)) return createdTime
+    return 0
+  }
+
+  return items.sort((a, b) => getTime(b) - getTime(a))
 }
 
 export const ledgerService = {

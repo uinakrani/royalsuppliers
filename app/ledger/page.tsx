@@ -64,6 +64,16 @@ export default function LedgerPage() {
     [entries]
   )
 
+  const getEntryTimestamp = (entry: LedgerEntry) => {
+    // Prefer the entry date shown to users; fall back to createdAt
+    const dateTime = entry.date ? new Date(entry.date).getTime() : NaN
+    const createdTime = entry.createdAt ? new Date(entry.createdAt).getTime() : NaN
+
+    if (!isNaN(dateTime)) return dateTime
+    if (!isNaN(createdTime)) return createdTime
+    return 0
+  }
+
   const balance = useMemo(() => {
     const ledgerBalance = activeEntries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
     return (investment?.amount || 0) + ledgerBalance
@@ -83,29 +93,17 @@ export default function LedgerPage() {
   }, [investmentAmount, investmentMode, investment])
 
   // Separate income (credit) and expenses (debit)
-  // Sort by creation time (most recent first) - use createdAt, then date as fallback
+  // Sort by entry date (newest first), falling back to createdAt
   const incomeEntries = useMemo(() => {
-    return activeEntries.filter(e => e.type === 'credit').sort((a, b) => {
-      const aTime = a.createdAt
-        ? new Date(a.createdAt).getTime()
-        : (a.date ? new Date(a.date).getTime() : 0)
-      const bTime = b.createdAt
-        ? new Date(b.createdAt).getTime()
-        : (b.date ? new Date(b.date).getTime() : 0)
-      return bTime - aTime // Descending order (newest first)
-    })
+    return activeEntries
+      .filter(e => e.type === 'credit')
+      .sort((a, b) => getEntryTimestamp(b) - getEntryTimestamp(a)) // Descending order (newest first)
   }, [activeEntries])
 
   const expenseEntries = useMemo(() => {
-    return activeEntries.filter(e => e.type === 'debit').sort((a, b) => {
-      const aTime = a.createdAt
-        ? new Date(a.createdAt).getTime()
-        : (a.date ? new Date(a.date).getTime() : 0)
-      const bTime = b.createdAt
-        ? new Date(b.createdAt).getTime()
-        : (b.date ? new Date(b.date).getTime() : 0)
-      return bTime - aTime // Descending order (newest first)
-    })
+    return activeEntries
+      .filter(e => e.type === 'debit')
+      .sort((a, b) => getEntryTimestamp(b) - getEntryTimestamp(a)) // Descending order (newest first)
   }, [activeEntries])
 
   // Calculate totals
