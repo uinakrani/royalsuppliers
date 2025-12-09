@@ -900,14 +900,22 @@ export const orderService = {
       throw new Error(`Total payments cannot exceed original total of ${formatIndianCurrency(expenseAmount)}`)
     }
 
-    // Sync with Ledger if linked
+    // Sync with Ledger if linked and capture new ledger entry id (ledger updates create a new entry)
+    let updatedLedgerEntryId = paymentToUpdate.ledgerEntryId || preserveLedgerEntryId
     if (paymentToUpdate.ledgerEntryId) {
       try {
         const { ledgerService } = await import('./ledgerService')
-        await ledgerService.update(paymentToUpdate.ledgerEntryId, {
-          amount: newAmount,
-          date: updates.date,
-        }, { fromOrder: true }) // Prevent loop
+        const newLedgerEntryId = await ledgerService.update(
+          paymentToUpdate.ledgerEntryId,
+          {
+            amount: newAmount,
+            date: updates.date,
+          },
+          { fromOrder: true } // Prevent loop
+        )
+        if (newLedgerEntryId) {
+          updatedLedgerEntryId = newLedgerEntryId
+        }
         console.log('Γ£à Synced payment update to ledger:', paymentToUpdate.ledgerEntryId)
       } catch (error) {
         console.error('Γ¥î Failed to sync payment update to ledger:', error)
@@ -921,7 +929,7 @@ export const orderService = {
       amount: newAmount,
       date: updates.date || paymentToUpdate.date,
       createdAt: paymentToUpdate.createdAt || paymentToUpdate.date,
-      ...(preserveLedgerEntryId ? { ledgerEntryId: preserveLedgerEntryId } : {}),
+      ...(updatedLedgerEntryId ? { ledgerEntryId: updatedLedgerEntryId } : {}),
     }
 
     const updatedPayments = [...existingPayments]
@@ -1089,7 +1097,10 @@ export const orderService = {
   },
 
   // Update payment details from ledger update (sync ledger -> order)
-  async updatePaymentByLedgerEntryId(ledgerEntryId: string, updates: { amount?: number; date?: string }): Promise<void> {
+  async updatePaymentByLedgerEntryId(
+    ledgerEntryId: string,
+    updates: { amount?: number; date?: string; note?: string; newLedgerEntryId?: string }
+  ): Promise<void> {
     const db = getDb()
     if (!db) return
 
@@ -1118,6 +1129,8 @@ export const orderService = {
       amount: updates.amount !== undefined ? updates.amount : paymentToUpdate.amount,
       date: updates.date || paymentToUpdate.date,
       createdAt: paymentToUpdate.createdAt || paymentToUpdate.date,
+      note: updates.note !== undefined ? (updates.note || undefined) : paymentToUpdate.note,
+      ledgerEntryId: updates.newLedgerEntryId || paymentToUpdate.ledgerEntryId,
     }
 
     const updatedPayments = [...existingPayments]

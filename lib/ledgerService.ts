@@ -756,6 +756,22 @@ export const ledgerService = {
     // Update local cache with voided metadata
     await offlineStorage.put(STORES.LEDGER_ENTRIES, voidedEntry)
 
+    // Sync linked carting payments (order-level expenses without supplier/party) when update originates from ledger
+    if (!options.fromOrder && oldEntry.id && oldEntry.source === 'orderExpense' && !oldEntry.supplier && !oldEntry.partyName) {
+      try {
+        const orderSvc = await getOrderService()
+        await orderSvc.updatePaymentByLedgerEntryId(oldEntry.id, {
+          amount: newAmount,
+          date: now,
+          note: newNote,
+          newLedgerEntryId: newEntryId,
+        })
+      } catch (error) {
+        console.error('Failed to sync carting payment update to orders:', error)
+        // Don't throw - ledger update already succeeded
+      }
+    }
+
     // Step 3: log activity capturing before/after
     try {
       await ledgerActivityService.logActivity({
