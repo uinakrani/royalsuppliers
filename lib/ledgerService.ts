@@ -698,8 +698,13 @@ export const ledgerService = {
       throw new Error('Ledger entry not found')
     }
 
-    // Force change to "today"
+    // Respect provided date; fall back to existing date or today
     const now = new Date().toISOString()
+    let newDate = updates.date ?? oldEntry.date ?? now
+    if (newDate && !newDate.includes('T')) {
+      newDate = new Date(newDate + 'T00:00:00').toISOString()
+    }
+
     const newAmount = updates.amount !== undefined ? updates.amount : oldEntry.amount
     const newNote = updates.note !== undefined ? (updates.note?.trim() || undefined) : oldEntry.note
     const newSupplier = updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldEntry.supplier
@@ -711,7 +716,7 @@ export const ledgerService = {
       newAmount,
       newNote,
       oldEntry.source || 'manual',
-      now,
+      newDate,
       newSupplier || undefined,
       newPartyName || undefined,
       { rollbackOnFailure, skipActivityLog: true }
@@ -764,7 +769,7 @@ export const ledgerService = {
         const orderSvc = await getOrderService()
         await orderSvc.updatePaymentByLedgerEntryId(oldEntry.id, {
           amount: newAmount,
-          date: now,
+          date: newDate,
           note: newNote,
           newLedgerEntryId: newEntryId,
         })
@@ -783,7 +788,7 @@ export const ledgerService = {
         previousAmount: oldEntry.amount,
         note: newNote,
         previousNote: oldEntry.note,
-        date: now,
+        date: newDate,
         previousDate: oldEntry.date,
         supplier: newSupplier,
         previousSupplier: oldEntry.supplier,

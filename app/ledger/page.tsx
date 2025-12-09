@@ -65,12 +65,11 @@ export default function LedgerPage() {
   )
 
   const getEntryTimestamp = (entry: LedgerEntry) => {
-    // Prefer the entry date shown to users; fall back to createdAt
-    const dateTime = entry.date ? new Date(entry.date).getTime() : NaN
-    const createdTime = entry.createdAt ? new Date(entry.createdAt).getTime() : NaN
-
-    if (!isNaN(dateTime)) return dateTime
-    if (!isNaN(createdTime)) return createdTime
+    // Sort strictly by the ledger entry date (ignore created/updated timestamps)
+    if (entry.date) {
+      const dateTime = new Date(entry.date).getTime()
+      if (!isNaN(dateTime)) return dateTime
+    }
     return 0
   }
 

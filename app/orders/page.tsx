@@ -585,7 +585,7 @@ function OrdersPageContent() {
       const dateInput = await sweetAlert.prompt({
         title: 'Payment Date',
         inputLabel: 'Date',
-        inputType: 'text',
+        inputType: 'date',
         inputValue: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
         confirmText: 'Add Payment',
         cancelText: 'Cancel',
@@ -595,7 +595,14 @@ function OrdersPageContent() {
         return
       }
 
-      const paymentDate = new Date(dateInput).toISOString()
+      const parsedDate = dateInput.includes('T')
+        ? new Date(dateInput)
+        : new Date(`${dateInput}T00:00:00`)
+      if (isNaN(parsedDate.getTime())) {
+        showToast('Please select a valid payment date', 'error')
+        return
+      }
+      const paymentDateIso = parsedDate.toISOString()
 
       // Check for overpayment
       const newTotalPaid = totalPaid + amount
@@ -664,11 +671,10 @@ function OrdersPageContent() {
           }
 
           // Add the new direct payment
-          const paymentDate = new Date().toISOString()
           const newPayment: PaymentRecord = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             amount: amount,
-            date: paymentDate,
+            date: paymentDateIso,
             note: note || undefined,
           }
           updatedPayments.push(newPayment)
@@ -688,7 +694,7 @@ function OrdersPageContent() {
           for (const ledgerEntryId of ledgerEntryIdsArray) {
             try {
               const payment = updatedPayments.find(p => p.ledgerEntryId === ledgerEntryId)
-              const paymentDate = payment?.date || new Date().toISOString()
+              const paymentDate = payment?.date || paymentDateIso
               await redistributeLedgerEntry(ledgerEntryId, paymentDate)
               console.log(`✅ Redistributed ledger entry ${ledgerEntryId}`)
             } catch (error) {
@@ -763,7 +769,7 @@ function OrdersPageContent() {
       }
 
       // Add direct payment to order (creates ledger entry without supplier name)
-      await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid, paymentDate)
+      await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid, paymentDateIso)
 
       // Immediately reload orders and ledger entries for real-time updates
       await Promise.all([loadOrders(), loadLedgerEntries()])

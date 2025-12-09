@@ -181,6 +181,9 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     return formData.amount > 0 && !!formData.date && partyOk
   }
 
+  // Allow editing dates for all expense entries (including carting and supplier payments)
+  const canEditDate = !isEditMode || type === 'debit'
+
   const handleStepClick = (stepIndex: number) => {
     if (stepIndex !== currentStep) {
       setCurrentStep(stepIndex)
@@ -265,7 +268,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       case 'date':
         return (
           <div className="w-full">
-            {isEditMode ? (
+            {isEditMode && !canEditDate ? (
               <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
                 <p className="text-sm text-gray-500 mb-1">Date cannot be changed for existing entries</p>
                 <p className="text-lg font-semibold text-gray-900">
