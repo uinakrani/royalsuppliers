@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import {
   collection,
@@ -16,10 +16,39 @@ import {
 import { getDb } from './firebase'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 // LedgerService import removed to avoid circular dependency
-
+import { offlineStorage, STORES } from './offlineStorage'
+import { syncService } from './syncService'
 
 const ORDERS_COLLECTION = 'orders'
 export const PAYMENT_TOLERANCE = 100
+const ORDER_CODE_PREFIX = 'RS'
+
+const parseOrderCodeNumber = (orderCode?: string): number | null => {
+  if (!orderCode || typeof orderCode !== 'string') return null
+  const match = orderCode.trim().toUpperCase().match(/^RS(\d+)$/)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isNaN(value) ? null : value
+}
+
+const formatOrderCode = (sequence: number): string => `${ORDER_CODE_PREFIX}${sequence}`
+
+const getOrderTimeValue = (order: Order): number => {
+  const dateSources = [order.createdAt, order.date, order.updatedAt]
+  for (const source of dateSources) {
+    if (!source) continue
+    const parsed = new Date(source)
+    const time = parsed.getTime()
+    if (!Number.isNaN(time)) return time
+  }
+  return 0
+}
+
+const sortOrdersByCreatedAt = (a: Order, b: Order): number => {
+  const diff = getOrderTimeValue(a) - getOrderTimeValue(b)
+  if (diff !== 0) return diff
+  return (a.id || '').localeCompare(b.id || '')
+}
 
 const coerceIsoString = (value: any, fallback?: string): string | undefined => {
   if (!value) return fallback
@@ -46,12 +75,21 @@ const normalizePaymentRecord = (payment: PaymentRecord): PaymentRecord => {
   const normalizedDate = coerceIsoString(payment.date, new Date().toISOString())!
   const normalizedCreatedAt = coerceIsoString(payment.createdAt, normalizedDate) || normalizedDate
 
-  return {
+  const normalized: PaymentRecord = {
     ...payment,
     amount: Number(payment.amount) || 0,
     date: normalizedDate,
     createdAt: normalizedCreatedAt,
   }
+
+  // Remove undefined values to avoid Firestore "Unsupported field value: undefined"
+  Object.keys(normalized).forEach((k) => {
+    if ((normalized as any)[k] === undefined) {
+      delete (normalized as any)[k]
+    }
+  })
+
+  return normalized
 }
 
 const roundDelta = (delta: number): number => {
@@ -140,25 +178,112 @@ export const orderService = {
     return updatedPayments;
   },
 
-  // Create order
-  async createOrder(order: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number }): Promise<string> {
-    const db = getDb()
+  // Ensure all orders have sequential human-friendly order codes (RS1, RS2, ...)
+  // Oldest order gets RS1, next RS2, and so on.
+  async ensureOrderCodesForOrders(orders: Order[]): Promise<Order[]> {
+    const normalized = [...orders]
+    if (normalized.length === 0) return normalized
 
-    if (!db) {
-      const errorMsg = 'Firebase db is not initialized. Check your Firebase configuration and .env.local file.'
-      console.error(errorMsg)
-      console.error('Environment check:', {
-        hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-        hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        hasAppId: !!process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-        isClient: typeof window !== 'undefined'
-      })
-      throw new Error(errorMsg)
+    const now = new Date().toISOString()
+    const sorted = [...normalized].sort(sortOrdersByCreatedAt)
+    const updates: Order[] = []
+
+    sorted.forEach((order, idx) => {
+      const desiredCode = formatOrderCode(idx + 1)
+      if (order.orderCode === desiredCode) {
+        return
+      }
+
+      const updatedOrder: Order = {
+        ...order,
+        orderCode: desiredCode,
+        updatedAt: order.updatedAt || now,
+      }
+
+      const index = normalized.findIndex((o) => o.id === order.id)
+      if (index !== -1) {
+        normalized[index] = updatedOrder
+      }
+
+      updates.push(updatedOrder)
+    })
+
+    // Persist updates locally and queue/patch remotely
+    for (const updatedOrder of updates) {
+      await offlineStorage.put(STORES.ORDERS, updatedOrder)
     }
+    await this.persistOrderCodeUpdates(updates, now)
+
+    return normalized
+  },
+
+  async persistOrderCodeUpdates(updates: Order[], updatedAt: string): Promise<void> {
+    if (updates.length === 0) return
+
+    const db = getDb()
+    const canUpdateRemote = offlineStorage.isOnline() && db
+
+    for (const order of updates) {
+      if (!order.id) continue
+
+      if (canUpdateRemote && db && !order.id.startsWith('local-')) {
+        try {
+          await updateDoc(doc(db, ORDERS_COLLECTION, order.id), {
+            orderCode: order.orderCode,
+            updatedAt: order.updatedAt || updatedAt,
+          })
+          continue
+        } catch (error) {
+          console.error('Failed to update orderCode remotely:', error)
+        }
+      }
+
+      await offlineStorage.queueForSync({
+        id: order.id,
+        collection: STORES.ORDERS,
+        operation: 'update',
+        data: order,
+        lastModifiedAt: updatedAt,
+      })
+    }
+  },
+
+  async getNextOrderCodeSequence(): Promise<number> {
+    let sourceOrders: Order[] = []
+    const db = getDb()
+    const canFetchRemote = offlineStorage.isOnline() && db
+
+    if (canFetchRemote) {
+      try {
+        // Prefer server data when online so codes reflect authoritative state
+        sourceOrders = await this.fetchOrdersFromFirestore().catch(() => [])
+      } catch (error) {
+        console.error('Failed to fetch orders for sequence calculation, using cache:', error)
+      }
+    }
+
+    if (sourceOrders.length === 0) {
+      sourceOrders = await offlineStorage.getAll(STORES.ORDERS)
+    }
+
+    const ordersWithCodes = await this.ensureOrderCodesForOrders(sourceOrders)
+    // After ensureOrderCodesForOrders, codes are dense: RS1...RSN in chronological order
+    return ordersWithCodes.length + 1
+  },
+
+  // Create order (online-first with offline queue)
+  async createOrder(
+    order: Omit<Order, 'id'> & { paidAmountForRawMaterials?: number },
+    options?: { skipQueue?: boolean }
+  ): Promise<string> {
+    const db = getDb()
+    const localId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const now = new Date().toISOString()
+    const nextOrderCodeSequence = await this.getNextOrderCodeSequence()
+    const orderCode = formatOrderCode(nextOrderCodeSequence)
 
     try {
       // Extract paidAmountForRawMaterials if provided (temporary field from form)
-      const paidAmountForRawMaterials = (order as any).paidAmountForRawMaterials
       const expenseAmount = Number(order.originalTotal || 0)
 
       // Prepare order data without the temporary field
@@ -178,162 +303,287 @@ export const orderService = {
       const expenseAdjustment = calculateExpenseAdjustment(order.originalTotal || 0, processedPartialPayments)
       const revenueAdjustment = calculateRevenueAdjustment(order.total || 0, initialCustomerPayments)
 
-      const orderData: Omit<Order, 'id'> = {
+      const baseOrderData: Order = {
+        id: localId,
+        orderCode,
         ...orderDataWithoutTemp,
         partialPayments: processedPartialPayments,
         ...(processedPartialPayments.length > 0 ? { expenseAdjustment } : {}),
         ...(initialCustomerPayments.length > 0 ? { revenueAdjustment } : {}),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       }
 
-      // Store partialPayments if provided (from form) - already handled above
-      // if (order.partialPayments && Array.isArray(order.partialPayments) && order.partialPayments.length > 0) {
-      //   orderData.partialPayments = order.partialPayments
-      // }
+      const canWriteRemote = offlineStorage.isOnline() && db
 
-      console.log('Creating order in Firestore:', {
-        collection: ORDERS_COLLECTION,
-        data: orderData,
-        dbInitialized: !!db
-      })
+      if (canWriteRemote) {
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('Request timeout while creating order'))
+            }, 10000)
+          })
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          console.error('Γ¥î Save operation timed out after 10 seconds')
-          console.error('This usually means Firestore security rules are blocking the request.')
-          reject(new Error('Request timeout. This usually means Firestore security rules are blocking writes. Please check your Firestore rules in Firebase Console and ensure they allow writes to the "orders" collection.'))
-        }, 10000)
-      })
+          const savePromise = addDoc(collection(db, ORDERS_COLLECTION), {
+            ...orderDataWithoutTemp,
+            orderCode,
+            partialPayments: processedPartialPayments,
+            ...(processedPartialPayments.length > 0 ? { expenseAdjustment } : {}),
+            ...(initialCustomerPayments.length > 0 ? { revenueAdjustment } : {}),
+            createdAt: now,
+            updatedAt: now,
+          })
 
-      console.log('ΓÅ│ Attempting to save to Firestore...')
-      const savePromise = addDoc(collection(db, ORDERS_COLLECTION), orderData)
-      const docRef = await Promise.race([savePromise, timeoutPromise])
+          const docRef = await Promise.race([savePromise, timeoutPromise])
+          const remoteOrder: Order = { ...baseOrderData, id: docRef.id }
 
-      console.log('Γ£à Order created successfully with ID:', docRef.id)
+          // Cache the authoritative remote order for offline usage
+          await offlineStorage.put(STORES.ORDERS, remoteOrder)
 
-      return docRef.id
-    } catch (error: any) {
-      console.error('Γ¥î Firestore error creating order:', error)
-      console.error('Error details:', {
-        code: error?.code,
-        message: error?.message,
-        stack: error?.stack
-      })
-
-      if (error.code === 'permission-denied') {
-        throw new Error('Permission denied. Please check your Firestore security rules in Firebase Console. Rules should allow: allow read, write: if true;')
-      }
-      if (error.code === 'unavailable') {
-        throw new Error('Firestore is unavailable. Please check your internet connection.')
-      }
-      if (error.code === 'failed-precondition') {
-        throw new Error('Firestore database not found. Please create the database in Firebase Console.')
-      }
-      throw new Error(`Failed to save order: ${error.message || 'Unknown error'}`)
-    }
-  },
-
-  // Update order
-  async updateOrder(id: string, order: Partial<Order>): Promise<void> {
-    const db = getDb()
-    if (!db) {
-      console.error('Firebase db is not initialized. Check your Firebase configuration.')
-      throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials. See README.md for setup instructions.')
-    }
-    try {
-      // Get existing order
-      const existingOrder = await this.getOrderById(id)
-      if (!existingOrder) {
-        throw new Error('Order not found')
-      }
-
-      // Prepare update data - remove undefined values to avoid Firestore errors
-      const updateData: any = {
-        updatedAt: new Date().toISOString(),
-      }
-
-      // Process partial payments to ensure they have ledger entries
-      if (order.partialPayments && Array.isArray(order.partialPayments) && order.partialPayments.length > 0) {
-         order.partialPayments = await this.ensureLedgerEntriesForPayments(
-           order.partialPayments,
-           { truckNo: order.truckNo || existingOrder.truckNo, id: id, supplier: order.supplier || existingOrder.supplier }
-         );
-      }
-
-      // Only include fields that are defined and not undefined
-      Object.keys(order).forEach(key => {
-        const value = (order as any)[key]
-        // Skip undefined values and handle partialPayments specially
-        if (value !== undefined) {
-          // For partialPayments, only include if it's a non-empty array
-          if (key === 'partialPayments') {
-            if (Array.isArray(value) && value.length > 0) {
-              const normalized = value.map(normalizePaymentRecord)
-              updateData[key] = normalized
-              const originalTotal = Number(order.originalTotal ?? existingOrder.originalTotal ?? 0)
-              updateData.expenseAdjustment = calculateExpenseAdjustment(originalTotal, normalized)
-            } else if (value && Array.isArray(value) && value.length === 0) {
-              updateData.expenseAdjustment = 0
-            }
-          } else if (key === 'customerPayments') {
-            if (Array.isArray(value) && value.length > 0) {
-              const normalized = value.map(normalizePaymentRecord)
-              updateData[key] = normalized
-              const sellingTotal = Number(order.total ?? existingOrder.total ?? 0)
-              updateData.revenueAdjustment = calculateRevenueAdjustment(sellingTotal, normalized)
-            } else if (value && Array.isArray(value) && value.length === 0) {
-              updateData.revenueAdjustment = 0
-            }
-          } else {
-            updateData[key] = value
+          // Clean up the temporary local id if it differs
+          if (remoteOrder.id !== localId) {
+            await offlineStorage.delete(STORES.ORDERS, localId).catch(() => {})
           }
+
+          return docRef.id
+        } catch (error) {
+          console.error('Failed to create order online, falling back to offline queue:', error)
         }
+      }
+
+      // Offline or remote failure - cache locally and queue for sync
+      await offlineStorage.put(STORES.ORDERS, baseOrderData)
+
+      if (!options?.skipQueue) {
+        await offlineStorage.queueForSync({
+          id: localId,
+          collection: STORES.ORDERS,
+          operation: 'create',
+          data: baseOrderData,
+          localId,
+          lastModifiedAt: now
+        })
+      }
+
+      return localId
+    } catch (error: any) {
+      console.error('Failed to create order:', error)
+      throw new Error(`Failed to save order locally: ${error.message || 'Unknown error'}`)
+    }
+  },
+
+  // Update order (online-first with offline queue)
+  async updateOrder(id: string, order: Partial<Order>, options?: { skipQueue?: boolean }): Promise<void> {
+    const db = getDb()
+    const now = new Date().toISOString()
+
+    // Get existing order (from cache if possible)
+    const existingOrder = await this.getOrderById(id)
+    if (!existingOrder) {
+      throw new Error('Order not found')
+    }
+
+    // Prepare update data - remove undefined values to avoid Firestore errors
+    const updateData: any = {
+      updatedAt: now,
+    }
+
+    // Process partial payments to ensure they have ledger entries
+    if (order.partialPayments && Array.isArray(order.partialPayments) && order.partialPayments.length > 0) {
+       order.partialPayments = await this.ensureLedgerEntriesForPayments(
+         order.partialPayments,
+         { truckNo: order.truckNo || existingOrder.truckNo, id: id, supplier: order.supplier || existingOrder.supplier }
+       );
+    }
+
+    // Only include fields that are defined and not undefined
+    Object.keys(order).forEach(key => {
+      const value = (order as any)[key]
+      // Skip undefined values and handle partialPayments specially
+      if (value !== undefined) {
+        // For partialPayments, only include if it's a non-empty array
+        if (key === 'partialPayments') {
+          if (Array.isArray(value) && value.length > 0) {
+            const normalized = value.map(normalizePaymentRecord)
+            updateData[key] = normalized
+            const originalTotal = Number(order.originalTotal ?? existingOrder.originalTotal ?? 0)
+            updateData.expenseAdjustment = calculateExpenseAdjustment(originalTotal, normalized)
+          } else if (value && Array.isArray(value) && value.length === 0) {
+            updateData.expenseAdjustment = 0
+          }
+        } else if (key === 'customerPayments') {
+          if (Array.isArray(value) && value.length > 0) {
+            const normalized = value.map(normalizePaymentRecord)
+            updateData[key] = normalized
+            const sellingTotal = Number(order.total ?? existingOrder.total ?? 0)
+            updateData.revenueAdjustment = calculateRevenueAdjustment(sellingTotal, normalized)
+          } else if (value && Array.isArray(value) && value.length === 0) {
+            updateData.revenueAdjustment = 0
+          }
+        } else {
+          updateData[key] = value
+        }
+      }
+    })
+
+    // Merge for local cache
+    const mergedOrder: Order = {
+      ...existingOrder,
+      ...updateData,
+      id,
+    }
+
+    const canUpdateRemote = offlineStorage.isOnline() && db
+
+    // Try to write remotely first when network is available
+    if (canUpdateRemote) {
+      try {
+        const orderRef = doc(db, ORDERS_COLLECTION, id)
+        await updateDoc(orderRef, updateData)
+        console.log('Γ£à Order updated online:', id)
+        await offlineStorage.put(STORES.ORDERS, mergedOrder)
+        return
+      } catch (error: any) {
+        console.error('Firestore error updating order, falling back to offline queue:', error)
+        if (error.code === 'permission-denied') {
+          throw new Error('Permission denied. Please check your Firestore security rules.')
+        }
+      }
+    }
+
+    // Offline or remote failure - cache locally and queue for sync
+    await offlineStorage.put(STORES.ORDERS, mergedOrder)
+
+    if (!options?.skipQueue) {
+      await offlineStorage.queueForSync({
+        id,
+        collection: STORES.ORDERS,
+        operation: 'update',
+        data: mergedOrder,
+        lastModifiedAt: now,
       })
-
-      // Actually update the document in Firestore
-      const orderRef = doc(db, ORDERS_COLLECTION, id)
-      await updateDoc(orderRef, updateData)
-      console.log('Γ£à Order updated successfully:', id)
-    } catch (error: any) {
-      console.error('Firestore error updating order:', error)
-      if (error.code === 'permission-denied') {
-        throw new Error('Permission denied. Please check your Firestore security rules.')
-      }
-      throw new Error(`Failed to update order: ${error.message || 'Unknown error'}`)
     }
   },
 
-  // Delete order
-  async deleteOrder(id: string): Promise<void> {
+  // Delete order (online-first with offline queue)
+  async deleteOrder(id: string, options?: { skipQueue?: boolean }): Promise<void> {
     const db = getDb()
-    if (!db) {
-      throw new Error('Firebase is not configured. Please set up your .env.local file with Firebase credentials.')
+
+    const canDeleteRemote = offlineStorage.isOnline() && db
+
+    if (canDeleteRemote) {
+      try {
+        await deleteDoc(doc(db, ORDERS_COLLECTION, id))
+        console.log('Order deleted online:', id)
+        await offlineStorage.delete(STORES.ORDERS, id)
+        return
+      } catch (error: any) {
+        console.error('Firestore error deleting order, falling back to offline queue:', error)
+        if (error.code === 'permission-denied') {
+          throw new Error('Permission denied. Please check your Firestore security rules.')
+        }
+      }
     }
+
+    // Offline or remote failure - delete locally and queue for sync
     try {
-      console.log('Deleting order from Firestore:', id)
-      await deleteDoc(doc(db, ORDERS_COLLECTION, id))
-      console.log('Order deleted successfully:', id)
-    } catch (error: any) {
-      console.error('Firestore error deleting order:', error)
-      if (error.code === 'permission-denied') {
-        throw new Error('Permission denied. Please check your Firestore security rules.')
-      }
-      throw new Error(`Failed to delete order: ${error.message || 'Unknown error'}`)
+      await offlineStorage.delete(STORES.ORDERS, id)
+    } catch (error) {
+      console.error('Failed to delete order locally:', error)
+    }
+
+    if (!options?.skipQueue) {
+      await offlineStorage.queueForSync({
+        id,
+        collection: STORES.ORDERS,
+        operation: 'delete',
+        data: { id },
+        lastModifiedAt: new Date().toISOString(),
+      })
     }
   },
 
-  // Get all orders
-  async getAllOrders(filters?: OrderFilters): Promise<Order[]> {
-    const db = getDb()
-    if (!db) {
-      console.warn('Firebase is not configured. Returning empty array.')
+  // Get all orders - online first with offline fallback
+  async getAllOrders(
+    filters?: OrderFilters,
+    options?: { onRemoteUpdate?: (orders: Order[], source: 'remote' | 'local') => void, preferRemote?: boolean }
+  ): Promise<Order[]> {
+    try {
+      const localOrders = await offlineStorage.getAll(STORES.ORDERS)
+      const localOrdersWithCodes = await this.ensureOrderCodesForOrders(localOrders)
+      const filteredLocal = this.applyFilters(localOrdersWithCodes, filters)
+
+      if (offlineStorage.isOnline()) {
+        try {
+          const remoteOrders = await this.fetchOrdersFromFirestore(filters)
+          options?.onRemoteUpdate?.(remoteOrders, 'remote')
+          return remoteOrders
+        } catch (error) {
+          console.error('Failed to fetch orders from Firestore, returning cached data:', error)
+        }
+      }
+
+      // Fallback to cached data when offline or remote fetch fails
+      options?.onRemoteUpdate?.(filteredLocal, 'local')
+      return filteredLocal
+
+    } catch (error) {
+      console.error('Error in orderService.getAllOrders():', error)
       return []
     }
+  },
+
+  // Apply filters to order data
+  applyFilters(orders: Order[], filters?: OrderFilters): Order[] {
+    if (!filters) return orders
+
+    let filtered = orders
+
+    // Apply filters
+    if (filters.partyName) {
+      filtered = filtered.filter(order => order.partyName === filters.partyName)
+    }
+    if (filters.material) {
+      filtered = filtered.filter(order => order.material === filters.material)
+    }
+    if (filters.truckOwner) {
+      filtered = filtered.filter(order => order.truckOwner === filters.truckOwner)
+    }
+    if (filters.truckNo) {
+      filtered = filtered.filter(order => order.truckNo === filters.truckNo)
+    }
+    if (filters.supplier) {
+      filtered = filtered.filter(order => order.supplier === filters.supplier)
+    }
+
+    // Apply date range filter
+    if (filters.startDate || filters.endDate) {
+      filtered = filtered.filter((order) => {
+        const orderDate = new Date(order.date)
+        if (filters.startDate && orderDate < new Date(filters.startDate)) {
+          return false
+        }
+        if (filters.endDate && orderDate > new Date(filters.endDate)) {
+          return false
+        }
+        return true
+      })
+    }
+
+    // Sort by date descending
+    return filtered.sort((a, b) => {
+      const aDate = new Date(a.date).getTime()
+      const bDate = new Date(b.date).getTime()
+      return bDate - aDate
+    })
+  },
+
+  // Fetch orders from Firestore and cache locally
+  async fetchOrdersFromFirestore(filters?: OrderFilters): Promise<Order[]> {
+    const db = getDb()
+    if (!db) return []
 
     // Check if we need to avoid orderBy to prevent composite index requirement
-    // When filtering by supplier, partyName, material, truckOwner, or truckNo, 
-    // we'll sort in JavaScript instead
     const needsClientSideSort = !!(filters?.supplier || filters?.partyName || filters?.material || filters?.truckOwner || filters?.truckNo)
 
     let q: any = collection(db, ORDERS_COLLECTION)
@@ -415,34 +665,87 @@ export const orderService = {
         }
       }
 
-      orders.push(orderData as Order)
+      const order = orderData as Order
+      orders.push(order)
+
+      // Cache in local storage
+      offlineStorage.put(STORES.ORDERS, order)
     })
 
-    // Sort in JavaScript if we skipped orderBy to avoid composite index requirement
-    if (needsClientSideSort) {
-      orders.sort((a, b) => {
-        const aDate = new Date(a.date).getTime()
-        const bDate = new Date(b.date).getTime()
-        return bDate - aDate // Descending order (newest first)
-      })
-    }
+    // Apply filters and sorting
+    const ordersWithCodes = await this.ensureOrderCodesForOrders(orders)
+    return this.applyFilters(ordersWithCodes, filters)
+  },
 
-    // Filter by date range in memory (Firestore has limitations with date range queries)
-    let filteredOrders = orders
-    if (filters?.startDate || filters?.endDate) {
-      filteredOrders = orders.filter((order) => {
-        const orderDate = new Date(order.date)
-        if (filters.startDate && orderDate < new Date(filters.startDate)) {
-          return false
-        }
-        if (filters.endDate && orderDate > new Date(filters.endDate)) {
-          return false
-        }
-        return true
-      })
-    }
+  // Background sync method that doesn't block UI
+  async syncOrdersWithFirestore(): Promise<void> {
+    if (!offlineStorage.isOnline()) return
 
-    return filteredOrders
+    const db = getDb()
+    if (!db) return
+
+    try {
+      const q = query(collection(db, ORDERS_COLLECTION), orderBy('date', 'desc'))
+      const querySnapshot = await getDocs(q)
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+
+        // Convert Timestamp objects to ISO strings
+        const orderData: any = {
+          id: doc.id,
+        }
+
+        // Process each field, converting Timestamps to strings
+        const dataObj = data as Record<string, any>
+        for (const key in dataObj) {
+          if (Object.prototype.hasOwnProperty.call(dataObj, key)) {
+            const value = dataObj[key]
+            // Convert Firestore Timestamps to ISO strings
+            if (value && typeof value.toDate === 'function') {
+              const dateValue = (value as Timestamp).toDate()
+              // For 'date' field in orders, convert to simple date string (YYYY-MM-DD)
+              if (key === 'date') {
+                orderData[key] = dateValue.toISOString().split('T')[0]
+              } else {
+                orderData[key] = dateValue.toISOString()
+              }
+            } else {
+              orderData[key] = value
+            }
+          }
+        }
+
+        // Ensure partialPayments is an array if it exists
+        if (orderData.partialPayments) {
+          if (!Array.isArray(orderData.partialPayments)) {
+            orderData.partialPayments = []
+          } else {
+            orderData.partialPayments = orderData.partialPayments.map((payment: any) =>
+              normalizePaymentRecord(payment as PaymentRecord)
+            )
+          }
+        }
+
+        // Ensure customerPayments is an array if it exists
+        if (orderData.customerPayments) {
+          if (!Array.isArray(orderData.customerPayments)) {
+            orderData.customerPayments = []
+          } else {
+            orderData.customerPayments = orderData.customerPayments.map((payment: any) =>
+              normalizePaymentRecord(payment as PaymentRecord)
+            )
+          }
+        }
+
+        // Update local storage with fresh data (async, doesn't block)
+        offlineStorage.put(STORES.ORDERS, orderData as Order)
+      })
+
+      console.log('Background sync completed for orders')
+    } catch (error) {
+      console.error('Background sync failed for orders:', error)
+    }
   },
 
   // Get order by ID
@@ -452,7 +755,7 @@ export const orderService = {
   },
 
   // Add payment to a due order (for expense payments)
-  async addPaymentToOrder(id: string, paymentAmount: number, note?: string, markAsPaid?: boolean): Promise<void> {
+  async addPaymentToOrder(id: string, paymentAmount: number, note?: string, markAsPaid?: boolean, paymentDate?: string): Promise<void> {
     const order = await this.getOrderById(id)
     if (!order) {
       throw new Error('Order not found')
@@ -500,18 +803,23 @@ export const orderService = {
     }
 
     // Add new payment record
-    const paymentDate = new Date().toISOString()
-    
+    const actualPaymentDate = paymentDate || new Date().toISOString()
+
     // --- NEW: Create Linked Ledger Entry ---
+    // Tag order-level payments as "Carting" to distinguish from supplier-level payouts
+    const cartingNote = [ 'Carting', order.supplier ? `(${order.supplier})` : null, order.truckNo ? `Truck ${order.truckNo}` : null, note?.trim() ]
+      .filter(Boolean)
+      .join(' - ')
+
     let ledgerEntryId: string | undefined = undefined
     try {
       const { ledgerService } = await import('./ledgerService')
       ledgerEntryId = await ledgerService.addEntry(
         'debit',
         paymentAmount,
-        note ? `Order Payment (${order.truckNo || 'Unknown Truck'}): ${note}` : `Order Payment: ${order.truckNo || id}`,
+        cartingNote || `Carting - ${order.truckNo || id}`,
         'orderExpense',
-        paymentDate,
+        actualPaymentDate,
         undefined, // No supplier to avoid auto-distribution
         undefined // No partyName
       )
@@ -528,8 +836,8 @@ export const orderService = {
     const newPayment: PaymentRecord = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       amount: paymentAmount,
-      date: paymentDate,
-      createdAt: paymentDate,
+      date: actualPaymentDate,
+      createdAt: actualPaymentDate,
       note: note || undefined,
       ledgerEntryId: ledgerEntryId, // Store the link
     }

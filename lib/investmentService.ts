@@ -1,5 +1,6 @@
 import { getDb } from './firebase'
 import { collection, addDoc, getDocs, updateDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore'
+import { offlineStorage, STORES } from './offlineStorage'
 
 export interface InvestmentRecord {
     id?: string
@@ -28,24 +29,63 @@ class InvestmentService {
 
     async getInvestment(): Promise<InvestmentRecord | null> {
         try {
-            const db = getDb()
-            if (!db) throw new Error('Database not initialized')
+            if (offlineStorage.isOnline()) {
+                const db = getDb()
+                if (db) {
+                    try {
+                        const investmentSnapshot = await getDocs(collection(db, this.collectionName))
 
-            const investmentSnapshot = await getDocs(collection(db, this.collectionName))
+                        if (!investmentSnapshot.empty) {
+                            const doc = investmentSnapshot.docs[0]
+                            const investment = {
+                                id: doc.id,
+                                ...doc.data()
+                            } as InvestmentRecord
 
-            if (investmentSnapshot.empty) {
-                return null
+                            await offlineStorage.put(STORES.INVESTMENTS, investment)
+                            return investment
+                        }
+                    } catch (error) {
+                        console.error('Error fetching investment from Firestore:', error)
+                    }
+                }
             }
 
-            // Should only be one investment record
-            const doc = investmentSnapshot.docs[0]
-            return {
-                id: doc.id,
-                ...doc.data()
-            } as InvestmentRecord
+            // Fallback to cached value when offline or remote fails
+            const localInvestments = await offlineStorage.getAll(STORES.INVESTMENTS)
+            if (localInvestments.length > 0) {
+                return localInvestments[0] as InvestmentRecord
+            }
+
+            return null
         } catch (error) {
             console.error('Error getting investment:', error)
-            throw error
+            return null
+        }
+    }
+
+    // Background sync method for investment
+    private async syncInvestmentWithFirestore(): Promise<void> {
+        if (!offlineStorage.isOnline()) return
+
+        const db = getDb()
+        if (!db) return
+
+        try {
+            const investmentSnapshot = await getDocs(collection(db, this.collectionName))
+
+            if (!investmentSnapshot.empty) {
+                const doc = investmentSnapshot.docs[0]
+                const investment = {
+                    id: doc.id,
+                    ...doc.data()
+                } as InvestmentRecord
+
+                // Update local storage
+                await offlineStorage.put(STORES.INVESTMENTS, investment)
+            }
+        } catch (error) {
+            console.error('Background sync failed for investment:', error)
         }
     }
 
@@ -124,22 +164,76 @@ class InvestmentService {
 
     async getActivityLog(): Promise<InvestmentActivity[]> {
         try {
-            const db = getDb()
-            if (!db) return []
+            if (offlineStorage.isOnline()) {
+                const db = getDb()
+                if (db) {
+                    try {
+                        const q = query(
+                            collection(db, this.activityCollectionName),
+                            orderBy('timestamp', 'desc')
+                        )
+                        const snapshot = await getDocs(q)
 
+                        const activities = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        })) as InvestmentActivity[]
+
+                        for (const activity of activities) {
+                            await offlineStorage.put(STORES.LEDGER_ACTIVITIES, { ...activity, id: `investment-${activity.id}` })
+                        }
+
+                        return activities
+                    } catch (error) {
+                        console.error('Background sync failed for investment activities:', error)
+                    }
+                }
+            }
+
+            // Fallback to cached activity when offline
+            const localActivities = await offlineStorage.getAll(STORES.LEDGER_ACTIVITIES)
+            const investmentActivities = localActivities.filter(item =>
+                (item as any).activityType === 'created' || (item as any).activityType === 'updated'
+            ) as InvestmentActivity[]
+
+            if (investmentActivities.length > 0) {
+                return investmentActivities.sort((a, b) =>
+                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                )
+            }
+
+            return []
+        } catch (error) {
+            console.error('Error getting investment activity log:', error)
+            return []
+        }
+    }
+
+    // Background sync method for investment activities
+    private async syncActivityLogWithFirestore(): Promise<void> {
+        if (!offlineStorage.isOnline()) return
+
+        const db = getDb()
+        if (!db) return
+
+        try {
             const q = query(
                 collection(db, this.activityCollectionName),
                 orderBy('timestamp', 'desc')
             )
             const snapshot = await getDocs(q)
 
-            return snapshot.docs.map(doc => ({
+            const activities = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             })) as InvestmentActivity[]
+
+            // Update local storage
+            for (const activity of activities) {
+                await offlineStorage.put(STORES.LEDGER_ACTIVITIES, { ...activity, id: `investment-${activity.id}` })
+            }
         } catch (error) {
-            console.error('Error getting investment activity log:', error)
-            return []
+            console.error('Background sync failed for investment activities:', error)
         }
     }
 

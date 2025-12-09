@@ -9,6 +9,7 @@ import FirestoreRulesAlert from '@/components/FirestoreRulesAlert'
 import ToastContainer from '@/components/Toast'
 import NativePopup from '@/components/NativePopup'
 import AutoBackupScheduler from '@/components/AutoBackupScheduler'
+import OfflineIndicator from '@/components/OfflineIndicator'
 import { PopupStackProvider } from '@/contexts/PopupStackContext'
 import '@/lib/firebaseTest' // Load test utility
 
@@ -22,18 +23,10 @@ export const metadata: Metadata = {
   title: 'Royal Suppliers - Order Management',
   description: 'Order and invoice management system',
   manifest: '/manifest.json',
-  themeColor: '#2e31fb',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default', // Use default to show theme color properly
     title: 'Royal Suppliers',
-  },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 5,
-    userScalable: true,
-    viewportFit: 'cover',
   },
   other: {
     'mobile-web-app-capable': 'yes',
@@ -41,6 +34,15 @@ export const metadata: Metadata = {
     'apple-mobile-web-app-status-bar-style': 'default',
     'apple-mobile-web-app-title': 'Royal Suppliers',
   },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
+  themeColor: '#2e31fb',
 }
 
 export default function RootLayout({
@@ -51,11 +53,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
+        <link rel="icon" href="/logo.jpg" />
+        <link rel="apple-touch-icon" href="/logo.jpg" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/logo.jpg" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/top-logo.jpg" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
@@ -197,6 +198,7 @@ export default function RootLayout({
           <AndroidFullscreen />
           <FirebaseSetupAlert />
           <FirestoreRulesAlert />
+          {/* <OfflineIndicator /> */}
           <ToastContainer />
           {children}
         </PopupStackProvider>

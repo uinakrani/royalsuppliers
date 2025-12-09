@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Order, PaymentRecord } from '@/types/order'
-import { X, ChevronLeft, ChevronRight, Check, Edit2, Calendar, User, MapPin, Package, Weight, DollarSign, Truck, ShoppingCart, Plus, Trash2 } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Check, Edit2, Calendar, User, MapPin, Package, Weight, DollarSign, Truck, ShoppingCart, Plus, Trash2, Hash } from 'lucide-react'
 import { orderService, isOrderPaid } from '@/lib/orderService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { format } from 'date-fns'
@@ -24,6 +24,7 @@ interface OrderFormWizardProps {
 
 type Step = 
   | 'date'
+  | 'challanNo'
   | 'partyName'
   | 'siteName'
   | 'material'
@@ -40,6 +41,7 @@ type Step =
 
 const STEP_ORDER: Step[] = [
   'date',
+  'challanNo',
   'partyName',
   'siteName',
   'material',
@@ -54,6 +56,23 @@ const STEP_ORDER: Step[] = [
   'payment',
   'review'
 ]
+
+type FormDataState = {
+  date: string
+  challanNo: number | null
+  partyName: string
+  siteName: string
+  material: string[]
+  weight: number
+  rate: number
+  truckOwner: string
+  truckNo: string
+  supplier: string
+  originalWeight: number
+  originalRate: number
+  additionalCost: number
+  partialPayments: PaymentRecord[]
+}
 
 export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWizardProps) {
   // If editing (order has id), start at review step, otherwise start at step 0
@@ -79,8 +98,9 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     }
   }
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataState>({
     date: normalizeDate(order?.date),
+    challanNo: typeof order?.challanNo === 'number' ? order.challanNo : null,
     partyName: order?.partyName || '',
     siteName: order?.siteName || '',
     material: Array.isArray(order?.material) ? order.material : (order?.material ? [order.material] : []),
@@ -183,6 +203,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
   const getStepLabel = (step: Step): string => {
     const labels: Record<Step, string> = {
       date: 'Date',
+      challanNo: 'Challan No.',
       partyName: 'Party Name',
       siteName: 'Site Name',
       material: 'Material',
@@ -203,6 +224,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
   const getStepIcon = (step: Step) => {
     const icons: Record<Step, any> = {
       date: Calendar,
+      challanNo: Hash,
       partyName: User,
       siteName: MapPin,
       material: Package,
@@ -224,6 +246,8 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     switch (step) {
       case 'date':
         return !!formData.date
+      case 'challanNo':
+        return formData.challanNo !== null && formData.challanNo !== undefined && formData.challanNo !== 0
       case 'partyName':
         return !!formData.partyName
       case 'siteName':
@@ -257,6 +281,10 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
 
   const canProceed = (): boolean => {
     const step = STEP_ORDER[currentStep]
+    if (step === 'challanNo') {
+      // Optional field - don't block progression
+      return true
+    }
     return isStepComplete(step)
   }
 
@@ -276,6 +304,30 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             label="Select Date"
             inline={true}
           />
+        )
+
+      case 'challanNo':
+        return (
+          <div className="w-full space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Challan No.</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={formData.challanNo ?? ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setFormData({
+                  ...formData,
+                  challanNo: value === '' ? null : Number(value),
+                })
+              }}
+              onBlur={() => setTimeout(() => handleAfterEdit(), 50)}
+              placeholder="Enter challan/lorry receipt number"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+            <p className="text-xs text-gray-500">Leave empty if not applicable.</p>
+          </div>
         )
 
       case 'partyName':
@@ -901,6 +953,10 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
     switch (step) {
       case 'date':
         return formData.date ? format(new Date(formData.date), 'dd MMM yyyy') : 'Not set'
+      case 'challanNo': {
+        const value = formData.challanNo
+        return value && value > 0 ? `#${value}` : 'Not set'
+      }
       case 'partyName':
         return formData.partyName || 'Not set'
       case 'siteName':
@@ -1036,9 +1092,18 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
         throw new Error('Material cannot be empty')
       }
 
+      const challanNumber = formData.challanNo !== null && formData.challanNo !== undefined
+        ? Number(formData.challanNo)
+        : null
+
       // Build order data explicitly to ensure all fields are correct
       const orderData: Omit<Order, 'id'> = {
         date: orderDate,
+        ...(challanNumber && challanNumber > 0
+          ? { challanNo: challanNumber }
+          : order?.challanNo
+            ? { challanNo: null }
+            : {}),
         partyName: formData.partyName.trim(),
         siteName: formData.siteName.trim(),
         material: normalizedMaterial,

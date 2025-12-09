@@ -13,10 +13,12 @@ import {
 import { getDb } from './firebase'
 import { Invoice, InvoiceFilters, InvoicePayment } from '@/types/invoice'
 import { orderService } from './orderService'
+import { offlineStorage, STORES } from './offlineStorage'
 import { Order } from '@/types/order'
 import { format } from 'date-fns'
 
 const INVOICES_COLLECTION = 'invoices'
+const generateLocalInvoiceId = () => `local-invoice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
 // Generate invoice number: ROYAL + short timestamp
 const generateInvoiceNumber = (): string => {
@@ -27,13 +29,12 @@ const generateInvoiceNumber = (): string => {
 
 export const invoiceService = {
   // Create invoice from orders
-  async createInvoice(orderIds: string[]): Promise<string> {
+  async createInvoice(orderIds: string[], options?: { skipQueue?: boolean }): Promise<string> {
     const db = getDb()
-    
-    if (!db) {
-      throw new Error('Firebase db is not initialized. Check your Firebase configuration and .env.local file.')
-    }
-    
+    const localId = generateLocalInvoiceId()
+    const createdAt = new Date().toISOString()
+    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week from now
+
     try {
       // Fetch all orders
       const orders: Order[] = []
@@ -55,11 +56,9 @@ export const invoiceService = {
       const partyName = orders[0].partyName
       const siteName = orders[0].siteName
       
-      // Create invoice
-      const createdAt = new Date().toISOString()
-      const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week from now
-      
-      const invoiceData: Omit<Invoice, 'id'> = {
+      // Create invoice payload
+      const invoiceData: Invoice = {
+        id: localId,
         invoiceNumber: generateInvoiceNumber(),
         orderIds,
         totalAmount,
@@ -74,72 +73,145 @@ export const invoiceService = {
         archived: false,
       }
       
-      const docRef = await addDoc(collection(db, INVOICES_COLLECTION), invoiceData)
-      
-      // Mark orders as invoiced
+      const canWriteRemote = offlineStorage.isOnline() && db
+
+      if (canWriteRemote) {
+        try {
+          const docRef = await addDoc(collection(db, INVOICES_COLLECTION), {
+            ...invoiceData,
+            id: undefined, // Firestore will set id separately
+          })
+
+          const remoteInvoice: Invoice = { ...invoiceData, id: docRef.id }
+          await offlineStorage.put(STORES.INVOICES, remoteInvoice)
+
+          // Update orders with authoritative invoice id
+          for (const orderId of orderIds) {
+            const order = await orderService.getOrderById(orderId)
+            if (order) {
+              await orderService.updateOrder(orderId, { 
+                invoiced: true,
+                invoiceId: docRef.id 
+              } as any, { skipQueue: true })
+            }
+          }
+
+          console.log('✅ Invoice created online with ID:', docRef.id)
+          return docRef.id
+        } catch (error) {
+          console.error('Failed to create invoice online, falling back to offline queue:', error)
+        }
+      }
+
+      // Offline or remote failure - cache locally and queue for sync
+      await offlineStorage.put(STORES.INVOICES, invoiceData)
+
       for (const orderId of orderIds) {
         const order = await orderService.getOrderById(orderId)
         if (order) {
           await orderService.updateOrder(orderId, { 
             invoiced: true,
-            invoiceId: docRef.id 
+            invoiceId: localId 
           } as any)
         }
       }
-      
-      console.log('✅ Invoice created successfully with ID:', docRef.id)
-      return docRef.id
+
+      if (!options?.skipQueue) {
+        await offlineStorage.queueForSync({
+          id: localId,
+          collection: STORES.INVOICES,
+          operation: 'create',
+          data: invoiceData,
+          localId,
+          lastModifiedAt: createdAt
+        })
+      }
+
+      return localId
     } catch (error: any) {
       console.error('❌ Firestore error creating invoice:', error)
       throw new Error(`Failed to create invoice: ${error.message || 'Unknown error'}`)
     }
   },
 
-  // Get all invoices
-  async getAllInvoices(filters?: InvoiceFilters): Promise<Invoice[]> {
-    const db = getDb()
-    if (!db) {
-      console.warn('Firebase is not configured. Returning empty array.')
+  // Get all invoices (online-first with offline fallback)
+  async getAllInvoices(
+    filters?: InvoiceFilters,
+    options?: { onRemoteUpdate?: (invoices: Invoice[]) => void, preferRemote?: boolean }
+  ): Promise<Invoice[]> {
+    try {
+      const localInvoices = await offlineStorage.getAll(STORES.INVOICES)
+      const processedLocal = localInvoices.map(this.processInvoiceData)
+      const filteredLocal = this.applyInvoiceFilters(processedLocal, filters)
+
+      if (offlineStorage.isOnline()) {
+        try {
+          const db = getDb()
+          if (db) {
+            let q = query(collection(db, INVOICES_COLLECTION), orderBy('createdAt', 'desc'))
+
+            if (filters) {
+              if (filters.partyName) {
+                q = query(q, where('partyName', '==', filters.partyName))
+              }
+              if (filters.paid !== undefined) {
+                q = query(q, where('paid', '==', filters.paid))
+              }
+            }
+
+            const querySnapshot = await getDocs(q)
+            const invoices: Invoice[] = []
+
+            querySnapshot.forEach((doc) => {
+              const data = doc.data()
+              const invoiceData = this.processInvoiceData({
+                id: doc.id,
+                ...data,
+              } as Invoice)
+
+              invoices.push(invoiceData)
+
+              // Cache in local storage
+              offlineStorage.put(STORES.INVOICES, invoiceData)
+            })
+
+            const filteredRemote = this.applyInvoiceFilters(invoices.map(this.processInvoiceData), filters)
+            options?.onRemoteUpdate?.(filteredRemote)
+            return filteredRemote
+          }
+        } catch (error) {
+          console.error('Failed to fetch invoices from Firestore, using cached data:', error)
+        }
+      }
+
+      return filteredLocal
+
+    } catch (error) {
+      console.error('Error in invoiceService.getAllInvoices():', error)
       return []
     }
-    
-    let q = query(collection(db, INVOICES_COLLECTION), orderBy('createdAt', 'desc'))
+  },
 
-    if (filters) {
-      if (filters.partyName) {
-        q = query(q, where('partyName', '==', filters.partyName))
-      }
-      if (filters.paid !== undefined) {
-        q = query(q, where('paid', '==', filters.paid))
-      }
+  // Apply filters to invoice data (including overdue)
+  applyInvoiceFilters(invoices: Invoice[], filters?: InvoiceFilters): Invoice[] {
+    if (!filters) return invoices
+
+    let filtered = invoices
+
+    // Apply filters
+    if (filters.partyName) {
+      filtered = filtered.filter(invoice => invoice.partyName === filters.partyName)
+    }
+    if (filters.paid !== undefined) {
+      filtered = filtered.filter(invoice => invoice.paid === filters.paid)
+    }
+    if (filters.overdue !== undefined) {
+      filtered = filtered.filter(invoice => invoice.overdue === filters.overdue)
     }
 
-    const querySnapshot = await getDocs(q)
-    const invoices: Invoice[] = []
-
-    querySnapshot.forEach((doc) => {
-      const data = doc.data()
-      const invoiceData: Invoice = {
-        id: doc.id,
-        ...data,
-      } as Invoice
-      
-      // Calculate overdue status
-      if (!invoiceData.paid) {
-        const dueDate = new Date(invoiceData.dueDate)
-        const now = new Date()
-        invoiceData.overdue = now > dueDate
-      } else {
-        invoiceData.overdue = false
-      }
-      
-      invoices.push(invoiceData)
-    })
-
-    // Filter by date range in memory
-    let filteredInvoices = invoices
-    if (filters?.startDate || filters?.endDate) {
-      filteredInvoices = invoices.filter((invoice) => {
+    // Apply date range filter
+    if (filters.startDate || filters.endDate) {
+      filtered = filtered.filter((invoice) => {
         const invoiceDate = new Date(invoice.createdAt)
         if (filters.startDate && invoiceDate < new Date(filters.startDate)) {
           return false
@@ -150,13 +222,55 @@ export const invoiceService = {
         return true
       })
     }
-    
-    // Filter by overdue in memory
-    if (filters?.overdue !== undefined) {
-      filteredInvoices = filteredInvoices.filter((invoice) => invoice.overdue === filters.overdue)
+
+    // Sort by createdAt descending
+    return filtered.sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  },
+
+  // Process invoice data to calculate overdue status
+  processInvoiceData(invoice: any): Invoice {
+    const processed = { ...invoice } as Invoice
+
+    // Calculate overdue status
+    if (!processed.paid) {
+      const dueDate = new Date(processed.dueDate)
+      const now = new Date()
+      processed.overdue = now > dueDate
+    } else {
+      processed.overdue = false
     }
 
-    return filteredInvoices
+    return processed
+  },
+
+  // Background sync method that doesn't block UI
+  async syncInvoicesWithFirestore(): Promise<void> {
+    if (!offlineStorage.isOnline()) return
+
+    const db = getDb()
+    if (!db) return
+
+    try {
+      const q = query(collection(db, INVOICES_COLLECTION), orderBy('createdAt', 'desc'))
+      const querySnapshot = await getDocs(q)
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data()
+        const invoiceData = this.processInvoiceData({
+          id: doc.id,
+          ...data,
+        } as Invoice)
+
+        // Update local storage with fresh data (async, doesn't block)
+        offlineStorage.put(STORES.INVOICES, invoiceData)
+      })
+
+      console.log('Background sync completed for invoices')
+    } catch (error) {
+      console.error('Background sync failed for invoices:', error)
+    }
   },
 
   // Get invoice by ID
@@ -165,13 +279,59 @@ export const invoiceService = {
     return invoices.find((inv) => inv.id === id) || null
   },
 
+  // Update invoice fields (online-first with offline queue)
+  async updateInvoice(id: string, data: Partial<Invoice>, options?: { skipQueue?: boolean }): Promise<void> {
+    const db = getDb()
+    const existing = await this.getInvoiceById(id)
+
+    if (!existing) {
+      throw new Error('Invoice not found')
+    }
+
+    // Avoid accidentally writing the id field
+    const { id: _omitId, ...updateData } = data as any
+    const updatedAt = new Date().toISOString()
+
+    const merged: Invoice = {
+      ...existing,
+      ...updateData,
+      id,
+      updatedAt,
+    }
+
+    const canUpdateRemote = offlineStorage.isOnline() && db
+
+    if (canUpdateRemote) {
+      try {
+        const invoiceRef = doc(db, INVOICES_COLLECTION, id)
+        await updateDoc(invoiceRef, {
+          ...updateData,
+          updatedAt,
+        })
+        console.log('✅ Invoice updated online')
+        await offlineStorage.put(STORES.INVOICES, merged)
+        return
+      } catch (error: any) {
+        console.error('Error updating invoice online, falling back to offline queue:', error)
+      }
+    }
+
+    // Offline or remote failure - cache locally and queue for sync
+    await offlineStorage.put(STORES.INVOICES, merged)
+
+    if (!options?.skipQueue) {
+      await offlineStorage.queueForSync({
+        id,
+        collection: STORES.INVOICES,
+        operation: 'update',
+        data: merged,
+        lastModifiedAt: updatedAt
+      })
+    }
+  },
+
   // Add partial payment to invoice
   async addPayment(invoiceId: string, amount: number, note?: string): Promise<void> {
-    const db = getDb()
-    if (!db) {
-      throw new Error('Firebase is not configured.')
-    }
-    
     const invoice = await this.getInvoiceById(invoiceId)
     if (!invoice) {
       throw new Error('Invoice not found')
@@ -195,38 +355,26 @@ export const invoiceService = {
     
     const updatedPayments = [...(invoice.partialPayments || []), newPayment]
     
-    try {
-      const invoiceRef = doc(db, INVOICES_COLLECTION, invoiceId)
-      await updateDoc(invoiceRef, {
-        paidAmount: newPaid,
-        partialPayments: updatedPayments,
-        paid: isFullyPaid,
-        overdue: false, // Reset overdue when payment is made
-        updatedAt: new Date().toISOString(),
-      })
-      
-      // If fully paid, archive the orders
-      if (isFullyPaid && !invoice.archived) {
-        await this.archiveOrders(invoiceId)
-      }
-      
-      // NOTE: Ledger entries should only be created manually by the user
-      // No automatic ledger entry creation
-      
-      console.log('✅ Payment added successfully')
-    } catch (error: any) {
-      console.error('Error adding payment:', error)
-      throw new Error(`Failed to add payment: ${error.message || 'Unknown error'}`)
+    await this.updateInvoice(invoiceId, {
+      paidAmount: newPaid,
+      partialPayments: updatedPayments,
+      paid: isFullyPaid,
+      overdue: false, // Reset overdue when payment is made
+    })
+    
+    // If fully paid, archive the orders
+    if (isFullyPaid && !invoice.archived) {
+      await this.archiveOrders(invoiceId)
     }
+    
+    // NOTE: Ledger entries should only be created manually by the user
+    // No automatic ledger entry creation
+    
+    console.log('✅ Payment added successfully')
   },
 
   // Remove a partial payment
   async removePayment(invoiceId: string, paymentId: string): Promise<void> {
-    const db = getDb()
-    if (!db) {
-      throw new Error('Firebase is not configured.')
-    }
-    
     const invoice = await this.getInvoiceById(invoiceId)
     if (!invoice) {
       throw new Error('Invoice not found')
@@ -243,25 +391,18 @@ export const invoiceService = {
     const newPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0)
     const isFullyPaid = newPaid >= invoice.totalAmount
     
-    try {
-      const invoiceRef = doc(db, INVOICES_COLLECTION, invoiceId)
-      await updateDoc(invoiceRef, {
-        paidAmount: newPaid,
-        partialPayments: updatedPayments.length > 0 ? updatedPayments : deleteField(),
-        paid: isFullyPaid,
-        updatedAt: new Date().toISOString(),
-      })
-      
-      // If no longer fully paid, unarchive orders
-      if (!isFullyPaid && invoice.archived) {
-        await this.unarchiveOrders(invoiceId)
-      }
-      
-      console.log('✅ Payment removed successfully')
-    } catch (error: any) {
-      console.error('Error removing payment:', error)
-      throw new Error(`Failed to remove payment: ${error.message || 'Unknown error'}`)
+    await this.updateInvoice(invoiceId, {
+      paidAmount: newPaid,
+      partialPayments: updatedPayments,
+      paid: isFullyPaid,
+    })
+    
+    // If no longer fully paid, unarchive orders
+    if (!isFullyPaid && invoice.archived) {
+      await this.unarchiveOrders(invoiceId)
     }
+    
+    console.log('✅ Payment removed successfully')
   },
 
   // Archive orders when invoice is fully paid
@@ -324,32 +465,54 @@ export const invoiceService = {
     }
   },
 
-  // Delete invoice
-  async deleteInvoice(id: string): Promise<void> {
+  // Delete invoice (online-first with offline queue)
+  async deleteInvoice(id: string, options?: { skipQueue?: boolean }): Promise<void> {
     const db = getDb()
-    if (!db) {
-      throw new Error('Firebase is not configured.')
+    const now = new Date().toISOString()
+    const invoice = await this.getInvoiceById(id)
+
+    if (!invoice) {
+      throw new Error('Invoice not found')
     }
-    
-    try {
-      const invoice = await this.getInvoiceById(id)
-      if (invoice) {
-        // Unmark orders as invoiced
+
+    const canDeleteRemote = offlineStorage.isOnline() && db
+
+    if (canDeleteRemote) {
+      try {
+        // Unmark orders as invoiced online
         for (const orderId of invoice.orderIds) {
           const orderRef = doc(db, 'orders', orderId)
           await updateDoc(orderRef, {
             invoiced: false,
             invoiceId: deleteField(),
-            updatedAt: new Date().toISOString(),
+            updatedAt: now,
           })
         }
-      }
       
-      await deleteDoc(doc(db, INVOICES_COLLECTION, id))
-      console.log('✅ Invoice deleted successfully')
-    } catch (error: any) {
-      console.error('Error deleting invoice:', error)
-      throw new Error(`Failed to delete invoice: ${error.message || 'Unknown error'}`)
+        await deleteDoc(doc(db, INVOICES_COLLECTION, id))
+        console.log('✅ Invoice deleted successfully')
+        await offlineStorage.delete(STORES.INVOICES, id)
+        return
+      } catch (error: any) {
+        console.error('Error deleting invoice online, queueing:', error)
+      }
+    }
+
+    // Offline or remote failure - update cache and queue deletion
+    await offlineStorage.delete(STORES.INVOICES, id)
+
+    for (const orderId of invoice.orderIds) {
+      await orderService.updateOrder(orderId, { invoiced: false, invoiceId: undefined } as any)
+    }
+    
+    if (!options?.skipQueue) {
+      await offlineStorage.queueForSync({
+        id,
+        collection: STORES.INVOICES,
+        operation: 'delete',
+        data: { id },
+        lastModifiedAt: now
+      })
     }
   },
 

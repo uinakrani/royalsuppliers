@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { orderService, isOrderPaid, isCustomerPaid, PAYMENT_TOLERANCE } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
-import { partyPaymentService, PartyPayment } from '@/lib/partyPaymentService'
+import { partyPaymentService } from '@/lib/partyPaymentService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 import NavBar from '@/components/NavBar'
@@ -27,7 +27,7 @@ import { createRipple } from '@/lib/rippleEffect'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { getDb } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
-import { getAdjustedProfit, hasProfitAdjustments } from '@/lib/orderCalculations'
+import { getAdjustedProfit, hasProfitAdjustments, getEstimatedProfit } from '@/lib/orderCalculations'
 
 interface PartyGroup {
   partyName: string
@@ -42,9 +42,13 @@ interface PartyGroup {
 
 interface SupplierGroup {
   supplierName: string
-  totalAmount: number // Total amount to be paid: sum of (originalTotal - non-ledger partial payments) for each order
-  totalPaid: number // Total paid via partial payments and ledger entries (for display)
-  remainingAmount: number // totalAmount - ledger payments (amount still remaining after ledger payments)
+  rawMaterialTotal: number // Sum of originalTotal for all orders
+  totalAmount: number // Alias for rawMaterialTotal (kept for compatibility)
+  totalPaid: number // Total paid via order-direct payments + supplier ledger payments
+  remainingAmount: number // Amount still owed after all payments
+  paidDirect: number // Payments added directly to orders (non-ledger)
+  paidToSupplier: number // Payments recorded against supplier via ledger entries
+  totalCartingPaid: number // Carting payments across orders
   lastPaymentDate: string | null
   lastPaymentAmount: number | null
   orders: Order[]
@@ -66,12 +70,54 @@ const safeGetTime = (dateString: string | null | undefined): number => {
   return date ? date.getTime() : 0
 }
 
+// Generate available months for filtering
+const generateMonthOptions = (): string[] => {
+  // Business started in Nov 2025, so always include up to that month
+  const options = ['all']
+  const startDate = new Date(2025, 10, 1) // Nov 2025 (0-indexed month)
+  const now = new Date()
+
+  // Build list from current month back to start date so the earliest month appears last
+  let cursor = new Date(now.getFullYear(), now.getMonth(), 1)
+  while (cursor >= startDate) {
+    options.push(format(cursor, 'MMM yyyy'))
+    cursor.setMonth(cursor.getMonth() - 1)
+  }
+
+  return options
+}
+
+// Default to the current month label (e.g., "Dec 2025")
+const getCurrentMonthLabel = () => format(new Date(), 'MMM yyyy')
+
+// Check if order date falls within selected month
+const isOrderInSelectedMonth = (order: Order, selectedMonth: string): boolean => {
+  if (selectedMonth === 'all') return true
+
+  const orderDate = safeParseDate(order.date)
+  if (!orderDate) return false
+
+  const monthName = format(orderDate, 'MMM yyyy')
+  return monthName === selectedMonth
+}
+
+// Check if payment date falls within selected month
+const isPaymentInSelectedMonth = (paymentDate: string | null | undefined, selectedMonth: string): boolean => {
+  if (selectedMonth === 'all') return true
+  if (!paymentDate) return false
+
+  const date = safeParseDate(paymentDate)
+  if (!date) return false
+
+  const monthName = format(date, 'MMM yyyy')
+  return monthName === selectedMonth
+}
+
 function OrdersPageContent() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [partyPayments, setPartyPayments] = useState<PartyPayment[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
@@ -79,12 +125,14 @@ function OrdersPageContent() {
   const [filters, setFilters] = useState<OrderFilters>({})
   const [selectedPartyTags, setSelectedPartyTags] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'byParty' | 'allOrders' | 'suppliers'>('allOrders')
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => getCurrentMonthLabel())
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<Order | null>(null)
   const [showOrderDetailDrawer, setShowOrderDetailDrawer] = useState(false)
   const [selectedPartyGroup, setSelectedPartyGroup] = useState<PartyGroup | null>(null)
   const [showPartyDetailDrawer, setShowPartyDetailDrawer] = useState(false)
   const [selectedSupplierGroup, setSelectedSupplierGroup] = useState<SupplierGroup | null>(null)
   const [showSupplierDetailDrawer, setShowSupplierDetailDrawer] = useState(false)
+  const [supplierGroupsRefreshKey, setSupplierGroupsRefreshKey] = useState(0)
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([])
   const [selectedOrderForPayments, setSelectedOrderForPayments] = useState<Order | null>(null)
   const [showPaymentHistory, setShowPaymentHistory] = useState(false)
@@ -109,23 +157,31 @@ function OrdersPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
+  const ordersForView = useMemo(() => {
+    if (viewMode === 'allOrders') {
+      if (selectedMonth === 'all') return filteredOrders
+      return filteredOrders.filter(order => isOrderInSelectedMonth(order, selectedMonth))
+    }
+    return filteredOrders
+  }, [filteredOrders, selectedMonth, viewMode])
+
   useEffect(() => {
     const initializeData = async () => {
-      setLoading(true)
       try {
         // Load orders first (it manages its own loading state, but we'll override)
         await loadOrders()
-        // Load other data in parallel
+        // Load other data in parallel - these will be instant from local storage
         await Promise.allSettled([
           loadInvoices(),
-          loadPartyPayments(),
           loadPartyNames(),
           loadLedgerEntries()
         ])
+        if (loading) {
+          setLoading(false)
+        }
       } catch (error) {
         console.error('Error initializing data:', error)
-      } finally {
-        setLoading(false) // Always set loading to false
+        setLoading(false)
       }
     }
     initializeData()
@@ -221,10 +277,17 @@ function OrdersPageContent() {
     }
   }
 
-  const loadOrders = async () => {
+  const loadOrders = async (): Promise<Order[]> => {
     try {
-      const allOrders = await orderService.getAllOrders()
+      const allOrders = await orderService.getAllOrders(undefined, {
+        onRemoteUpdate: (fresh) => {
+          setOrders(fresh)
+          setLoading(false)
+        }
+      })
       setOrders(allOrders)
+      setLoading(allOrders.length === 0)
+      return allOrders
     } catch (error) {
       console.error('Error loading orders:', error)
       throw error // Re-throw to let caller handle
@@ -233,25 +296,19 @@ function OrdersPageContent() {
 
   const loadInvoices = async () => {
     try {
-      const allInvoices = await invoiceService.getAllInvoices()
+      const allInvoices = await invoiceService.getAllInvoices(undefined, {
+        onRemoteUpdate: (fresh) => setInvoices(fresh)
+      })
       setInvoices(allInvoices)
     } catch (error) {
       console.error('Error loading invoices:', error)
     }
   }
 
-  const loadPartyPayments = async () => {
-    try {
-      const allPayments = await partyPaymentService.getAllPayments()
-      setPartyPayments(allPayments)
-    } catch (error) {
-      console.error('Error loading party payments:', error)
-    }
-  }
 
-  // Apply filters whenever orders, filters, selectedPartyTags, or inline filters change
-  useEffect(() => {
-    let filtered = [...orders]
+  // Helper function to apply filters to orders
+  const applyFiltersToOrders = (ordersToFilter: Order[]) => {
+    let filtered = [...ordersToFilter]
 
     // Apply inline party filter (takes highest priority)
     if (inlinePartyFilter.size > 0) {
@@ -313,8 +370,31 @@ function OrdersPageContent() {
     const getTime = (o: Order) => safeGetTime(o.createdAt || o.updatedAt || o.date)
     filtered.sort((a, b) => getTime(b) - getTime(a))
 
+    return filtered
+  }
+
+  // Apply filters whenever orders, filters, selectedPartyTags, or inline filters change
+  useEffect(() => {
+    const filtered = applyFiltersToOrders(orders)
     setFilteredOrders(filtered)
   }, [orders, filters, selectedPartyTags, inlinePartyFilter, inlineMaterialFilter])
+
+  // Refresh selected supplier group when orders change (for direct payment updates)
+  useEffect(() => {
+    if (selectedSupplierGroup?.supplierName && showSupplierDetailDrawer) {
+      const updated = getSupplierGroups().find(
+        g => g.supplierName === selectedSupplierGroup.supplierName
+      )
+      if (updated) {
+        setSelectedSupplierGroup(updated)
+      }
+    }
+  }, [orders, ledgerEntries, selectedSupplierGroup?.supplierName, showSupplierDetailDrawer])
+
+  // Refresh supplier groups when ledger entries change (for supplier payment updates)
+  useEffect(() => {
+    setSupplierGroupsRefreshKey(prev => prev + 1)
+  }, [ledgerEntries])
 
   // Measure heights logic removed - no longer needed for sticky header
   // Cleaned up unused state/refs in previous steps but let's ensure we don't have dead code
@@ -434,7 +514,6 @@ function OrdersPageContent() {
 
       await loadOrders()
       await loadInvoices()
-      await loadPartyPayments()
 
       setEditingOrder(null)
       setShowForm(false)
@@ -515,6 +594,22 @@ function OrdersPageContent() {
         confirmText: 'Next',
         cancelText: 'Skip',
       })
+
+      // Get date from user
+      const dateInput = await sweetAlert.prompt({
+        title: 'Payment Date',
+        inputLabel: 'Date',
+        inputType: 'date',
+        defaultValue: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+        confirmText: 'Add Payment',
+        cancelText: 'Cancel',
+      })
+
+      if (!dateInput) {
+        return
+      }
+
+      const paymentDate = new Date(dateInput).toISOString()
 
       // Check for overpayment
       const newTotalPaid = totalPaid + amount
@@ -615,7 +710,6 @@ function OrdersPageContent() {
             }
           }
 
-          showToast('Payment added and ledger payments redistributed!', 'success')
 
           // Reload orders
           await loadOrders()
@@ -682,14 +776,22 @@ function OrdersPageContent() {
         markAsPaid = true
       }
 
-      await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid)
-      showToast('Payment added successfully!', 'success')
+      // Add direct payment to order (creates ledger entry without supplier name)
+      await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid, paymentDate)
 
-      // Wait a bit for Firestore to update
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Immediately reload orders and ledger entries for real-time updates
+      await Promise.all([loadOrders(), loadLedgerEntries()])
+      setSupplierGroupsRefreshKey(prev => prev + 1)
 
-      // Reload orders to get updated payment information
-      await loadOrders()
+      // Force refresh supplier details if open and order has a supplier
+      if (showSupplierDetailDrawer && order.supplier && selectedSupplierGroup?.supplierName === order.supplier) {
+        const updated = getSupplierGroups().find(
+          g => g.supplierName === order.supplier
+        )
+        if (updated) {
+          setSelectedSupplierGroup(updated)
+        }
+      }
 
       // Double-check: fetch the specific order to verify payment was saved
       const updatedOrderCheck = await orderService.getOrderById(order.id!)
@@ -754,6 +856,17 @@ function OrdersPageContent() {
 
       // Reload orders
       await loadOrders()
+      setSupplierGroupsRefreshKey(prev => prev + 1)
+
+      // Force refresh supplier details if open and order has a supplier
+      if (showSupplierDetailDrawer && editingPayment.order.supplier && selectedSupplierGroup?.supplierName === editingPayment.order.supplier) {
+        const updated = getSupplierGroups().find(
+          g => g.supplierName === editingPayment.order.supplier
+        )
+        if (updated) {
+          setSelectedSupplierGroup(updated)
+        }
+      }
 
       // Update selected order if it's the same
       if (selectedOrderForPayments?.id === editingPayment.order.id && editingPayment.order.id) {
@@ -829,17 +942,25 @@ function OrdersPageContent() {
           // Get the order date or use current date for redistribution
           const paymentDate = order.date || new Date().toISOString()
           await redistributeLedgerEntry(payment.ledgerEntryId, paymentDate)
-          showToast('Payment removed and ledger entry redistributed!', 'success')
         } catch (error) {
           console.error('Error redistributing ledger entry:', error)
           showToast('Payment removed, but redistribution failed', 'error')
         }
-      } else {
-        showToast('Payment removed successfully!', 'success')
       }
 
       // Reload orders
       await loadOrders()
+      setSupplierGroupsRefreshKey(prev => prev + 1)
+
+      // Force refresh supplier details if open and order has a supplier
+      if (showSupplierDetailDrawer && order.supplier && selectedSupplierGroup?.supplierName === order.supplier) {
+        const updated = getSupplierGroups().find(
+          g => g.supplierName === order.supplier
+        )
+        if (updated) {
+          setSelectedSupplierGroup(updated)
+        }
+      }
 
       // Update selected order if payment history is open
       if (selectedOrderForPayments?.id === order.id && order.id) {
@@ -880,7 +1001,6 @@ function OrdersPageContent() {
         showToast('Order deleted successfully!', 'success')
         await loadOrders()
         await loadInvoices()
-        await loadPartyPayments()
       }
     } catch (error: any) {
       console.error('Error deleting order:', error)
@@ -1011,7 +1131,6 @@ function OrdersPageContent() {
         setSelectedOrders(new Set())
         await loadOrders()
         await loadInvoices()
-        await loadPartyPayments()
       } else {
         showToast(`Failed to delete orders.`, 'error')
       }
@@ -1061,7 +1180,6 @@ function OrdersPageContent() {
       setSelectedOrders(new Set())
       await loadOrders()
       await loadInvoices()
-      await loadPartyPayments()
     } catch (error: any) {
       showToast(`Failed to create invoice: ${error?.message || 'Unknown error'}`, 'error')
     }
@@ -1097,9 +1215,28 @@ function OrdersPageContent() {
   }
 
   const getPartyGroups = (): PartyGroup[] => {
+    // Use only ledger income entries (credits with partyName) as the single source of truth
+    const partyPayments = ledgerEntries
+      .filter((entry) => entry.type === 'credit' && entry.partyName)
+      .map((entry) => ({
+        id: entry.id,
+        partyName: entry.partyName!,
+        amount: entry.amount,
+        date: entry.date,
+        ledgerEntryId: entry.id,
+        note: entry.note ?? null,
+        createdAt: entry.createdAt ?? entry.date,
+        updatedAt: entry.createdAt ?? entry.date,
+        source: 'ledgerCredit',
+      }))
+    // Filter orders by selected month first
+    const monthFilteredOrders = filteredOrders.filter(order =>
+      isOrderInSelectedMonth(order, selectedMonth)
+    )
+
     // Group orders by party
     const partyMap = new Map<string, Order[]>()
-    filteredOrders.forEach(order => {
+    monthFilteredOrders.forEach(order => {
       const party = order.partyName
       if (!partyMap.has(party)) {
         partyMap.set(party, [])
@@ -1110,19 +1247,75 @@ function OrdersPageContent() {
     // Calculate totals and payment info for each party
     const groups: PartyGroup[] = []
     partyMap.forEach((partyOrders, partyName) => {
-      const totalSelling = partyOrders.reduce((sum, order) => sum + order.total, 0)
-      const totalProfit = partyOrders.reduce((sum, order) => sum + getAdjustedProfit(order), 0)
-
-      // Get all payments for this party
-      const partyPaymentRecords = partyPayments.filter(p => p.partyName === partyName)
-
-      // Convert party payments to the expected format
-      const allPayments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment; ledgerEntryId?: string }> = []
+      let totalSelling = 0
+      let totalProfit = 0
       let totalPaid = 0
       let lastPaymentDate: string | null = null
       let lastPaymentAmount: number | null = null
 
-      partyPaymentRecords.forEach(payment => {
+      if (selectedMonth === 'all') {
+        // For "All" - calculate totals across all time
+        // Get all orders for this party (not just filtered ones)
+        const allPartyOrders = orders.filter(order => order.partyName === partyName) // Use all orders, not just filtered
+        totalSelling = allPartyOrders.reduce((sum, order) => sum + Math.max(0, order.total || 0), 0)
+
+
+        // For "All" time view, show total estimated profit across all orders
+        // This gives a true picture of profitability regardless of payment status
+        totalProfit = allPartyOrders.reduce((sum, order) => {
+          const profit = getEstimatedProfit(order)
+          return sum + profit
+        }, 0)
+
+        // Get all payments for this party (across all time)
+        const partyPaymentRecords = partyPayments.filter(p => p.partyName === partyName)
+
+        partyPaymentRecords.forEach(payment => {
+          totalPaid += payment.amount
+
+          // Track last payment date and amount
+          const paymentDate = safeParseDate(payment.date)
+          if (paymentDate) {
+            const currentLastDate = safeParseDate(lastPaymentDate)
+            if (!currentLastDate || paymentDate > currentLastDate) {
+              lastPaymentDate = payment.date
+              lastPaymentAmount = payment.amount
+            }
+          }
+        })
+      } else {
+        // For specific month - calculate only for that month's data
+        totalSelling = partyOrders.reduce((sum, order) => sum + order.total, 0)
+        // Show estimated profit for monthly views to see actual profitability
+        totalProfit = partyOrders.reduce((sum, order) => sum + getEstimatedProfit(order), 0)
+
+        // Get payments only for the selected month
+        const partyPaymentRecords = partyPayments.filter(p =>
+          p.partyName === partyName && isPaymentInSelectedMonth(p.date, selectedMonth)
+        )
+
+        partyPaymentRecords.forEach(payment => {
+          totalPaid += payment.amount
+
+          // Track last payment date and amount (within the month)
+          const paymentDate = safeParseDate(payment.date)
+          if (paymentDate) {
+            const currentLastDate = safeParseDate(lastPaymentDate)
+            if (!currentLastDate || paymentDate > currentLastDate) {
+              lastPaymentDate = payment.date
+              lastPaymentAmount = payment.amount
+            }
+          }
+        })
+      }
+
+      // Convert party payments to the expected format (only for the relevant time period)
+      const allPayments: Array<{ invoiceId: string; invoiceNumber: string; payment: InvoicePayment; ledgerEntryId?: string }> = []
+      const relevantPayments = selectedMonth === 'all'
+        ? partyPayments.filter(p => p.partyName === partyName)
+        : partyPayments.filter(p => p.partyName === partyName && isPaymentInSelectedMonth(p.date, selectedMonth))
+
+      relevantPayments.forEach(payment => {
         allPayments.push({
           invoiceId: '', // No invoice ID for party payments
           invoiceNumber: '', // No invoice number for party payments
@@ -1134,17 +1327,6 @@ function OrdersPageContent() {
           },
           ledgerEntryId: payment.ledgerEntryId // Include ledger entry ID if linked
         })
-        totalPaid += payment.amount
-
-        // Track last payment date and amount
-        const paymentDate = safeParseDate(payment.date)
-        if (paymentDate) {
-          const currentLastDate = safeParseDate(lastPaymentDate)
-          if (!currentLastDate || paymentDate > currentLastDate) {
-            lastPaymentDate = payment.date
-            lastPaymentAmount = payment.amount
-          }
-        }
       })
 
       // Sort payments by date (newest first)
@@ -1170,6 +1352,41 @@ function OrdersPageContent() {
     return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
   }
 
+  // Keep the party detail popup in sync after income edits while it stays open
+  useEffect(() => {
+    if (!showPartyDetailDrawer || !selectedPartyGroup?.partyName) return
+
+    const updatedGroup = getPartyGroups().find(
+      (group) => group.partyName === selectedPartyGroup.partyName
+    )
+
+    if (!updatedGroup) return
+
+    const paymentsChanged =
+      updatedGroup.payments.length !== selectedPartyGroup.payments.length ||
+      updatedGroup.payments.some((payment, idx) => {
+        const current = selectedPartyGroup.payments[idx]
+        if (!current) return true
+        return (
+          current.payment.amount !== payment.payment.amount ||
+          current.payment.date !== payment.payment.date ||
+          (current.payment.note || '') !== (payment.payment.note || '')
+        )
+      })
+
+    const hasChanged =
+      updatedGroup.totalPaid !== selectedPartyGroup.totalPaid ||
+      updatedGroup.totalSelling !== selectedPartyGroup.totalSelling ||
+      updatedGroup.totalProfit !== selectedPartyGroup.totalProfit ||
+      updatedGroup.lastPaymentDate !== selectedPartyGroup.lastPaymentDate ||
+      paymentsChanged
+
+    if (hasChanged) {
+      setSelectedPartyGroup(updatedGroup)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, filteredOrders, selectedPartyGroup, showPartyDetailDrawer])
+
   const getSupplierGroups = (): SupplierGroup[] => {
     // Group orders by supplier
     const supplierMap = new Map<string, Order[]>()
@@ -1185,97 +1402,44 @@ function OrdersPageContent() {
     // Calculate totals and payment info for each supplier
     const groups: SupplierGroup[] = []
     supplierMap.forEach((supplierOrders, supplierName) => {
-      // Calculate total amount to be paid: for each order, originalTotal - non-ledger partial payments
-      // This represents the amount that still needs to be paid (excluding ledger payments)
-      // Formula: totalAmount = sum of (originalTotal - non-ledger partial payments) for each order
-      // 
-      // Payment Structure:
-      // - Direct Payments (non-ledger): Payments to driver/other parties added directly to order
-      // - Supplier Payments (ledger): Payments to supplier via ledger expense entries
-      let totalAmount = 0
-      let totalPaid = 0
-      let totalPaidDirectly = 0  // Sum of all direct (non-ledger) payments
-      let totalPaidToSupplier = 0  // Sum of all supplier (ledger) payments
+      let rawMaterialTotal = 0
+      let totalPaidDirectly = 0  // Direct payments to supplier (currently always 0 since direct payments to orders are carting)
+      let totalPaidToSupplier = 0  // Supplier payments via ledger expense entries
 
       supplierOrders.forEach(order => {
         const orderOriginalTotal = Number(order.originalTotal || 0)
-        const partialPayments = order.partialPayments || []
+        rawMaterialTotal += orderOriginalTotal
 
-        // Calculate non-ledger partial payments (manual payments only - to driver, etc.)
-        // These are payments added directly to the order, not from ledger entries
-        const nonLedgerPayments = partialPayments.filter(p => !p.ledgerEntryId)
-        const nonLedgerPaid = nonLedgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-
-        // Calculate ledger payments (payments to supplier via ledger expense entries)
-        const ledgerPayments = partialPayments.filter(p => p.ledgerEntryId)
-        const ledgerPaid = ledgerPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-
-        // Amount still to be paid for this order = originalTotal - non-ledger payments
-        // This is the amount that needs to be paid for this specific order
-        // (Direct payments to driver don't reduce the amount owed to supplier)
-        const orderRemaining = orderOriginalTotal - nonLedgerPaid
-
-        // Only add positive remaining amounts (if order is overpaid with non-ledger, it's 0)
-        totalAmount += Math.max(0, orderRemaining)
-
-        // Total paid includes all payments (ledger + manual) for display purposes
-        totalPaid += partialPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-
-        // Track payment breakdown
-        totalPaidDirectly += nonLedgerPaid
-        totalPaidToSupplier += ledgerPaid
+        // Note: Direct payments to orders are now considered carting payments,
+        // not direct payments to supplier. Only ledger entries without supplier name
+        // are counted as direct payments to supplier.
       })
 
-      // Get ledger expense entries for this supplier (for display/reference only)
+      // Get supplier payments from ledger expense entries
       const supplierLedgerEntries = ledgerEntries.filter(
-        e => e.type === 'debit' && e.supplier === supplierName
+        e => e.type === 'debit' && e.supplier === supplierName && !e.voided
       )
+      totalPaidToSupplier = supplierLedgerEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
 
-      // Calculate remaining amount: totalAmount (which already excludes non-ledger payments) - ledger payments
-      // totalAmount = sum of (originalTotal - non-ledger payments) for each order
-      // remainingAmount = totalAmount - ledger payments (payments made via ledger expense entries)
-      const totalLedgerPayments = supplierLedgerEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
-      const remainingAmount = Math.max(0, totalAmount - totalLedgerPayments)
+      // Calculate total carting paid across all orders
+      const totalCartingPaid = supplierOrders.reduce((sum, order) => {
+        const existingPayments = order.partialPayments || []
+        const directPayments = existingPayments.filter(p => !p.ledgerEntryId)
+        const ledgerEntryIds = new Set(supplierLedgerEntries.map(p => p.id).filter(Boolean))
+        const ledgerCartingPayments = existingPayments.filter(p => p.ledgerEntryId && !ledgerEntryIds.has(p.ledgerEntryId))
+        const cartingTotal = directPayments.reduce((s, p) => s + Number(p.amount || 0), 0) +
+                            ledgerCartingPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+        return sum + cartingTotal
+      }, 0)
 
-      // Verify calculation: Check if ledger entry amounts match partial payments with ledgerEntryId
-      // This is for debugging/validation
-      const ledgerEntryIds = new Set(supplierLedgerEntries.map(e => e.id).filter(Boolean))
-      let totalPaidFromLedgerPayments = 0
-      supplierOrders.forEach(order => {
-        const partialPayments = order.partialPayments || []
-        partialPayments.forEach(payment => {
-          if (payment.ledgerEntryId && ledgerEntryIds.has(payment.ledgerEntryId)) {
-            totalPaidFromLedgerPayments += payment.amount
-          }
-        })
-      })
-
-      const totalLedgerEntryAmount = supplierLedgerEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
-
-      // Log warning if there's a mismatch (ledger entries should match partial payments with ledgerEntryId)
-      if (Math.abs(totalLedgerEntryAmount - totalPaidFromLedgerPayments) > 0.01) {
-        console.warn(`⚠️ Supplier ${supplierName}: Ledger entry total (${totalLedgerEntryAmount}) doesn't match partial payments with ledgerEntryId (${totalPaidFromLedgerPayments})`)
-      }
-
-      // Verification: Ensure calculations are correct
-      // totalPaid should equal totalPaidDirectly + totalPaidToSupplier
-      const calculatedTotalPaid = totalPaidDirectly + totalPaidToSupplier
-      if (Math.abs(totalPaid - calculatedTotalPaid) > 0.01) {
-        console.warn(`⚠️ Supplier ${supplierName}: Payment totals mismatch! totalPaid (${totalPaid}) != direct (${totalPaidDirectly}) + supplier (${totalPaidToSupplier}) = ${calculatedTotalPaid}`)
-      }
-
-      // Verification: remainingAmount should equal totalAmount - totalPaidToSupplier
-      // (because totalAmount already excludes direct payments)
-      const calculatedRemaining = totalAmount - totalPaidToSupplier
-      if (Math.abs(remainingAmount - calculatedRemaining) > 0.01) {
-        console.warn(`⚠️ Supplier ${supplierName}: Remaining amount mismatch! remainingAmount (${remainingAmount}) != totalAmount (${totalAmount}) - supplier payments (${totalPaidToSupplier}) = ${calculatedRemaining}`)
-      }
+      const totalPaid = totalPaidDirectly + totalPaidToSupplier
+      const remainingAmount = Math.max(0, rawMaterialTotal - totalPaid)
 
       // Track last payment date and amount
       let lastPaymentDate: string | null = null
       let lastPaymentAmount: number | null = null
 
-      // Check partial payments for last payment
+      // Check order payments for last payment
       supplierOrders.forEach(order => {
         const partialPayments = order.partialPayments || []
         partialPayments.forEach(payment => {
@@ -1290,7 +1454,7 @@ function OrdersPageContent() {
         })
       })
 
-      // Check ledger entries for last payment
+      // Check supplier ledger entries for last payment
       supplierLedgerEntries.forEach(entry => {
         const entryDate = safeParseDate(entry.date)
         if (entryDate) {
@@ -1309,7 +1473,8 @@ function OrdersPageContent() {
 
       groups.push({
         supplierName,
-        totalAmount,
+        rawMaterialTotal,
+        totalAmount: rawMaterialTotal, // backwards-compatible alias
         totalPaid,
         remainingAmount,
         lastPaymentDate,
@@ -1319,7 +1484,10 @@ function OrdersPageContent() {
           const tb = safeGetTime(b.createdAt || b.updatedAt || b.date)
           return tb - ta
         }),
-        ledgerPayments: sortedLedgerPayments
+        ledgerPayments: sortedLedgerPayments,
+        paidDirect: totalPaidDirectly,
+        paidToSupplier: totalPaidToSupplier,
+        totalCartingPaid
       })
     })
 
@@ -1446,6 +1614,32 @@ function OrdersPageContent() {
           </div>
         </div>
       </FilterPopup>
+
+      {/* Month Selection Bar - Shared between By Party and All Orders views */}
+      {(viewMode === 'byParty' || viewMode === 'allOrders') && (
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {generateMonthOptions().map((month) => (
+                <button
+                  key={month}
+                  onClick={() => setSelectedMonth(month)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                    selectedMonth === month
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                  }`}
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  {month === 'all' ? 'All' : month}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View Mode Tabs - Floating at Bottom */}
       <div
@@ -1614,11 +1808,12 @@ function OrdersPageContent() {
           <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
             <TruckLoading size={100} />
           </div>
-        ) : filteredOrders.length === 0 ? (
+        ) : ordersForView.length === 0 ? (
           <div className="p-2.5 text-center text-sm text-gray-500">No orders found</div>
         ) : viewMode === 'byParty' ? (
-          // By Party View - Ultra Compact Design
-          <div className="p-2 space-y-2">
+          <>
+            {/* By Party View - Ultra Compact Design */}
+            <div className="p-2 space-y-2">
             {getPartyGroups().map((group, index) => {
               const balance = group.totalSelling - group.totalPaid
               const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
@@ -1710,33 +1905,33 @@ function OrdersPageContent() {
                       </button>
                     </div>
 
-                    {/* Stats - Inline */}
-                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-gray-600">Total:</span>
-                        <span className="text-xs font-bold text-primary-700">
-                          {formatIndianCurrency(group.totalSelling)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-gray-600">Profit:</span>
-                        <span className={`text-xs font-bold ${group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                          {formatIndianCurrency(group.totalProfit)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-gray-600">Receive:</span>
-                        <span className="text-xs font-bold text-green-600">
-                          {formatIndianCurrency(group.totalPaid)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-gray-600">Due:</span>
-                        <span className={`text-xs font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                          {formatIndianCurrency(Math.abs(balance))}
-                        </span>
+                    {/* Stats - consistent layout for all month selections */}
+                    <div className="mb-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className={`p-2 rounded-lg ${balance >= 0 ? 'bg-orange-50' : 'bg-green-50'}`}>
+                          <div className={`text-[10px] font-medium mb-0.5 ${balance >= 0 ? 'text-orange-600' : 'text-green-600'}`}>Outstanding</div>
+                          <div className={`text-sm font-bold ${balance >= 0 ? 'text-orange-700' : 'text-green-700'}`}>
+                            {formatIndianCurrency(Math.abs(balance))}
+                          </div>
+                        </div>
+                        <div className={`p-2 rounded-lg ${group.totalProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className={`text-[10px] font-medium mb-0.5 ${group.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Total Profit</div>
+                          <div className={`text-sm font-bold ${group.totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {formatIndianCurrency(group.totalProfit)}
+                          </div>
+                        </div>
+                        <div className="bg-blue-50 p-2 rounded-lg">
+                          <div className="text-[10px] text-blue-600 font-medium mb-0.5">Total Paid by Party</div>
+                          <div className="text-sm font-bold text-blue-700">
+                            {formatIndianCurrency(group.totalPaid)}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <div className="text-[10px] text-gray-600 font-medium mb-0.5">Total Orders</div>
+                          <div className="text-sm font-bold text-gray-700">
+                            {formatIndianCurrency(group.totalSelling)}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -1761,17 +1956,20 @@ function OrdersPageContent() {
               )
             })}
           </div>
+          </>
         ) : viewMode === 'suppliers' ? (
           // Suppliers View - Two Column Grid
           <div className="p-3">
             <div className="grid grid-cols-2 gap-3">
               {getSupplierGroups().map((group, index) => {
+                // Use refresh key to force re-render when data updates
+                const key = `${group.supplierName}-${supplierGroupsRefreshKey}-${group.paidDirect}-${group.paidToSupplier}`
                 const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
                 const paymentPercentage = group.totalAmount > 0 ? (group.totalPaid / group.totalAmount) * 100 : 0
 
                 return (
                   <div
-                    key={group.supplierName}
+                    key={key}
                     className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-200 hover:border-orange-400 hover:shadow-md active:scale-[0.98] native-press group"
                     style={{
                       animation: `fadeInUp 0.3s ease-out ${index * 0.03}s both`,
@@ -1801,43 +1999,35 @@ function OrdersPageContent() {
                     <div className="p-3">
                       {/* Amount Cards */}
                       <div className="space-y-2 mb-3">
-                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-2 border border-gray-200/50">
-                          <div className="text-[10px] text-gray-600 mb-0.5 font-medium">Total Amount</div>
-                          <div className="text-sm font-bold text-gray-900 truncate">{formatIndianCurrency(group.totalAmount)}</div>
+                        <div className={`rounded-lg p-2 border ${group.remainingAmount > 0
+                          ? 'bg-gradient-to-br from-red-50 to-orange-50 border-red-200/50'
+                          : 'bg-gradient-to-br from-green-50 to-green-100 border-green-200/50'
+                        }`}>
+                          <div className={`text-[10px] mb-0.5 font-medium ${group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                            Owed to Supplier
+                          </div>
+                          <div className={`text-sm font-bold truncate ${group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                            {formatIndianCurrency(Math.abs(group.remainingAmount))}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
                           <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-2 border border-green-200/50">
-                            <div className="text-[10px] text-green-700 mb-0.5 font-medium">Paid</div>
-                            <div className="text-xs font-bold text-green-700 truncate">{formatIndianCurrency(group.totalPaid)}</div>
+                            <div className="text-[10px] text-green-700 mb-0.5 font-medium">Paid to Supplier</div>
+                            <div className="text-xs font-bold text-green-700 truncate">{formatIndianCurrency(group.paidToSupplier)}</div>
                           </div>
 
-                          <div className={`rounded-lg p-2 border ${group.remainingAmount > 0
-                              ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200/50'
-                              : 'bg-gradient-to-br from-green-50 to-green-100 border-green-200/50'
-                            }`}>
-                            <div className={`text-[10px] mb-0.5 font-medium ${group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'
-                              }`}>Remaining</div>
-                            <div className={`text-xs font-bold truncate ${group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'
-                              }`}>{formatIndianCurrency(Math.abs(group.remainingAmount))}</div>
+                          <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-2 border border-orange-200/50">
+                            <div className="text-[10px] text-orange-700 mb-0.5 font-medium">Carting Paid</div>
+                            <div className="text-xs font-bold text-orange-700 truncate">{formatIndianCurrency(group.totalCartingPaid)}</div>
                           </div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-2 border border-gray-200/50">
+                          <div className="text-[10px] text-gray-600 mb-0.5 font-medium">Raw Material Cost</div>
+                          <div className="text-sm font-bold text-gray-900 truncate">{formatIndianCurrency(group.rawMaterialTotal)}</div>
                         </div>
                       </div>
-
-                      {/* Progress Bar */}
-                      {group.totalAmount > 0 && (
-                        <div className="mb-3">
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                            <div
-                              className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-700 ease-out shadow-sm"
-                              style={{ width: `${Math.min(100, paymentPercentage)}%` }}
-                            />
-                          </div>
-                          <div className="text-[9px] text-gray-500 mt-1 text-center font-medium">
-                            {paymentPercentage.toFixed(1)}% Paid
-                          </div>
-                        </div>
-                      )}
 
                       {/* Quick Stats */}
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
@@ -1880,17 +2070,17 @@ function OrdersPageContent() {
           // All Orders View - Compact Table View
           <div className="inline-block min-w-full" style={{ paddingTop: '0.5rem' }}>
             {/* Sticky Header Group */}
-            {filteredOrders.length > 0 && (
+            {ordersForView.length > 0 && (
               <div className="sticky top-0 z-30 shadow-sm bg-white min-w-max">
                 {/* Select All Checkbox - Sticky Left */}
                 <div ref={selectAllRef} className="bg-white border-b border-gray-100 px-2 py-2 flex items-center justify-between sticky left-0 z-40 w-screen max-w-[100%]">
                   <label className="flex items-center gap-2 cursor-pointer touch-manipulation" style={{ WebkitTapHighlightColor: 'transparent' }}>
                     <input
                       type="checkbox"
-                      checked={filteredOrders.length > 0 && filteredOrders.every((o) => selectedOrders.has(o.id!))}
+                      checked={ordersForView.length > 0 && ordersForView.every((o) => selectedOrders.has(o.id!))}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          const allIds = new Set(filteredOrders.map((o) => o.id!))
+                          const allIds = new Set(ordersForView.map((o) => o.id!))
                           setSelectedOrders(allIds)
                         } else {
                           setSelectedOrders(new Set())
@@ -1901,7 +2091,7 @@ function OrdersPageContent() {
                       onClick={(e) => e.stopPropagation()}
                     />
                     <span className="text-sm font-medium text-gray-700">
-                      Select All ({filteredOrders.length})
+                      Select All ({ordersForView.length})
                     </span>
                   </label>
                 </div>
@@ -1909,7 +2099,9 @@ function OrdersPageContent() {
                 {/* Table Header - Single Row - Compact */}
                 <div ref={tableHeaderRef} className="bg-gray-50 min-w-max">
                   <div className="flex items-center">
-                    <div className="w-12 px-1 py-1.5 flex-shrink-0"></div>
+                    <div className="w-12 px-1 py-1.5 flex-shrink-0 text-center">
+                      <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">#</span>
+                    </div>
                     <div className="w-24 px-1 py-1.5 flex-shrink-0 border-l border-gray-200">
                       <span className="text-[10px] font-semibold text-gray-600 uppercase leading-tight">Date</span>
                     </div>
@@ -1983,26 +2175,26 @@ function OrdersPageContent() {
                     <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
                     <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
                       <div className="font-bold text-[10px]">
-                        {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.total, 0))}
+                        {formatIndianCurrency(ordersForView.reduce((sum, o) => sum + o.total, 0))}
                       </div>
                     </div>
                     <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
                     <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
                       <div className="text-[9px] font-bold">
-                        {filteredOrders.reduce((sum, o) => sum + o.originalWeight, 0).toLocaleString('en-IN')}
+                        {ordersForView.reduce((sum, o) => sum + o.originalWeight, 0).toLocaleString('en-IN')}
                       </div>
                     </div>
                     <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
                       <div className="font-bold text-[10px]">
-                        {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.originalTotal, 0))}
+                        {formatIndianCurrency(ordersForView.reduce((sum, o) => sum + o.originalTotal, 0))}
                       </div>
                     </div>
                     <div className="w-24 px-1 py-0.5 flex-shrink-0 border-l border-primary-500">
                       <div className="text-[9px] font-bold">
-                        {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.additionalCost, 0))}
+                        {formatIndianCurrency(ordersForView.reduce((sum, o) => sum + o.additionalCost, 0))}
                       </div>
                       <div className="font-bold text-[10px]">
-                        {formatIndianCurrency(filteredOrders.reduce((sum, o) => sum + o.profit, 0))}
+                        {formatIndianCurrency(ordersForView.reduce((sum, o) => sum + o.profit, 0))}
                       </div>
                     </div>
                     <div className="w-36 px-1 py-0.5 flex-shrink-0 border-l border-primary-500"></div>
@@ -2013,13 +2205,14 @@ function OrdersPageContent() {
 
             {/* Table Rows */}
             <div className="divide-y divide-gray-100 min-w-max">
-              {filteredOrders.map((order, index) => {
+              {ordersForView.map((order, index) => {
                 const orderDate = safeParseDate(order.date)
                 const materials = Array.isArray(order.material) ? order.material : (order.material ? [order.material] : [])
                 const partialPayments = order.partialPayments || []
                 const totalRawPayments = partialPayments.reduce((sum, p) => sum + p.amount, 0)
                 const customerPayments = order.customerPayments || []
                 const totalCustomerPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0)
+                const displayIndex = ordersForView.length - index
                 const expenseAmount = Number(order.originalTotal || 0)
                 const isPaid = isOrderPaid(order)
                 const isPartyPaid = isCustomerPaid(order)
@@ -2052,19 +2245,22 @@ function OrdersPageContent() {
                         lineHeight: '1rem',
                       }}
                     >
-                      {/* Checkbox Column */}
+                      {/* Index + Checkbox Column */}
                       <div className="w-12 px-1 py-1 flex-shrink-0 flex items-center justify-center border-r border-gray-100">
-                        <input
-                          type="checkbox"
-                          checked={selectedOrders.has(order.id!)}
-                          onChange={(e) => {
-                            e.stopPropagation()
-                            toggleOrderSelection(order.id!)
-                          }}
-                          className="custom-checkbox"
-                          style={{ width: '18px', height: '18px' }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                        <div className="flex flex-col items-center gap-0.5 leading-tight">
+                          <span className="text-[10px] font-semibold text-gray-500">{displayIndex}</span>
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.has(order.id!)}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              toggleOrderSelection(order.id!)
+                            }}
+                            className="custom-checkbox"
+                            style={{ width: '18px', height: '18px' }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
                       </div>
 
                       {/* Date Column */}
@@ -2072,6 +2268,11 @@ function OrdersPageContent() {
                         <div className="text-gray-600 text-[10px] leading-tight font-medium">
                           {orderDate ? format(orderDate, 'dd MMM') : 'N/A'}
                         </div>
+                        {order.challanNo ? (
+                          <div className="text-[9px] text-gray-500 font-semibold">
+                            Challan #{order.challanNo}
+                          </div>
+                        ) : null}
                         {order.invoiced && (
                           <FileText size={10} className="text-blue-600 mt-0.5" />
                         )}
@@ -2259,9 +2460,8 @@ function OrdersPageContent() {
             setSelectedOrderDetail(order)
             setShowOrderDetailDrawer(true)
           }}
-          onPaymentAdded={async () => {
-            await loadPartyPayments()
-            await loadOrders()
+          onPaymentAdded={() => {
+            // Ledger subscription handles data updates, just refresh selected group
             if (selectedPartyGroup?.partyName) {
               const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)
               if (updatedGroup) {
@@ -2269,12 +2469,19 @@ function OrdersPageContent() {
               }
             }
           }}
-          onPaymentRemoved={async () => {
-            await loadPartyPayments()
+          onPaymentRemoved={() => {
+            // Ledger subscription handles data updates, just refresh selected group
+            if (selectedPartyGroup?.partyName) {
+              const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)
+              if (updatedGroup) {
+                setSelectedPartyGroup(updatedGroup)
+              }
+            }
           }}
         />
 
         <SupplierDetailPopup
+          key={selectedSupplierGroup?.supplierName || 'none'}
           group={selectedSupplierGroup}
           isOpen={showSupplierDetailDrawer}
           onClose={() => {
@@ -2290,9 +2497,26 @@ function OrdersPageContent() {
             setSelectedOrderDetail(order)
             setShowOrderDetailDrawer(true)
           }}
+          onAddPayment={handleAddPaymentToOrder}
           onRefresh={async () => {
-            await loadOrders()
-            await loadLedgerEntries()
+            // Directly reload data and update state synchronously
+            const [freshOrders, freshLedgerEntries] = await Promise.all([
+              orderService.getAllOrders(),
+              ledgerService.list()
+            ])
+            setOrders(freshOrders)
+            setLedgerEntries(freshLedgerEntries)
+            setFilteredOrders(applyFiltersToOrders(freshOrders))
+            setSupplierGroupsRefreshKey(prev => prev + 1)
+
+            if (selectedSupplierGroup?.supplierName) {
+              const updated = getSupplierGroups().find(
+                g => g.supplierName === selectedSupplierGroup.supplierName
+              )
+              if (updated) {
+                setSelectedSupplierGroup(updated)
+              }
+            }
           }}
         />
 

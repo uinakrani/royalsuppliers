@@ -181,9 +181,11 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
     let runningBalance = 0;
     
     // First pass: calculate running balances and group
-    const entriesWithBalance = sortedEntries.map(entry => {
-      const amount = entry.type === 'credit' ? entry.amount : -entry.amount;
-      runningBalance += amount;
+    sortedEntries.forEach(entry => {
+      const amountImpact = entry.type === 'credit' ? entry.amount : -entry.amount;
+      if (!entry.voided) {
+        runningBalance += amountImpact;
+      }
       
       const dateKey = getTimelineDateKey(entry);
       if (!groups[dateKey]) {
@@ -191,7 +193,6 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
       }
       groups[dateKey].push(entry);
       
-      return { ...entry, balanceAfter: runningBalance };
     });
 
     // Create array of daily groups sorted descending (newest date first)
@@ -214,11 +215,13 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
         return bTime - aTime; // DESCENDING
       });
 
-      const dayIncome = dayEntries
+      const activeDayEntries = dayEntries.filter(e => !e.voided);
+
+      const dayIncome = activeDayEntries
         .filter(e => e.type === 'credit')
         .reduce((sum, e) => sum + e.amount, 0);
         
-      const dayExpense = dayEntries
+      const dayExpense = activeDayEntries
         .filter(e => e.type === 'debit')
         .reduce((sum, e) => sum + e.amount, 0);
       
@@ -242,6 +245,7 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
 
   const renderTransactionRow = (entry: LedgerEntry) => {
     const isIncome = entry.type === 'credit';
+    const isVoided = entry.voided;
     const amount = formatIndianCurrency(entry.amount);
     const party = isIncome ? entry.partyName : entry.supplier;
     const note = entry.note;
@@ -278,13 +282,18 @@ export default function LedgerTimelineView({ entries, investment, investmentHist
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-baseline">
-             <div className="text-xs font-bold text-gray-900 truncate">{title}</div>
-             <div className={`text-xs font-bold whitespace-nowrap ${amountColor}`}>
+             <div className={`text-xs font-bold truncate ${isVoided ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{title}</div>
+             <div className={`text-xs font-bold whitespace-nowrap ${isVoided ? 'text-gray-400 line-through' : amountColor}`}>
                 {isIncome ? '+' : '-'}{amount}
              </div>
           </div>
           {subTitle && (
             <div className="text-[10px] text-gray-500 truncate leading-tight">{subTitle}</div>
+          )}
+          {isVoided && (
+            <div className="text-[10px] text-red-500 font-semibold leading-tight">
+              Voided {entry.voidedAt ? format(new Date(entry.voidedAt), 'dd MMM yyyy HH:mm') : ''}
+            </div>
           )}
         </div>
       </div>

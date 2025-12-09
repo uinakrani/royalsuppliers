@@ -135,6 +135,13 @@ export default function OrderDetailDrawer({ order, isOpen, onClose, onEdit, onDe
             </div>
             
             <div className="flex justify-between items-start">
+              <span className="text-sm font-medium text-gray-500">Challan No.</span>
+              <span className="text-sm font-semibold text-gray-900">
+                {order.challanNo ? `#${order.challanNo}` : 'Not set'}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-start">
               <span className="text-sm font-medium text-gray-500">Party Name</span>
               <span className="text-sm font-semibold text-gray-900 text-right">{order.partyName}</span>
             </div>

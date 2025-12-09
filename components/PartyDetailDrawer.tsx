@@ -111,14 +111,65 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
 
       setIsProcessing(true)
       await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
-      showToast('Payment added successfully!', 'success')
-      
       if (onPaymentAdded) {
         await onPaymentAdded()
       }
     } catch (error: any) {
       if (error?.message && !error.message.includes('SweetAlert')) {
         showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+      }
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleEditPayment = async (paymentId: string, currentAmount: number, currentNote?: string | null, currentDate?: string | null) => {
+    if (!group || isProcessing) return
+
+    try {
+      const amountStr = await sweetAlert.prompt({
+        title: 'Edit Payment',
+        message: 'Update the payment amount',
+        inputLabel: 'Payment Amount',
+        inputPlaceholder: 'Enter amount',
+        inputType: 'text',
+        formatCurrencyInr: true,
+        defaultValue: String(currentAmount),
+        confirmText: 'Save',
+        cancelText: 'Cancel'
+      })
+
+      if (!amountStr) return
+
+      const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+      if (isNaN(amount) || amount <= 0) {
+        showToast('Invalid amount', 'error')
+        return
+      }
+
+      const note = await sweetAlert.prompt({
+        title: 'Payment Note (optional)',
+        inputLabel: 'Note',
+        inputPlaceholder: 'Add a note (optional)',
+        inputType: 'text',
+        required: false,
+        confirmText: 'Save',
+        cancelText: 'Skip',
+        defaultValue: currentNote || ''
+      })
+
+      setIsProcessing(true)
+      await partyPaymentService.updatePayment(paymentId, {
+        amount,
+        note: note || undefined,
+        date: currentDate || undefined,
+      })
+      if (onPaymentAdded) {
+        await onPaymentAdded()
+      }
+    } catch (error: any) {
+      if (error?.message && !error.message.includes('SweetAlert')) {
+        showToast(`Failed to update payment: ${error?.message || 'Unknown error'}`, 'error')
       }
     } finally {
       setIsProcessing(false)
@@ -141,8 +192,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
 
       setIsProcessing(true)
       await partyPaymentService.removePayment(paymentId)
-      showToast('Payment removed successfully!', 'success')
-      
+
       if (onPaymentRemoved) {
         await onPaymentRemoved()
       }
@@ -351,14 +401,15 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-sm font-semibold text-gray-700">Payment History ({group.payments.length})</h3>
               <Button
-                onClick={handleAddPayment}
-                variant="primary"
-                size="sm"
-                loading={isProcessing}
-                icon={<Plus size={14} />}
-              >
-                Add Payment
-              </Button>
+                  onClick={handleAddPayment}
+                  variant="primary"
+                  size="sm"
+                  loading={isProcessing}
+                  icon={<Plus size={14} />}
+                >
+                  Add Payment
+                </Button>
+              </div>
             </div>
             {group.payments.length > 0 ? (
               <div className="space-y-2">
@@ -384,7 +435,22 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                           </p>
                         )}
                       </div>
-                      {!paymentItem.ledgerEntryId && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() =>
+                            handleEditPayment(
+                              paymentItem.payment.id,
+                              paymentItem.payment.amount,
+                              paymentItem.payment.note,
+                              paymentItem.payment.date
+                            )
+                          }
+                          disabled={isProcessing}
+                          className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Edit Payment"
+                        >
+                          <Edit size={14} />
+                        </button>
                         <button
                           onClick={() => handleRemovePayment(paymentItem.payment.id)}
                           disabled={isProcessing}
@@ -393,12 +459,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                         >
                           <Trash2 size={14} />
                         </button>
-                      )}
-                      {paymentItem.ledgerEntryId && (
-                        <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry">
-                          From Ledger
-                        </span>
-                      )}
+                      </div>
                     </div>
                   </div>
                 ))}

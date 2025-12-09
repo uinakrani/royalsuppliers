@@ -311,6 +311,17 @@ export default function OrderDetailPopup({
                 )}
               </div>
 
+              {/* Challan No. */}
+              <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <FileText size={14} className="text-gray-600" />
+                  <span className="text-xs text-gray-600">Challan No.</span>
+                </div>
+                <div className="font-semibold text-gray-900" style={{ fontSize: '12px' }}>
+                  {order.challanNo ? `#${order.challanNo}` : 'Not set'}
+                </div>
+              </div>
+
               {/* Truck Owner */}
               <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
                 <div className="flex items-center gap-1.5 mb-1">

@@ -9,13 +9,13 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
 } from 'firebase/firestore'
 import { getDb } from './firebase'
 import { ledgerActivityService } from './ledgerActivityService'
-import { orderService } from './orderService'
-import { partyPaymentService } from './partyPaymentService'
+import { offlineStorage, STORES } from './offlineStorage'
 
 export type LedgerType = 'credit' | 'debit'
 export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit' | 'orderPaymentUpdate'
@@ -30,23 +30,69 @@ export interface LedgerEntry {
   source?: LedgerSource
   supplier?: string // For expense entries - supplier of raw materials
   partyName?: string // For income entries - party from which payment received
+  voided?: boolean // Soft-deleted/archived entries stay in timeline but are ignored in totals
+  voidedAt?: string // When the entry was voided
+  voidReason?: string // Context for voiding (e.g., "updated", "deleted")
+  replacedById?: string // New entry that supersedes this one (for updates)
 }
 
 const LEDGER_COLLECTION = 'ledgerEntries'
 
+type AddEntryOptions = {
+  rollbackOnFailure?: boolean
+  useId?: string
+  skipLocalWrite?: boolean
+  skipActivityLog?: boolean
+  fromSync?: boolean
+  createdAtOverride?: string
+}
+
+// Lazy load orderService to avoid circular dependencies
+let orderServicePromise: Promise<any> | null = null
+const getOrderService = async () => {
+  if (!orderServicePromise) {
+    orderServicePromise = import('./orderService').then(module => module.orderService)
+  }
+  return orderServicePromise
+}
+
+// Lazy load partyPaymentService to avoid circular dependencies
+let partyPaymentServicePromise: Promise<any> | null = null
+const getPartyPaymentService = async () => {
+  if (!partyPaymentServicePromise) {
+    partyPaymentServicePromise = import('./partyPaymentService').then(module => module.partyPaymentService)
+  }
+  return partyPaymentServicePromise
+}
+
+// Helper method to sort ledger entries
+function sortLedgerEntries(items: LedgerEntry[]): LedgerEntry[] {
+  return items.sort((a, b) => {
+    const aTime = a.createdAt
+      ? new Date(a.createdAt).getTime()
+      : (a.date ? new Date(a.date).getTime() : 0)
+    const bTime = b.createdAt
+      ? new Date(b.createdAt).getTime()
+      : (b.date ? new Date(b.date).getTime() : 0)
+    return bTime - aTime // Descending order (newest first)
+  })
+}
+
 export const ledgerService = {
   async addEntry(
-    type: LedgerType, 
-    amount: number, 
-    note?: string, 
-    source: LedgerSource = 'manual', 
+    type: LedgerType,
+    amount: number,
+    note?: string,
+    source: LedgerSource = 'manual',
     date?: string,
     supplier?: string,
-    partyName?: string
+    partyName?: string,
+    options: AddEntryOptions = {}
   ): Promise<string> {
-    const db = getDb()
-    if (!db) throw new Error('Firebase is not configured.')
+    const rollbackOnFailure = options.rollbackOnFailure ?? true
+    const shouldPersistLocally = !options.skipLocalWrite
     const now = new Date().toISOString()
+    const createdAtValue = options.createdAtOverride || now
     // Use provided date or default to now
     // If date is provided, convert it to ISO string with time component
     let dateValue = date || now
@@ -57,12 +103,18 @@ export const ledgerService = {
       const localDate = new Date(year, month - 1, day, 12, 0, 0) // Use noon to avoid DST issues
       dateValue = localDate.toISOString()
     }
+
+    // Generate a temporary local ID
+    const localId = options.useId || `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
     const payload: any = {
+      id: localId,
       type,
       amount,
       date: dateValue,
-      createdAt: now,
+      createdAt: createdAtValue,
       source,
+      voided: false,
     }
     if (note && note.trim()) {
       payload.note = note.trim()
@@ -73,93 +125,220 @@ export const ledgerService = {
     if (partyName && partyName.trim()) {
       payload.partyName = partyName.trim()
     }
-    const ref = await addDoc(collection(db, LEDGER_COLLECTION), {
-      ...payload,
-      createdAtTs: serverTimestamp(),
-    })
 
-    // If this is a supplier payment (debit with supplier name), distribute to unpaid orders
-    if (type === 'debit' && supplier && supplier.trim()) {
+    let firebaseId: string | undefined
+    const canWriteRemote = offlineStorage.isOnline()
+
+    if (canWriteRemote) {
       try {
-        // 1. Reconcile FIRST to clean up any orphan payments from previous failures/manual deletions
-        // This ensures we don't distribute if the ledger is already out of sync
-        const allLedgerEntries = await this.list()
-        const validLedgerIds = allLedgerEntries.map(e => e.id!).filter(Boolean)
-        // Add the new ID to the valid list (since it's just added)
-        validLedgerIds.push(ref.id)
-        
-        await orderService.reconcileSupplierOrders(supplier.trim(), validLedgerIds)
+        const db = getDb()
+        if (db) {
+          if (options.useId) {
+            await setDoc(doc(db, LEDGER_COLLECTION, options.useId), {
+              ...payload,
+              createdAtTs: serverTimestamp(),
+            })
+            firebaseId = options.useId
+            payload.id = firebaseId
+            if (shouldPersistLocally) {
+              await offlineStorage.put(STORES.LEDGER_ENTRIES, payload)
+            }
+          } else {
+            const ref = await addDoc(collection(db, LEDGER_COLLECTION), {
+              ...payload,
+              createdAtTs: serverTimestamp(),
+            })
+            firebaseId = ref.id
 
-        // 2. Run distribution
-        orderService.distributePaymentToSupplierOrders(
-          supplier.trim(),
-          amount,
-          ref.id,
-          note
-        ).catch(err => console.error('Failed to distribute supplier payment:', err))
-      } catch (e) {
-        console.error('Error initiating payment distribution:', e)
+            // Update local cache with authoritative id
+            payload.id = firebaseId
+            if (shouldPersistLocally) {
+              await offlineStorage.put(STORES.LEDGER_ENTRIES, payload)
+              const idToDrop = options.useId || localId
+              if (idToDrop && idToDrop !== firebaseId) {
+                await offlineStorage.delete(STORES.LEDGER_ENTRIES, idToDrop).catch(() => {})
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to sync new ledger entry to Firebase, caching for later:', error)
       }
     }
 
-    // If this is an income payment (credit with party name), distribute to orders
-    if (type === 'credit' && partyName && partyName.trim()) {
-      console.log(`💰 Income entry created: ₹${amount} for party "${partyName.trim()}" (ID: ${ref.id})`);
-      try {
-        console.log(`🚀 Starting automatic distribution for income entry ${ref.id}`);
-        partyPaymentService.distributePaymentToPartyOrders(
-          partyName.trim(),
-          amount,
-          ref.id,
-          dateValue,
-          note
-        ).catch(err => console.error('❌ Failed to distribute party payment:', err))
-      } catch (e) {
-        console.error('❌ Error initiating party payment distribution:', e)
+    if (!firebaseId) {
+      // Cache locally and queue for sync when remote write is unavailable
+      if (shouldPersistLocally) {
+        await offlineStorage.put(STORES.LEDGER_ENTRIES, payload)
       }
-    }
-    
-    // Log activity - always try to log, but don't fail the operation if logging fails
-    try {
-      await ledgerActivityService.logActivity({
-        ledgerEntryId: ref.id,
-        activityType: 'created',
-        amount,
-        note,
-        date: dateValue,
-        supplier,
-        partyName,
-        type,
+
+      await offlineStorage.queueForSync({
+        id: localId,
+        collection: STORES.LEDGER_ENTRIES,
+        operation: 'create',
+        data: payload,
+        localId,
+        lastModifiedAt: new Date().toISOString()
       })
-    } catch (error) {
-      console.error('Failed to log ledger activity for creation:', error)
-      // Don't throw - entry creation already succeeded
     }
-    
-    return ref.id
+
+    const finalId = firebaseId || localId
+
+    // NOTE: Automatic distribution to supplier orders is disabled per user request
+    // Previously: If this is a supplier payment (debit with supplier name), distribute to unpaid orders
+    // if (type === 'debit' && supplier && supplier.trim()) {
+    //   try {
+    //     // 1. Reconcile FIRST to clean up any orphan payments from previous failures/manual deletions
+    //     // This ensures we don't distribute if the ledger is already out of sync
+    //     const allLedgerEntries = await this.list()
+    //     const validLedgerIds = allLedgerEntries.map(e => e.id!).filter(Boolean)
+    //     // Add the new ID to the valid list (since it's just added)
+    //     validLedgerIds.push(finalId)
+    //
+    //     const orderSvc = await getOrderService()
+    //     await orderSvc.reconcileSupplierOrders(supplier.trim(), validLedgerIds)
+    //
+    //     // 2. Run distribution
+    //     orderSvc.distributePaymentToSupplierOrders(
+    //       supplier.trim(),
+    //       amount,
+    //       finalId,
+    //       note
+    //     ).catch((err: any) => console.error('Failed to distribute supplier payment:', err))
+    //   } catch (e) {
+    //     console.error('Error initiating payment distribution:', e)
+    //   }
+    // }
+
+    // If this is an income payment (credit with party name), keep partyPayments in sync
+    // but **skip** automatic distribution to orders (disabled per requirement).
+    if (type === 'credit' && partyName && partyName.trim()) {
+      if (source !== 'partyPayment') {
+        try {
+          const partySvc = await getPartyPaymentService()
+          await partySvc.upsertPaymentFromLedgerCredit({
+            id: finalId,
+            partyName: partyName.trim(),
+            amount,
+            date: dateValue,
+            note,
+            createdAt: payload.createdAt,
+          })
+        } catch (e) {
+          console.error('❌ Failed to upsert party payment for ledger credit:', e)
+        }
+      }
+    }
+
+    // Log activity - always try to log, but allow skipping when replaying sync queue
+    if (!options.skipActivityLog) {
+      try {
+        await ledgerActivityService.logActivity({
+          ledgerEntryId: finalId,
+          activityType: 'created',
+          amount,
+          note,
+          date: dateValue,
+          supplier,
+          partyName,
+          type,
+        })
+      } catch (error) {
+        console.error('Failed to log ledger activity for creation:', error)
+        // Don't throw - entry creation already succeeded
+      }
+    }
+
+    return finalId
   },
 
-  async list(): Promise<LedgerEntry[]> {
+  async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean }): Promise<LedgerEntry[]> {
+    try {
+      const localItems = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
+
+      if (offlineStorage.isOnline()) {
+        const db = getDb()
+        if (db) {
+          try {
+            const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
+            const snap = await getDocs(q)
+            const firestoreItems: LedgerEntry[] = []
+
+            snap.forEach((d) => {
+              const data = d.data() as any
+              const createdAt =
+                data.createdAt ??
+                (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+                undefined
+
+              // Convert date field from Timestamp to ISO string if needed
+              let dateValue = data.date
+              if (dateValue && typeof dateValue.toDate === 'function') {
+                dateValue = (dateValue as Timestamp).toDate().toISOString()
+              }
+
+              const item = {
+                id: d.id,
+                type: data.type,
+                amount: data.amount,
+                note: data.note,
+                date: dateValue,
+                source: data.source,
+                supplier: data.supplier,
+                partyName: data.partyName,
+                voided: data.voided || false,
+                voidedAt: data.voidedAt,
+                voidReason: data.voidReason,
+                replacedById: data.replacedById,
+                ...(createdAt ? { createdAt } : {}),
+              }
+
+              firestoreItems.push(item)
+              // Cache in local storage
+              offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+            })
+
+            const sorted = sortLedgerEntries(firestoreItems)
+            options?.onRemoteUpdate?.(sorted)
+            return sorted
+          } catch (error) {
+            console.error('Failed to fetch from Firestore:', error)
+          }
+        }
+      }
+
+      // Fallback to local cache when offline or remote fails
+      return sortLedgerEntries(localItems)
+
+    } catch (error) {
+      console.error('Error in ledgerService.list():', error)
+      return []
+    }
+  },
+
+  // Helper to fetch all ledger entries directly from Firestore (used for background refresh)
+  async getAllFromFirestore(): Promise<LedgerEntry[]> {
     const db = getDb()
     if (!db) return []
-    // Query by date (has index), then sort by creation time in JavaScript
+
     const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
     const snap = await getDocs(q)
-    const items: LedgerEntry[] = []
+    const firestoreItems: LedgerEntry[] = []
+
     snap.forEach((d) => {
       const data = d.data() as any
       const createdAt =
         data.createdAt ??
         (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
         undefined
-      
+
       // Convert date field from Timestamp to ISO string if needed
       let dateValue = data.date
       if (dateValue && typeof dateValue.toDate === 'function') {
         dateValue = (dateValue as Timestamp).toDate().toISOString()
       }
-      
-      items.push({
+
+      const item = {
         id: d.id,
         type: data.type,
         amount: data.amount,
@@ -168,46 +347,46 @@ export const ledgerService = {
         source: data.source,
         supplier: data.supplier,
         partyName: data.partyName,
+        voided: data.voided || false,
+        voidedAt: data.voidedAt,
+        voidReason: data.voidReason,
+        replacedById: data.replacedById,
         ...(createdAt ? { createdAt } : {}),
-      })
+      }
+
+      firestoreItems.push(item)
+      // Cache in local storage
+      offlineStorage.put(STORES.LEDGER_ENTRIES, item)
     })
-    
-    // Sort by creation time (most recent first) - use createdAt, then date as fallback
-    // This ensures the latest added entries appear at the top
-    items.sort((a, b) => {
-      const aTime = a.createdAt 
-        ? new Date(a.createdAt).getTime()
-        : (a.date ? new Date(a.date).getTime() : 0)
-      const bTime = b.createdAt 
-        ? new Date(b.createdAt).getTime()
-        : (b.date ? new Date(b.date).getTime() : 0)
-      return bTime - aTime // Descending order (newest first)
-    })
-    
-    return items
+
+    return firestoreItems
   },
 
-  subscribe(callback: (entries: LedgerEntry[]) => void): () => void {
+  // Background sync method that doesn't block UI
+  async syncWithFirestore(): Promise<void> {
+    if (!offlineStorage.isOnline()) return
+
     const db = getDb()
-    if (!db) return () => {}
-    // Query by date (has index), then sort by creation time in JavaScript
-    const qRef = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
-    return onSnapshot(qRef, (snap) => {
-      const items: LedgerEntry[] = []
+    if (!db) return
+
+    try {
+      const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
+      const snap = await getDocs(q)
+
       snap.forEach((d) => {
         const data = d.data() as any
         const createdAt =
           data.createdAt ??
           (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
           undefined
-        
+
         // Convert date field from Timestamp to ISO string if needed
         let dateValue = data.date
         if (dateValue && typeof dateValue.toDate === 'function') {
           dateValue = (dateValue as Timestamp).toDate().toISOString()
         }
-        
-        items.push({
+
+        const item = {
           id: d.id,
           type: data.type,
           amount: data.amount,
@@ -216,78 +395,204 @@ export const ledgerService = {
           source: data.source,
           supplier: data.supplier,
           partyName: data.partyName,
+          voided: data.voided || false,
+          voidedAt: data.voidedAt,
+          voidReason: data.voidReason,
+          replacedById: data.replacedById,
           ...(createdAt ? { createdAt } : {}),
-        })
+        }
+
+        // Update local storage with fresh data (async, doesn't block)
+        offlineStorage.put(STORES.LEDGER_ENTRIES, item)
       })
-      
-      // Sort by creation time (most recent first) - use createdAt, then date as fallback
-      // This ensures the latest added entries appear at the top
-      items.sort((a, b) => {
-        const aTime = a.createdAt 
-          ? new Date(a.createdAt).getTime()
-          : (a.date ? new Date(a.date).getTime() : 0)
-        const bTime = b.createdAt 
-          ? new Date(b.createdAt).getTime()
-          : (b.date ? new Date(b.date).getTime() : 0)
-        return bTime - aTime // Descending order (newest first)
-      })
-      
-      callback(items)
+
+      console.log('Background sync completed for ledger entries')
+    } catch (error) {
+      console.error('Background sync failed:', error)
+    }
+  },
+
+  subscribe(callback: (entries: LedgerEntry[]) => void): () => void {
+    let isInitialLoad = true
+
+    // Get local data immediately for instant loading
+    offlineStorage.getAll(STORES.LEDGER_ENTRIES).then(localItems => {
+      if (localItems.length > 0) {
+        callback(sortLedgerEntries(localItems))
+      } else if (isInitialLoad) {
+        // No local data - try to fetch from Firestore once if online
+        if (offlineStorage.isOnline()) {
+          this.list().then(callback).catch(error => {
+            console.error('Error in initial ledger subscription load:', error)
+            callback([])
+          })
+        } else {
+          callback([])
+        }
+      }
+      isInitialLoad = false
+    }).catch(error => {
+      console.error('Error loading local ledger data:', error)
+      callback([])
+      isInitialLoad = false
     })
+
+    // Listen for local store changes to push real-time updates to UI immediately
+    const offlineUnsubscribe = offlineStorage.onStoreChange(STORES.LEDGER_ENTRIES, (items) => {
+      callback(sortLedgerEntries(items as LedgerEntry[]))
+    })
+
+    // Set up Firestore real-time listener for background updates
+    let firestoreUnsubscribe: (() => void) | null = null
+
+    const setupFirestoreListener = () => {
+      if (!offlineStorage.isOnline()) return
+
+      const db = getDb()
+      if (!db) return
+
+      const qRef = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
+      firestoreUnsubscribe = onSnapshot(qRef, (snap) => {
+        const items: LedgerEntry[] = []
+        snap.forEach((d) => {
+          const data = d.data() as any
+          const createdAt =
+            data.createdAt ??
+            (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+            undefined
+
+          // Convert date field from Timestamp to ISO string if needed
+          let dateValue = data.date
+          if (dateValue && typeof dateValue.toDate === 'function') {
+            dateValue = (dateValue as Timestamp).toDate().toISOString()
+          }
+
+          const item = {
+            id: d.id,
+            type: data.type,
+            amount: data.amount,
+            note: data.note,
+            date: dateValue,
+            source: data.source,
+            supplier: data.supplier,
+            partyName: data.partyName,
+            voided: data.voided || false,
+            voidedAt: data.voidedAt,
+            voidReason: data.voidReason,
+            replacedById: data.replacedById,
+            ...(createdAt ? { createdAt } : {}),
+          }
+
+          items.push(item)
+          // Update local storage in background
+          offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+        })
+
+        // Only update UI if we have data (avoid empty updates during initial sync)
+        if (items.length > 0) {
+          const sortedItems = sortLedgerEntries(items)
+          callback(sortedItems)
+        }
+      }, (error) => {
+        console.error('Firestore subscription error:', error)
+        // Don't update UI on error - keep local data
+      })
+    }
+
+    // Listen for online/offline changes
+    const onlineStatusUnsubscribe = offlineStorage.onOnlineStatusChange((isOnline) => {
+      if (isOnline) {
+        // Setup Firestore listener when coming online
+        setupFirestoreListener()
+      } else {
+        // Clean up Firestore listener when going offline
+        if (firestoreUnsubscribe) {
+          firestoreUnsubscribe()
+          firestoreUnsubscribe = null
+        }
+      }
+    })
+
+    // Setup initial listener if online
+    if (offlineStorage.isOnline()) {
+      setupFirestoreListener()
+    }
+
+    // Return cleanup function
+    return () => {
+      if (firestoreUnsubscribe) {
+        firestoreUnsubscribe()
+      }
+      onlineStatusUnsubscribe()
+      offlineUnsubscribe()
+    }
   },
 
   async getBalance(): Promise<number> {
     const entries = await this.list()
-    return entries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
+    return entries
+      .filter(e => !e.voided)
+      .reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
   },
 
-  async remove(id: string): Promise<void> {
-    const db = getDb()
-    if (!db) throw new Error('Firebase is not configured.')
-    
-    // Get entry before deleting to log activity
-    let entry: LedgerEntry | null = null
-    try {
-      entry = await this.getEntryById(id)
-    } catch (error) {
-      console.warn('Failed to get entry before deletion for activity logging:', error)
+  async remove(id: string, options: { rollbackOnFailure?: boolean } = {}): Promise<void> {
+    const rollbackOnFailure = options.rollbackOnFailure ?? true
+    const entry = await this.getEntryById(id)
+    if (!entry) {
+      throw new Error('Ledger entry not found')
     }
-    
-    // Cleanup associated payments on orders (re-distribution logic)
-    // This removes any payments from orders that were linked to this ledger entry
-    try {
-      console.log('Cleaning up payments for ledger entry:', id)
-      await orderService.removePaymentsByLedgerEntryId(id)
-      
-      // Also trigger a full reconciliation for the supplier if available, to be safe
-      if (entry?.supplier) {
-        const allLedgerEntries = await this.list()
-        // Filter out the ID we are about to delete
-        const validLedgerIds = allLedgerEntries
-          .map(e => e.id!)
-          .filter(eid => eid !== id)
-          .filter(Boolean)
-          
-        await orderService.reconcileSupplierOrders(entry.supplier, validLedgerIds)
-      }
 
-      // Trigger reconciliation for party payments if it was an income entry
-      if (entry?.partyName) {
-        // Get all valid ledger IDs except the one being deleted.
-        const allLedgerEntries = await this.list();
-        const validLedgerIds = allLedgerEntries
-          .map(e => e.id!)
-          .filter(eid => eid !== id)
-          .filter(Boolean);
-        await partyPaymentService.reconcilePartyPayments(entry.partyName, validLedgerIds);
-      }
-    } catch (error) {
-      console.error('Failed to cleanup order payments for ledger entry:', error)
-      // Don't throw, main deletion succeeded
+    const now = new Date().toISOString()
+    const voidedEntry: LedgerEntry = {
+      ...entry,
+      voided: true,
+      voidedAt: now,
+      voidReason: 'deleted',
     }
-    
-    await deleteDoc(doc(db, LEDGER_COLLECTION, id))
-    
+
+    if (offlineStorage.isOnline()) {
+      try {
+        const db = getDb()
+        if (db) {
+          await updateDoc(doc(db, LEDGER_COLLECTION, id), {
+            voided: true,
+            voidedAt: now,
+            voidReason: 'deleted',
+          })
+        }
+      } catch (error) {
+        console.error('Failed to sync deletion to Firebase (soft delete):', error)
+        if (rollbackOnFailure) {
+          throw error
+        }
+      }
+    } else {
+      await offlineStorage.queueForSync({
+        id,
+        collection: STORES.LEDGER_ENTRIES,
+        operation: 'update',
+        data: voidedEntry,
+        lastModifiedAt: now
+      })
+    }
+
+    // Keep the entry locally but mark it as voided
+    await offlineStorage.put(STORES.LEDGER_ENTRIES, voidedEntry)
+
+    // Cleanup associated payments on orders (re-distribution logic)
+    // Only cleanup for direct payments (order-level payments without supplier/partyName)
+    // Supplier payments and party payments are now standalone ledger entries
+    if (!entry?.supplier && !entry?.partyName) {
+      try {
+        console.log('Cleaning up payments for ledger entry:', id)
+        const orderSvc = await getOrderService()
+        await orderSvc.removePaymentsByLedgerEntryId(id)
+      } catch (error) {
+        console.error('Failed to cleanup order payments for ledger entry:', error)
+        // Don't throw, main deletion succeeded
+      }
+    }
+
     // Log activity - always try to log even if entry fetch failed
     try {
       await ledgerActivityService.logActivity({
@@ -295,7 +600,7 @@ export const ledgerService = {
         activityType: 'deleted',
         amount: entry?.amount,
         note: entry?.note,
-        date: entry?.date,
+        date: now, // log deletion on the day it happened
         supplier: entry?.supplier,
         partyName: entry?.partyName,
         type: entry?.type,
@@ -307,7 +612,7 @@ export const ledgerService = {
   },
 
   async removeLastEntry(): Promise<void> {
-    const entries = await this.list()
+    const entries = (await this.list()).filter(e => !e.voided)
     if (entries.length === 0) {
       throw new Error('No ledger entries found')
     }
@@ -320,211 +625,159 @@ export const ledgerService = {
   },
 
   async getEntryById(id: string): Promise<LedgerEntry | null> {
-    const db = getDb()
-    if (!db) return null
     try {
-      const docRef = doc(db, LEDGER_COLLECTION, id)
-      const docSnap = await getDoc(docRef)
-      if (!docSnap.exists()) {
-        return null
+      // Prefer remote when online
+      if (offlineStorage.isOnline()) {
+        const db = getDb()
+        if (db) {
+          try {
+            const docRef = doc(db, LEDGER_COLLECTION, id)
+            const docSnap = await getDoc(docRef)
+            if (docSnap.exists()) {
+              const data = docSnap.data() as any
+              const createdAt =
+                data.createdAt ??
+                (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+                undefined
+
+              // Convert date field from Timestamp to ISO string if needed
+              let dateValue = data.date
+              if (dateValue && typeof dateValue.toDate === 'function') {
+                dateValue = (dateValue as Timestamp).toDate().toISOString()
+              }
+
+              const item = {
+                id: docSnap.id,
+                type: data.type,
+                amount: data.amount,
+                note: data.note,
+                date: dateValue,
+                source: data.source,
+                supplier: data.supplier,
+                partyName: data.partyName,
+                voided: data.voided || false,
+                voidedAt: data.voidedAt,
+                voidReason: data.voidReason,
+                replacedById: data.replacedById,
+                ...(createdAt ? { createdAt } : {}),
+              }
+
+              // Cache in local storage
+              await offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+              return item
+            }
+          } catch (error) {
+            console.error('Error getting ledger entry from Firestore:', error)
+          }
+        }
       }
-      const data = docSnap.data() as any
-      const createdAt =
-        data.createdAt ??
-        (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
-        undefined
-      
-      // Convert date field from Timestamp to ISO string if needed
-      let dateValue = data.date
-      if (dateValue && typeof dateValue.toDate === 'function') {
-        dateValue = (dateValue as Timestamp).toDate().toISOString()
+
+      // Fallback to cache when offline
+      const localItem = await offlineStorage.get(STORES.LEDGER_ENTRIES, id)
+      if (localItem) {
+        return localItem as LedgerEntry
       }
-      
-      return {
-        id: docSnap.id,
-        type: data.type,
-        amount: data.amount,
-        note: data.note,
-        date: dateValue,
-        source: data.source,
-        supplier: data.supplier,
-        partyName: data.partyName,
-        ...(createdAt ? { createdAt } : {}),
-      }
+
+      return null
     } catch (error) {
       console.error('Error getting ledger entry by ID:', error)
       return null
     }
   },
 
-  async update(id: string, updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string }, options: { fromOrder?: boolean } = {}): Promise<void> {
-    const db = getDb()
-    if (!db) throw new Error('Firebase is not configured.')
-    
-    // Get entry before updating to log activity
+  async update(
+    id: string,
+    updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string },
+    options: { fromOrder?: boolean; rollbackOnFailure?: boolean } = {}
+  ): Promise<string> {
+    const rollbackOnFailure = options.rollbackOnFailure ?? true
     const oldEntry = await this.getEntryById(id)
-    
-    const entryRef = doc(db, LEDGER_COLLECTION, id)
-    const updateData: any = {}
+    if (!oldEntry) {
+      throw new Error('Ledger entry not found')
+    }
 
-    // Force date to be updated to now if any change is made
+    // Force change to "today"
     const now = new Date().toISOString()
-    updateData.date = now
-    
-    if (updates.amount !== undefined) {
-      updateData.amount = updates.amount
-    }
-    
-    if (updates.note !== undefined) {
-      if (updates.note && updates.note.trim()) {
-        updateData.note = updates.note.trim()
-      } else {
-        updateData.note = null // Remove note if empty
-      }
-    }
-    
-    // Note: We ignore updates.date because we force it to now as per requirements
-    // "If any change happens, it should be considered as the change of the day when the change made."
-    
-    if (updates.supplier !== undefined) {
-      if (updates.supplier && updates.supplier.trim()) {
-        updateData.supplier = updates.supplier.trim()
-      } else {
-        updateData.supplier = null // Remove supplier if empty
-      }
+    const newAmount = updates.amount !== undefined ? updates.amount : oldEntry.amount
+    const newNote = updates.note !== undefined ? (updates.note?.trim() || undefined) : oldEntry.note
+    const newSupplier = updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldEntry.supplier
+    const newPartyName = updates.partyName !== undefined ? (updates.partyName?.trim() || undefined) : oldEntry.partyName
+
+    // Step 1: create a brand-new entry for the updated values (append-only)
+    const newEntryId = await this.addEntry(
+      oldEntry.type,
+      newAmount,
+      newNote,
+      oldEntry.source || 'manual',
+      now,
+      newSupplier || undefined,
+      newPartyName || undefined,
+      { rollbackOnFailure, skipActivityLog: true }
+    )
+
+    // Step 2: soft-void the original entry so it remains visible but is excluded from calculations
+    const voidedEntry: LedgerEntry = {
+      ...oldEntry,
+      voided: true,
+      voidedAt: now,
+      voidReason: 'updated',
+      replacedById: newEntryId,
     }
 
-    if (updates.partyName !== undefined) {
-      if (updates.partyName && updates.partyName.trim()) {
-        updateData.partyName = updates.partyName.trim()
-      } else {
-        updateData.partyName = null // Remove partyName if empty
-      }
-    }
-    
-    await updateDoc(entryRef, updateData)
-
-    // Sync changes back to order payment if not initiated from order
-    if (!options.fromOrder) {
+    const canUpdateRemote = offlineStorage.isOnline()
+    if (canUpdateRemote) {
       try {
-        if (oldEntry?.type === 'credit') {
-          // For income entries, update customer payments
-          await orderService.updateCustomerPaymentByLedgerEntryId(id, {
-            amount: updates.amount,
-            date: updateData.date, // Use the new date (now)
-            // Note: We don't sync note back to payment currently as payment note is often different or specific
-          })
-        } else if (oldEntry?.type === 'debit') {
-          // For expense entries, update supplier payments
-          await orderService.updatePaymentByLedgerEntryId(id, {
-            amount: updates.amount,
-            date: updateData.date, // Use the new date (now)
-            // Note: We don't sync note back to payment currently as payment note is often different or specific
+        const db = getDb()
+        if (db) {
+          const entryRef = doc(db, LEDGER_COLLECTION, id)
+          await updateDoc(entryRef, {
+            voided: true,
+            voidedAt: now,
+            voidReason: 'updated',
+            replacedById: newEntryId,
           })
         }
       } catch (error) {
-        console.error('Failed to sync ledger update to order payment:', error)
-      }
-    }
-
-    const type = oldEntry?.type
-    const supplier = updateData.supplier !== undefined ? updateData.supplier : oldEntry?.supplier
-
-    if (type === 'debit' && supplier) {
-      try {
-        console.log(`🔄 Triggering redistribution for updated supplier ledger entry ${id}`)
-        await orderService.redistributeSupplierPayment(id, updateData.date)
-      } catch (e) {
-        console.error('Redistribution failed', e)
-      }
-    }
-
-    // Trigger re-distribution for party payments on credit updates
-    const partyName = updateData.partyName !== undefined ? updateData.partyName : oldEntry?.partyName
-    if (type === 'credit' && partyName) {
-      try {
-        console.log(`🔄 Triggering redistribution for updated party payment ledger entry ${id}`)
-        // First, reconcile to remove old payments from orders
-        const allLedgerEntries = await this.list()
-        const validLedgerIds = allLedgerEntries.map(e => e.id!).filter(Boolean)
-        await partyPaymentService.reconcilePartyPayments(partyName, validLedgerIds)
-
-        // Then, re-distribute all valid payments for that party
-        const partyLedgerEntries = allLedgerEntries.filter(e => e.partyName === partyName && e.type === 'credit')
-
-        for (const entry of partyLedgerEntries) {
-          if (entry.id) {
-            await partyPaymentService.distributePaymentToPartyOrders(
-              partyName,
-              entry.amount,
-              entry.id,
-              entry.date,
-              entry.note
-            )
-          }
+        console.error('Failed to mark ledger entry as voided in Firebase:', error)
+        if (rollbackOnFailure) {
+          throw error
         }
-      } catch (e) {
-        console.error('Party payment redistribution failed', e)
       }
+    } else {
+      await offlineStorage.queueForSync({
+        id,
+        collection: STORES.LEDGER_ENTRIES,
+        operation: 'update',
+        data: voidedEntry,
+        lastModifiedAt: now
+      })
     }
-    
-    // Log activity - only if there are changes
+
+    // Update local cache with voided metadata
+    await offlineStorage.put(STORES.LEDGER_ENTRIES, voidedEntry)
+
+    // Step 3: log activity capturing before/after
     try {
-      // Normalize values for comparison
-      const oldNote = (oldEntry?.note || '').trim() || undefined
-      const newNote = updates.note !== undefined ? ((updates.note || '').trim() || undefined) : oldNote
-      
-      const oldAmount = oldEntry?.amount
-      const newAmount = updates.amount !== undefined ? updates.amount : oldAmount
-
-      const oldDate = oldEntry?.date
-      const newDate = updateData.date // Always changed to now
-
-      const oldSupplier = (oldEntry?.supplier || '').trim() || undefined
-      const newSupplier = updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldSupplier
-
-      const oldPartyName = (oldEntry?.partyName || '').trim() || undefined
-      const newPartyName = updates.partyName !== undefined ? (updates.partyName?.trim() || undefined) : oldPartyName
-
-      // Check for changes
-      const hasChanges = 
-        oldAmount !== newAmount ||
-        oldNote !== newNote ||
-        oldDate !== newDate ||
-        oldSupplier !== newSupplier ||
-        oldPartyName !== newPartyName
-
-      if (!hasChanges) {
-        console.log('No changes detected for ledger entry update, skipping activity log.')
-        return
-      }
-      
-      const activityData = {
-        ledgerEntryId: id,
-        activityType: 'updated' as const,
-        amount: newAmount,
-        previousAmount: oldAmount,
-        note: newNote,
-        previousNote: oldNote,
-        date: newDate,
-        previousDate: oldDate,
-        supplier: newSupplier,
-        previousSupplier: oldSupplier,
-        partyName: newPartyName,
-        previousPartyName: oldPartyName,
-        type: oldEntry?.type,
-      }
-      
-      console.log('📝 Logging ledger activity for update:', {
+      await ledgerActivityService.logActivity({
         ledgerEntryId: id,
         activityType: 'updated',
-        hasChanges
+        amount: newAmount,
+        previousAmount: oldEntry.amount,
+        note: newNote,
+        previousNote: oldEntry.note,
+        date: now,
+        previousDate: oldEntry.date,
+        supplier: newSupplier,
+        previousSupplier: oldEntry.supplier,
+        partyName: newPartyName,
+        previousPartyName: oldEntry.partyName,
+        type: oldEntry.type,
       })
-      await ledgerActivityService.logActivity(activityData)
-      console.log('✅ Activity logged successfully')
     } catch (error) {
-      console.error('❌ Failed to log ledger activity for update:', error)
-      // Don't throw - update already succeeded, but log the error for debugging
+      console.error('Failed to log ledger activity for update:', error)
+      // Don't throw - update already succeeded
     }
+
+    return newEntryId
   },
 }

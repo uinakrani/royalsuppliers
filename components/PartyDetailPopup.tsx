@@ -11,7 +11,6 @@ import { sweetAlert } from '@/lib/sweetalert'
 import { showToast } from '@/components/Toast'
 import { partyPaymentService } from '@/lib/partyPaymentService'
 import { createRipple } from '@/lib/rippleEffect'
-import { getAdjustedProfit, hasProfitAdjustments } from '@/lib/orderCalculations'
 
 interface PartyGroup {
   partyName: string
@@ -148,13 +147,65 @@ export default function PartyDetailPopup({
 
       setIsProcessing(true)
       await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
-      showToast('Payment added successfully!', 'success')
       if (onPaymentAdded) {
         await onPaymentAdded()
       }
     } catch (error: any) {
       if (error?.message && !error.message.includes('SweetAlert')) {
         showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+      }
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleEditPayment = async (paymentId: string, currentAmount: number, currentNote?: string | null, currentDate?: string | null) => {
+    if (!group || isProcessing) return
+
+    try {
+      const amountStr = await sweetAlert.prompt({
+        title: 'Edit Payment',
+        message: 'Update the payment amount',
+        inputLabel: 'Payment Amount',
+        inputPlaceholder: 'Enter amount',
+        inputType: 'text',
+        formatCurrencyInr: true,
+        inputValue: String(currentAmount),
+        confirmText: 'Save',
+        cancelText: 'Cancel',
+      })
+
+      if (!amountStr) return
+
+      const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+      if (isNaN(amount) || amount <= 0) {
+        showToast('Invalid amount', 'error')
+        return
+      }
+
+      const note = await sweetAlert.prompt({
+        title: 'Payment Note (optional)',
+        inputLabel: 'Note',
+        inputPlaceholder: 'Add a note (optional)',
+        inputType: 'text',
+        required: false,
+        confirmText: 'Save',
+        cancelText: 'Skip',
+        inputValue: currentNote || '',
+      })
+
+      setIsProcessing(true)
+      await partyPaymentService.updatePayment(paymentId, {
+        amount,
+        note: note || undefined,
+        date: currentDate || undefined,
+      })
+      if (onPaymentAdded) {
+        await onPaymentAdded()
+      }
+    } catch (error: any) {
+      if (error?.message && !error.message.includes('SweetAlert')) {
+        showToast(`Failed to update payment: ${error?.message || 'Unknown error'}`, 'error')
       }
     } finally {
       setIsProcessing(false)
@@ -177,7 +228,6 @@ export default function PartyDetailPopup({
     try {
       setIsProcessing(true)
       await partyPaymentService.removePayment(paymentId)
-      showToast('Payment removed successfully!', 'success')
       if (onPaymentRemoved) {
         await onPaymentRemoved()
       }
@@ -331,8 +381,6 @@ export default function PartyDetailPopup({
                   const existingPayments = order.partialPayments || []
                   const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0)
                   const remainingAmount = expenseAmount - totalPaid
-                  const adjustedProfit = getAdjustedProfit(order)
-                  const hasAdjustment = hasProfitAdjustments(order)
 
                   return (
                     <div
@@ -375,20 +423,9 @@ export default function PartyDetailPopup({
                         <div className="text-right ml-2 flex-shrink-0">
                           <p className="text-xs font-bold text-primary-600">{formatIndianCurrency(order.total)}</p>
                           <div className="text-[10px] font-semibold mt-0.5 text-right leading-tight">
-                            {hasAdjustment ? (
-                              <>
-                                <span className="text-gray-500 line-through block">
-                                  Profit: {formatIndianCurrency(order.profit)}
-                                </span>
-                                <span className={`${adjustedProfit >= 0 ? 'text-green-600' : 'text-red-600'} block`}>
-                                  {formatIndianCurrency(adjustedProfit)}
-                                </span>
-                              </>
-                            ) : (
-                              <span className={`${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                Profit: {formatIndianCurrency(order.profit)}
-                              </span>
-                            )}
+                            <span className={`${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              Profit: {formatIndianCurrency(order.profit)}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -475,7 +512,28 @@ export default function PartyDetailPopup({
                               </p>
                             )}
                           </div>
-                          {!paymentItem.ledgerEntryId && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                createRipple(e)
+                                handleEditPayment(
+                                  paymentItem.payment.id,
+                                  paymentItem.payment.amount,
+                                  paymentItem.payment.note,
+                                  paymentItem.payment.date
+                                )
+                              }}
+                              disabled={isProcessing}
+                              className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 active:bg-blue-200 transition-colors touch-manipulation native-press disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Edit Payment"
+                              style={{
+                                WebkitTapHighlightColor: 'transparent',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              <Edit size={14} />
+                            </button>
                             <button
                               onClick={(e) => {
                                 createRipple(e)
@@ -492,12 +550,7 @@ export default function PartyDetailPopup({
                             >
                               <Trash2 size={14} />
                             </button>
-                          )}
-                          {paymentItem.ledgerEntryId && (
-                            <span className="text-[9px] text-gray-400 px-2 py-1 bg-gray-100 rounded" title="Linked to ledger entry - edit in ledger">
-                              From Ledger
-                            </span>
-                          )}
+                          </div>
                         </div>
                       </div>
                     )

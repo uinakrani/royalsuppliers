@@ -27,7 +27,7 @@ export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'entries' | 'timeline' | 'activity' | 'investment'>('entries')
@@ -59,15 +59,20 @@ export default function LedgerPage() {
   const [investmentNote, setInvestmentNote] = useState('')
   const [investmentMode, setInvestmentMode] = useState<'add' | 'reduce' | 'set'>('add')
 
+  const activeEntries = useMemo(
+    () => entries.filter((e) => !e.voided),
+    [entries]
+  )
+
   const balance = useMemo(() => {
-    const ledgerBalance = entries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
+    const ledgerBalance = activeEntries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
     return (investment?.amount || 0) + ledgerBalance
-  }, [entries, investment])
+  }, [activeEntries, investment])
 
   // Separate income (credit) and expenses (debit)
   // Sort by creation time (most recent first) - use createdAt, then date as fallback
   const incomeEntries = useMemo(() => {
-    return entries.filter(e => e.type === 'credit').sort((a, b) => {
+    return activeEntries.filter(e => e.type === 'credit').sort((a, b) => {
       const aTime = a.createdAt
         ? new Date(a.createdAt).getTime()
         : (a.date ? new Date(a.date).getTime() : 0)
@@ -76,10 +81,10 @@ export default function LedgerPage() {
         : (b.date ? new Date(b.date).getTime() : 0)
       return bTime - aTime // Descending order (newest first)
     })
-  }, [entries])
+  }, [activeEntries])
 
   const expenseEntries = useMemo(() => {
-    return entries.filter(e => e.type === 'debit').sort((a, b) => {
+    return activeEntries.filter(e => e.type === 'debit').sort((a, b) => {
       const aTime = a.createdAt
         ? new Date(a.createdAt).getTime()
         : (a.date ? new Date(a.date).getTime() : 0)
@@ -88,7 +93,7 @@ export default function LedgerPage() {
         : (b.date ? new Date(b.date).getTime() : 0)
       return bTime - aTime // Descending order (newest first)
     })
-  }, [entries])
+  }, [activeEntries])
 
   // Calculate totals
   const totalIncome = useMemo(() => {
@@ -99,21 +104,36 @@ export default function LedgerPage() {
     return expenseEntries.reduce((acc, e) => acc + e.amount, 0)
   }, [expenseEntries])
 
+  const getErrorMessage = (error: any) =>
+    error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+
+  const refreshEntries = async () => {
+    const latest = await ledgerService.list()
+    setEntries(latest)
+  }
+
   const load = async () => {
-    setLoading(true)
+    // Don't set loading true for initial load - data comes from local storage instantly
+    // Only show loading if we're forcing a refresh from server
     try {
       const [items, allInvoices, allOrders] = await Promise.all([
-        ledgerService.list(),
-        invoiceService.getAllInvoices(),
-        orderService.getAllOrders()
+        ledgerService.list({
+          preferRemote: true,
+          onRemoteUpdate: (fresh) => {
+            setEntries(fresh)
+            setLoading(false)
+          }
+        }),
+        invoiceService.getAllInvoices(undefined, { onRemoteUpdate: (fresh) => setInvoices(fresh) }),
+        orderService.getAllOrders(undefined, { onRemoteUpdate: (fresh) => setOrders(fresh) })
       ])
       setEntries(items)
       setInvoices(allInvoices)
       setOrders(allOrders)
+      setLoading(items.length === 0)
     } catch (error) {
       console.error('Failed to load ledger data:', error)
       setEntries([])
-    } finally {
       setLoading(false)
     }
   }
@@ -243,35 +263,51 @@ export default function LedgerPage() {
   }
 
   const handleSaveEntry = async (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => {
-    if (drawerMode === 'edit' && editingEntry?.id) {
-      const oldPartyName = editingEntry.partyName
-      const oldSupplier = editingEntry.supplier
-      const newPartyName = data.partyName?.trim() || undefined
-      const newSupplier = data.supplier?.trim() || undefined
+    try {
+      if (drawerMode === 'edit' && editingEntry?.id) {
+        const newPartyName = data.partyName?.trim() || undefined
+        const newSupplier = data.supplier?.trim() || undefined
 
-      await ledgerService.update(editingEntry.id, {
-        amount: data.amount,
-        date: data.date,
-        note: data.note,
-        supplier: newSupplier,
-        partyName: newPartyName,
-      })
+        await ledgerService.update(editingEntry.id, {
+          amount: data.amount,
+          date: data.date,
+          note: data.note,
+          supplier: newSupplier,
+          partyName: newPartyName,
+        })
+      } else {
+        // Optimistic UI add
+        const tempId = `temp-${Date.now()}`
+        const optimisticEntry: LedgerEntry = {
+          id: tempId,
+          type: drawerType,
+          amount: data.amount,
+          note: data.note,
+          source: 'manual',
+          date: data.date,
+          supplier: data.supplier,
+          partyName: data.partyName,
+          createdAt: new Date().toISOString(),
+        }
+        setEntries((prev) => [optimisticEntry, ...prev])
 
-      // No automatic distribution for income entries
-    } else {
-      const entryId = await ledgerService.addEntry(
-        drawerType,
-        data.amount,
-        data.note,
-        'manual',
-        data.date,
-        data.supplier,
-        data.partyName
-      )
+        await ledgerService.addEntry(
+          drawerType,
+          data.amount,
+          data.note,
+          'manual',
+          data.date,
+          data.supplier,
+          data.partyName,
+          { skipLocalWrite: true, useId: tempId }
+        )
+      }
 
-      
+      await refreshEntries()
+    } catch (error: any) {
+      showToast(getErrorMessage(error), 'error')
+      throw error
     }
-    // Drawer will close automatically on success
   }
 
   const distributeExpenseToOrders = async (entryId: string, expenseAmount: number, supplier: string, expenseDate: string) => {
@@ -690,12 +726,12 @@ export default function LedgerPage() {
       }
 
       await ledgerService.remove(entryToDelete)
-      // Entry will be removed from list automatically via realtime subscription
+      await refreshEntries()
       setDeleteSheetOpen(false)
       setEntryToDelete(null)
     } catch (error: any) {
-      // Error handling - could show error in bottom sheet or just log
       console.error('Failed to delete entry:', error)
+      showToast(getErrorMessage(error), 'error')
       setDeleteSheetOpen(false)
       setEntryToDelete(null)
     }
@@ -1073,11 +1109,13 @@ export default function LedgerPage() {
             }
 
             await ledgerService.remove(entryId)
+            await refreshEntries()
             // Close wizard after successful deletion
             setDrawerOpen(false)
             setEditingEntry(null)
           } catch (error: any) {
             console.error('Failed to delete entry:', error)
+            showToast(getErrorMessage(error), 'error')
             throw error
           }
         }}
