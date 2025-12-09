@@ -44,7 +44,7 @@ interface SupplierGroup {
   supplierName: string
   rawMaterialTotal: number // Sum of originalTotal for all orders
   totalAmount: number // Alias for rawMaterialTotal (kept for compatibility)
-  totalPaid: number // Total paid via order-direct payments + supplier ledger payments
+  totalPaid: number // Total paid including carting payments and supplier ledger payments
   remainingAmount: number // Amount still owed after all payments
   paidDirect: number // Payments added directly to orders (non-ledger)
   paidToSupplier: number // Payments recorded against supplier via ledger entries
@@ -1418,7 +1418,7 @@ function OrdersPageContent() {
         return sum + cartingTotal
       }, 0)
 
-      const totalPaid = totalPaidDirectly + totalPaidToSupplier
+      const totalPaid = totalPaidDirectly + totalPaidToSupplier + totalCartingPaid
       const remainingAmount = Math.max(0, rawMaterialTotal - totalPaid)
 
       // Track last payment date and amount

@@ -1448,6 +1448,7 @@ export default function LedgerPage() {
                     const badgeColors = isAddition
                       ? 'bg-green-100 text-green-700'
                       : 'bg-red-100 text-red-700'
+                    const effectiveDate = activity.date || activity.timestamp
 
                     return (
                       <div key={activity.id} className={`p-3 rounded-xl border shadow-sm ${cardColors}`}>
@@ -1465,26 +1466,38 @@ export default function LedgerPage() {
                           </span>
                         </div>
 
-                        <div className="pl-9 space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Amount</span>
+                        <div className="pl-9 space-y-1.5">
+                          <div className="flex justify-between text-xs text-gray-600">
+                            <span className="text-gray-500">Old amount</span>
                             <div className="flex items-center gap-2">
-                              {activity.previousAmount !== undefined && activity.previousAmount !== activity.amount && (
-                                <span className="text-gray-400 line-through text-xs">
-                                  {formatIndianCurrency(activity.previousAmount)}
-                                </span>
-                              )}
-                              <span className="font-bold text-gray-900">
-                                {formatIndianCurrency(activity.amount)}
+                              <span className="font-semibold text-gray-800">
+                                {formatIndianCurrency(previousAmount)}
                               </span>
+                              {activity.previousAmount === undefined && (
+                                <span className="text-[11px] text-gray-400">(initial)</span>
+                              )}
                             </div>
                           </div>
 
                           <div className="flex justify-between text-xs text-gray-600">
-                            <span className="text-gray-500">Change</span>
+                            <span className="text-gray-500">{changeLabel}</span>
                             <span className={`font-semibold ${isAddition ? 'text-green-700' : 'text-red-700'}`}>
                               {isAddition ? '+' : '-'}
                               {formatIndianCurrency(Math.abs(change))}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between text-xs text-gray-600">
+                            <span className="text-gray-500">Date</span>
+                            <span className="text-gray-700 font-medium">
+                              {format(new Date(effectiveDate), 'dd MMM yyyy')}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">New amount</span>
+                            <span className="font-bold text-gray-900">
+                              {formatIndianCurrency(activity.amount)}
                             </span>
                           </div>
 
@@ -1492,11 +1505,6 @@ export default function LedgerPage() {
                             <div className="flex justify-between text-xs text-gray-600">
                               <span className="text-gray-500">Note</span>
                               <div className="text-right">
-                                {activity.previousNote && activity.previousNote.trim() && activity.previousNote !== activity.note && (
-                                  <div className="text-gray-400 line-through">
-                                    {activity.previousNote}
-                                  </div>
-                                )}
                                 <div className="text-gray-800 font-medium">
                                   {activity.note}
                                 </div>
@@ -1504,20 +1512,10 @@ export default function LedgerPage() {
                             </div>
                           )}
 
-                          {(activity.previousDate !== undefined && activity.previousDate !== activity.date) && (
-                            <div className="flex justify-between text-xs">
-                              <span className="text-gray-500">Date Changed</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-400 line-through">
-                                  {format(new Date(activity.previousDate), 'dd MMM yyyy')}
-                                </span>
-                                <span>→</span>
-                                <span className="text-gray-700">
-                                  {format(new Date(activity.date), 'dd MMM yyyy')}
-                                </span>
-                              </div>
-                            </div>
-                          )}
+                          <div className="flex justify-between text-[11px] text-gray-500">
+                            <span>Logged</span>
+                            <span>{format(new Date(activity.timestamp), 'dd MMM yyyy HH:mm')}</span>
+                          </div>
                         </div>
                       </div>
                     )
