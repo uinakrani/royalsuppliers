@@ -48,7 +48,10 @@ export default function InvoicesPage() {
   }, [invoices, filters])
 
   const loadInvoices = async () => {
-    setLoading(true)
+    // Don't set loading true for initial load - data comes from local storage instantly
+    // Only show loading if we're forcing a refresh from server
+    const isRefresh = loading // If already loading, this is a refresh
+    if (isRefresh) setLoading(true)
     try {
       const allInvoices = await invoiceService.getAllInvoices()
       setInvoices(allInvoices)

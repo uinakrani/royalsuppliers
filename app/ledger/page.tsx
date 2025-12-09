@@ -57,7 +57,7 @@ export default function LedgerPage() {
   const [investmentAmount, setInvestmentAmount] = useState('')
   const [investmentDate, setInvestmentDate] = useState('')
   const [investmentNote, setInvestmentNote] = useState('')
-  const [investmentMode, setInvestmentMode] = useState<'add' | 'reduce' | 'set'>('add')
+  const [investmentMode, setInvestmentMode] = useState<'add' | 'reduce'>('add')
 
   const activeEntries = useMemo(
     () => entries.filter((e) => !e.voided),
@@ -68,6 +68,19 @@ export default function LedgerPage() {
     const ledgerBalance = activeEntries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
     return (investment?.amount || 0) + ledgerBalance
   }, [activeEntries, investment])
+
+  const projectedInvestment = useMemo(() => {
+    const current = investment?.amount || 0
+    const entered = parseFloat(investmentAmount)
+
+    if (!investmentAmount || isNaN(entered) || entered < 0) {
+      return current
+    }
+
+    return investmentMode === 'add'
+      ? current + entered
+      : Math.max(0, current - entered)
+  }, [investmentAmount, investmentMode, investment])
 
   // Separate income (credit) and expenses (debit)
   // Sort by creation time (most recent first) - use createdAt, then date as fallback
@@ -151,22 +164,17 @@ export default function LedgerPage() {
     }
   }
 
-  const openInvestmentDrawer = () => {
-    setInvestmentMode('add')
+  const openInvestmentDrawer = (mode: 'add' | 'reduce' = 'add') => {
+    setInvestmentMode(mode)
     setInvestmentAmount('')
     setInvestmentDate(new Date().toISOString().split('T')[0])
     setInvestmentNote('')
     setShowInvestmentDrawer(true)
   }
 
-  const handleModeChange = (mode: 'add' | 'reduce' | 'set') => {
+  const handleModeChange = (mode: 'add' | 'reduce') => {
     setInvestmentMode(mode)
-    if (mode === 'set' && investment) {
-      setInvestmentAmount(investment.amount.toString())
-      // Keep today's date for 'set' as well, as it's a new state update
-    } else {
-      setInvestmentAmount('')
-    }
+    setInvestmentAmount('')
   }
 
   useEffect(() => {
@@ -213,25 +221,35 @@ export default function LedgerPage() {
   }, [activeTab, startDate, endDate])
 
   const handleSaveInvestment = async () => {
-    // Automatically use today's date
-    const today = new Date().toISOString().split('T')[0]
-    
     if (!investmentAmount) {
       showToast('Please fill in amount', 'error')
       return
     }
 
+    if (!investmentDate) {
+      showToast('Please select a date', 'error')
+      return
+    }
+
+    const trimmedNote = investmentNote.trim()
+    if (!trimmedNote) {
+      showToast('Please add a note for this change', 'error')
+      return
+    }
+
+    const entered = parseFloat(investmentAmount)
+    if (isNaN(entered) || entered <= 0) {
+      showToast('Please enter a valid amount', 'error')
+      return
+    }
+
     try {
-      const entered = parseFloat(investmentAmount)
       const current = investment?.amount || 0
       const nextAmount = investmentMode === 'add'
         ? current + entered
-        : investmentMode === 'reduce'
-          ? Math.max(0, current - entered)
-          : entered
+        : Math.max(0, current - entered)
 
-      // Use 'today' instead of 'investmentDate' state
-      await investmentService.setInvestment(nextAmount, today, investmentNote)
+      await investmentService.setInvestment(nextAmount, investmentDate, trimmedNote)
 
       showToast('Investment updated successfully', 'success')
       setShowInvestmentDrawer(false)
@@ -1256,29 +1274,6 @@ export default function LedgerPage() {
                 />
               </div>
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleModeChange('add')}
-                className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'add' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
-              >
-                Add Investment
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('reduce')}
-                className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'reduce' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
-              >
-                Reduce Amount
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('set')}
-                className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'set' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
-              >
-                Set Exact Value
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -1359,7 +1354,7 @@ export default function LedgerPage() {
           </div>
         ) : activeTab === 'investment' ? (
           /* Investment Tab */
-          <div className="flex-1 overflow-y-auto p-3 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex-1 overflow-y-auto p-3 space-y-4 pb-28" style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
             {/* Current Investment Card */}
             <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -1374,15 +1369,26 @@ export default function LedgerPage() {
                     </div>
                     <h3 className="text-lg font-bold text-white">Current Investment</h3>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      createRipple(e)
-                      openInvestmentDrawer()
-                    }}
-                    className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm"
-                  >
-                    <Edit2 size={18} className="text-white" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        createRipple(e)
+                        openInvestmentDrawer('add')
+                      }}
+                      className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm text-sm font-semibold"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        createRipple(e)
+                        openInvestmentDrawer('reduce')
+                      }}
+                      className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm text-sm font-semibold"
+                    >
+                      Reduce
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mb-4">
@@ -1431,55 +1437,91 @@ export default function LedgerPage() {
                     No history available
                   </div>
                 ) : (
-                  investmentHistory.map((activity) => (
-                    <div key={activity.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${activity.activityType === 'created' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                            }`}>
-                            {activity.activityType === 'created' ? <Plus size={14} /> : <Edit2 size={14} />}
-                          </div>
-                          <span className="font-medium text-gray-900 text-sm capitalize">
-                            Investment {activity.activityType}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {format(new Date(activity.timestamp), 'dd MMM HH:mm')}
-                        </span>
-                      </div>
+                  investmentHistory.map((activity) => {
+                    const previousAmount = activity.previousAmount ?? 0
+                    const change = activity.amount - previousAmount
+                    const isAddition = change >= 0
+                    const changeLabel = isAddition ? 'Added' : 'Reduced'
+                    const cardColors = isAddition
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-red-50 border-red-200'
+                    const badgeColors = isAddition
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
 
-                      <div className="pl-9 space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Amount</span>
+                    return (
+                      <div key={activity.id} className={`p-3 rounded-xl border shadow-sm ${cardColors}`}>
+                        <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            {activity.previousAmount !== undefined && activity.previousAmount !== activity.amount && (
-                              <span className="text-gray-400 line-through text-xs">
-                                {formatIndianCurrency(activity.previousAmount)}
-                              </span>
-                            )}
-                            <span className="font-bold text-gray-900">
-                              {formatIndianCurrency(activity.amount)}
+                            <div className={`p-1.5 rounded-lg ${badgeColors}`}>
+                              {isAddition ? <Plus size={14} /> : <MinusCircle size={14} />}
+                            </div>
+                            <span className="font-semibold text-sm text-gray-900">
+                              Investment {changeLabel}
                             </span>
                           </div>
+                          <span className="text-xs text-gray-500">
+                            {format(new Date(activity.timestamp), 'dd MMM HH:mm')}
+                          </span>
                         </div>
 
-                        {(activity.previousDate !== undefined && activity.previousDate !== activity.date) && (
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-500">Date Changed</span>
+                        <div className="pl-9 space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Amount</span>
                             <div className="flex items-center gap-2">
-                              <span className="text-gray-400 line-through">
-                                {format(new Date(activity.previousDate), 'dd MMM yyyy')}
-                              </span>
-                              <span>→</span>
-                              <span className="text-gray-700">
-                                {format(new Date(activity.date), 'dd MMM yyyy')}
+                              {activity.previousAmount !== undefined && activity.previousAmount !== activity.amount && (
+                                <span className="text-gray-400 line-through text-xs">
+                                  {formatIndianCurrency(activity.previousAmount)}
+                                </span>
+                              )}
+                              <span className="font-bold text-gray-900">
+                                {formatIndianCurrency(activity.amount)}
                               </span>
                             </div>
                           </div>
-                        )}
+
+                          <div className="flex justify-between text-xs text-gray-600">
+                            <span className="text-gray-500">Change</span>
+                            <span className={`font-semibold ${isAddition ? 'text-green-700' : 'text-red-700'}`}>
+                              {isAddition ? '+' : '-'}
+                              {formatIndianCurrency(Math.abs(change))}
+                            </span>
+                          </div>
+
+                          {activity.note && (
+                            <div className="flex justify-between text-xs text-gray-600">
+                              <span className="text-gray-500">Note</span>
+                              <div className="text-right">
+                                {activity.previousNote && activity.previousNote.trim() && activity.previousNote !== activity.note && (
+                                  <div className="text-gray-400 line-through">
+                                    {activity.previousNote}
+                                  </div>
+                                )}
+                                <div className="text-gray-800 font-medium">
+                                  {activity.note}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {(activity.previousDate !== undefined && activity.previousDate !== activity.date) && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-500">Date Changed</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400 line-through">
+                                  {format(new Date(activity.previousDate), 'dd MMM yyyy')}
+                                </span>
+                                <span>→</span>
+                                <span className="text-gray-700">
+                                  {format(new Date(activity.date), 'dd MMM yyyy')}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>
@@ -1570,6 +1612,67 @@ export default function LedgerPage() {
         </div>
       )}
 
+      {/* Investment Buttons Bar */}
+      {activeTab === 'investment' && (
+        <div
+          className="fixed left-0 right-0 z-30 flex items-end justify-center"
+          style={{
+            bottom: '5.25rem',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
+            style={{
+              padding: '0.75rem',
+              boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  openInvestmentDrawer('add')
+                }}
+                className="flex-1 bg-amber-600 text-white rounded-xl active:bg-amber-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  fontSize: '14px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                title="Add Investment"
+                aria-label="Add Investment"
+              >
+                <Plus size={18} />
+                <span>Add</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  openInvestmentDrawer('reduce')
+                }}
+                className="flex-1 bg-gray-800 text-white rounded-xl active:bg-gray-900 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  fontSize: '14px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                title="Reduce Investment"
+                aria-label="Reduce Investment"
+              >
+                <MinusCircle size={18} />
+                <span>Reduce</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Bottom Sheet */}
       <BottomSheet
         isOpen={deleteSheetOpen}
@@ -1589,8 +1692,8 @@ export default function LedgerPage() {
       <BottomSheet
         isOpen={showInvestmentDrawer}
         onClose={() => setShowInvestmentDrawer(false)}
-        title="Update Investment"
-        confirmText="Save"
+        title={investmentMode === 'reduce' ? 'Reduce Investment' : 'Add Investment'}
+        confirmText={investmentMode === 'reduce' ? 'Reduce' : 'Add'}
         cancelText="Cancel"
         onConfirm={handleSaveInvestment}
         confirmColor="amber"
@@ -1598,7 +1701,7 @@ export default function LedgerPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Investment Amount
+              {investmentMode === 'reduce' ? 'Amount to reduce' : 'Amount to add'}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
@@ -1610,33 +1713,25 @@ export default function LedgerPage() {
                 placeholder="0"
               />
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => handleModeChange('add')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'add' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
-                Add Investment
+                Add
               </button>
               <button
                 type="button"
                 onClick={() => handleModeChange('reduce')}
                 className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'reduce' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
               >
-                Reduce Amount
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('set')}
-                className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'set' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
-              >
-                Set Exact Value
+                Reduce
               </button>
             </div>
           </div>
 
-          {/* Date field removed as per requirement */}
-          {/* <div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date
             </label>
@@ -1646,11 +1741,30 @@ export default function LedgerPage() {
               onChange={(e) => setInvestmentDate(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
             />
-          </div> */}
+          </div>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-1">
+            <div className="flex justify-between text-xs text-amber-800">
+              <span>Current total</span>
+              <span className="font-semibold">{formatIndianCurrency(investment?.amount || 0)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-amber-800">
+              <span>{investmentMode === 'reduce' ? 'Reduction' : 'Addition'}</span>
+              <span className="font-semibold">
+                {investmentAmount && !isNaN(parseFloat(investmentAmount))
+                  ? `${investmentMode === 'reduce' ? '-' : '+'}${formatIndianCurrency(Math.abs(parseFloat(investmentAmount)))}`
+                  : '-'}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm font-semibold text-amber-900 border-t border-amber-100 pt-2">
+              <span>Total after this change</span>
+              <span>{formatIndianCurrency(projectedInvestment)}</span>
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Note (Optional)
+              Note (required)
             </label>
             <textarea
               value={investmentNote}
