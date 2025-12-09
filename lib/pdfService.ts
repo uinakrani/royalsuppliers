@@ -249,7 +249,7 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   // Table header - calculate column positions to fit within page width
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(100, 100, 100)
+  doc.setTextColor(80, 80, 80)
   
   // Calculate column positions based on available width
   const infoLeft = contentX
@@ -258,36 +258,36 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional) - adjusted to include date
-  const dateWidth = tableWidth * 0.15      // 15% for date
-  const materialWidth = tableWidth * 0.30  // 30% for material
-  const weightWidth = tableWidth * 0.18    // 18% for weight
-  const rateWidth = tableWidth * 0.18      // 18% for rate
-  const totalWidth = tableWidth * 0.19     // 19% for total
+  // Column widths (proportional) - adjusted to include challan number
+  const dateWidth = tableWidth * 0.14       // 14% for date
+  const challanWidth = tableWidth * 0.14    // 14% for challan number
+  const materialWidth = tableWidth * 0.28   // 28% for material
+  const weightWidth = tableWidth * 0.14     // 14% for weight
+  const rateWidth = tableWidth * 0.15       // 15% for rate
+  const totalWidth = tableWidth * 0.15      // 15% for total
 
   const dateX = tableStartX
-  const materialX = dateX + dateWidth
+  const challanX = dateX + dateWidth
+  const materialX = challanX + challanWidth
   const weightX = materialX + materialWidth
   const rateX = weightX + weightWidth
   const totalX = rateX + rateWidth
   
-  // Draw top border for table header
+  // Header background and borders
+  doc.setFillColor(245, 247, 250)
   doc.setDrawColor(0, 0, 0)
   doc.setLineWidth(0.5)
   const headerTopY = yPos - 4
-  doc.line(tableStartX, headerTopY, tableStartX + tableWidth, headerTopY)
-  
-  // Draw bottom border for table header
   const headerBottomY = yPos + 4
+  doc.rect(tableStartX, headerTopY, tableWidth, headerBottomY - headerTopY, 'F')
+  doc.line(tableStartX, headerTopY, tableStartX + tableWidth, headerTopY)
   doc.line(tableStartX, headerBottomY, tableStartX + tableWidth, headerBottomY)
   
   // Calculate center Y position between borders for vertical centering
-  // Account for text baseline - font size 9 has approximately 3.2mm height
-  // Border height is 8mm (from -4 to +4), so center is at yPos
-  // Text baseline should be slightly below center to account for text metrics
   const headerCenterY = (headerTopY + headerBottomY) / 2 + 1.5
   
   doc.text('Date', dateX, headerCenterY, { charSpace: 0 })
+  doc.text('Challan No', challanX + challanWidth / 2, headerCenterY, { align: 'center', charSpace: 0 })
   doc.text('Material', materialX, headerCenterY, { charSpace: 0 })
   doc.text('Weight', weightX + weightWidth, headerCenterY, { charSpace: 0, align: 'right' })
   doc.text('Rate', rateX + rateWidth, headerCenterY, { charSpace: 0, align: 'right' })
@@ -311,10 +311,12 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
     const textOptions = { charSpace: 0 }
     const rowStartY = yPos
     
-    // Add order date
+    // Add order date and challan number
     const orderDateObj = new Date(order.date)
     const formattedDate = format(orderDateObj, 'dd MMM yyyy')
+    const challanDisplay = order.challanNo !== undefined && order.challanNo !== null ? String(order.challanNo) : '-'
     doc.text(formattedDate, dateX, yPos, textOptions)
+    doc.text(challanDisplay, challanX + challanWidth / 2, yPos, { align: 'center', charSpace: 0 })
     
     if (Array.isArray(materialLines)) {
       materialLines.forEach((line: string, index: number) => {
@@ -340,6 +342,15 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
   // Summary Section - moved to bottom right
   const summaryX = infoRight
   let summaryY = totalsY
+  
+  // Soft card background for totals
+  const summaryBoxWidth = 90
+  const summaryBoxHeight = 34 + (order.profit < 0 ? 8 : 0)
+  const summaryBoxY = totalsY - 6
+  doc.setFillColor(248, 249, 252)
+  doc.setDrawColor(230, 230, 230)
+  doc.rect(summaryX - summaryBoxWidth, summaryBoxY, summaryBoxWidth, summaryBoxHeight, 'FD')
+  doc.setTextColor(30, 30, 30)
   
   // Subtotal
   doc.setFontSize(12)
@@ -381,6 +392,13 @@ export const generateInvoicePDF = async (order: Order): Promise<void> => {
 
 export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void> => {
   if (orders.length === 0) return
+
+  // Oldest orders first so latest appear at the bottom of the PDF
+  const sortedOrders = [...orders].sort((a, b) => {
+    const aDate = new Date(a.date).getTime()
+    const bDate = new Date(b.date).getTime()
+    return aDate - bDate
+  })
   
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -410,7 +428,7 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   let yPos = logoY + logoHeight // Start immediately after logo with no extra spacing
   
   // ROYAL and timestamp above date
-  const firstOrderDate = orders[0].createdAt ? new Date(orders[0].createdAt) : new Date(orders[0].date)
+  const firstOrderDate = sortedOrders[0].createdAt ? new Date(sortedOrders[0].createdAt) : new Date(sortedOrders[0].date)
   const timestamp = format(firstOrderDate, 'yyMMddHHmm') // YYMMDDHHMM format
   const royalTimestamp = `ROYAL${timestamp}`
   
@@ -423,7 +441,7 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   // Billed to and From sections side by side
   const leftColX = contentX
   const rightColX = contentX + (contentWidth / 2) + 20
-  const partyName = orders[0].partyName
+  const partyName = sortedOrders[0].partyName
   
   // Save start Y for alignment
   const sectionStartY = yPos
@@ -442,7 +460,7 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   
   const addresses = Array.from(
     new Set(
-      orders
+      sortedOrders
         .map(o => (o.siteName || '').trim())
         .filter(addr => addr && addr.length > 0)
     )
@@ -450,8 +468,8 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   
   if (addresses.length === 0) {
     // No address found in orders, keep existing behavior using first order site if available
-    if (orders[0].siteName) {
-      doc.text((orders[0].siteName || '').trim(), leftColX, yPos, { charSpace: 0 })
+    if (sortedOrders[0].siteName) {
+      doc.text((sortedOrders[0].siteName || '').trim(), leftColX, yPos, { charSpace: 0 })
       yPos += 6
     }
   } else {
@@ -486,36 +504,36 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   const tableEndX = infoRight
   const tableWidth = tableEndX - tableStartX
   
-  // Column widths (proportional) - adjusted to include date
-  const dateWidth = tableWidth * 0.15      // 15% for date
-  const materialWidth = tableWidth * 0.30  // 30% for material
-  const weightWidth = tableWidth * 0.18    // 18% for weight
-  const rateWidth = tableWidth * 0.18      // 18% for rate
-  const totalWidth = tableWidth * 0.19     // 19% for total
+  // Column widths (proportional) - adjusted to include challan number
+  const dateWidth = tableWidth * 0.14       // 14% for date
+  const challanWidth = tableWidth * 0.14    // 14% for challan number
+  const materialWidth = tableWidth * 0.28   // 28% for material
+  const weightWidth = tableWidth * 0.14     // 14% for weight
+  const rateWidth = tableWidth * 0.15       // 15% for rate
+  const totalWidth = tableWidth * 0.15      // 15% for total
 
   const dateX = tableStartX
-  const materialX = dateX + dateWidth
+  const challanX = dateX + dateWidth
+  const materialX = challanX + challanWidth
   const weightX = materialX + materialWidth
   const rateX = weightX + weightWidth
   const totalX = rateX + rateWidth
   
-  // Draw top border for table header
+  // Header background and borders
+  doc.setFillColor(245, 247, 250)
   doc.setDrawColor(0, 0, 0)
   doc.setLineWidth(0.5)
   const headerTopY = yPos - 4
-  doc.line(tableStartX, headerTopY, tableStartX + tableWidth, headerTopY)
-  
-  // Draw bottom border for table header
   const headerBottomY = yPos + 4
+  doc.rect(tableStartX, headerTopY, tableWidth, headerBottomY - headerTopY, 'F')
+  doc.line(tableStartX, headerTopY, tableStartX + tableWidth, headerTopY)
   doc.line(tableStartX, headerBottomY, tableStartX + tableWidth, headerBottomY)
   
   // Calculate center Y position between borders for vertical centering
-  // Account for text baseline - font size 9 has approximately 3.2mm height
-  // Border height is 8mm (from -4 to +4), so center is at yPos
-  // Text baseline should be slightly below center to account for text metrics
   const headerCenterY = (headerTopY + headerBottomY) / 2 + 1.5
   
   doc.text('Date', dateX, headerCenterY, { charSpace: 0 })
+  doc.text('Challan No', challanX + challanWidth / 2, headerCenterY, { align: 'center', charSpace: 0 })
   doc.text('Material', materialX, headerCenterY, { charSpace: 0 })
   doc.text('Weight', weightX + weightWidth, headerCenterY, { charSpace: 0, align: 'right' })
   doc.text('Rate', rateX + rateWidth, headerCenterY, { charSpace: 0, align: 'right' })
@@ -530,7 +548,7 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
   
   let totalAmount = 0
   
-  for (const order of orders) {
+  for (const order of sortedOrders) {
     // Check if we need a new page
     if (yPos > pageHeight - 100) {
       doc.addPage()
@@ -550,10 +568,12 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
     const textOptions = { charSpace: 0 }
     const rowStartY = yPos
     
-    // Add order date
+    // Add order date and challan number
     const orderDateObj = new Date(order.date)
     const formattedDate = format(orderDateObj, 'dd MMM yyyy')
+    const challanDisplay = order.challanNo !== undefined && order.challanNo !== null ? String(order.challanNo) : '-'
     doc.text(formattedDate, dateX, yPos, textOptions)
+    doc.text(challanDisplay, challanX + challanWidth / 2, yPos, { align: 'center', charSpace: 0 })
     
     if (Array.isArray(materialLines)) {
       materialLines.forEach((line: string, index: number) => {
@@ -565,6 +585,10 @@ export const generateMultipleInvoicesPDF = async (orders: Order[]): Promise<void
     doc.text(order.weight.toFixed(2), weightX + weightWidth, yPos, { charSpace: 0, align: 'right' })
     doc.text(`Rs.${formatIndianCurrency(order.rate)}`, rateX + rateWidth, yPos, { charSpace: 0, align: 'right' })
     doc.text(`Rs.${formatIndianCurrency(order.total)}`, totalX + totalWidth, yPos, { charSpace: 0, align: 'right' })
+    
+    // Row separator for readability
+    doc.setDrawColor(230, 230, 230)
+    doc.line(tableStartX, yPos + 2, tableStartX + tableWidth, yPos + 2)
     
     // Adjust yPos if material name wrapped to multiple lines
     const rowHeight = Math.max(7, materialLines.length * 7)
