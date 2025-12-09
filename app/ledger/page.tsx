@@ -117,20 +117,19 @@ export default function LedgerPage() {
     // Only show loading if we're forcing a refresh from server
     try {
       const [items, allInvoices, allOrders] = await Promise.all([
-        ledgerService.list({
-          preferRemote: true,
-          onRemoteUpdate: (fresh) => {
-            setEntries(fresh)
-            setLoading(false)
-          }
-        }),
+      ledgerService.list({
+        preferRemote: true,
+        onRemoteUpdate: (fresh) => {
+          setEntries(fresh)
+        }
+      }),
         invoiceService.getAllInvoices(undefined, { onRemoteUpdate: (fresh) => setInvoices(fresh) }),
         orderService.getAllOrders(undefined, { onRemoteUpdate: (fresh) => setOrders(fresh) })
       ])
       setEntries(items)
       setInvoices(allInvoices)
       setOrders(allOrders)
-      setLoading(items.length === 0)
+      setLoading(false)
     } catch (error) {
       console.error('Failed to load ledger data:', error)
       setEntries([])
