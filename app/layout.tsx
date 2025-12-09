@@ -56,7 +56,7 @@ export default function RootLayout({
         <link rel="icon" href="/logo.jpg" />
         <link rel="apple-touch-icon" href="/logo.jpg" />
         <link rel="apple-touch-icon" sizes="192x192" href="/logo.jpg" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/top-logo.jpg" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/logo.jpg" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
