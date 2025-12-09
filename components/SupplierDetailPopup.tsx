@@ -137,10 +137,14 @@ export default function SupplierDetailPopup({
     const directPayments = existingPayments.filter(p => !p.ledgerEntryId)
     const ledgerEntryIds = new Set(group.ledgerPayments.map(p => p.entry.id).filter(Boolean))
     const ledgerCartingPayments = existingPayments.filter(p => p.ledgerEntryId && !ledgerEntryIds.has(p.ledgerEntryId))
-    const cartingTotal = directPayments.reduce((s, p) => s + Number(p.amount || 0), 0) +
-                        ledgerCartingPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+    const cartingTotal =
+      directPayments.reduce((s, p) => s + Number(p.amount || 0), 0) +
+      ledgerCartingPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
     return sum + cartingTotal
   }, 0)
+
+  // Amount supplier is owed after only deducting carting payments
+  const supplierPayableAfterCarting = Math.max(0, rawMaterialTotal - totalCartingPaid)
 
   const totalPaid = paidDirectTotal + paidToSupplierTotal + totalCartingPaid
   const owedAmount = Math.max(0, rawMaterialTotal - totalPaid)
@@ -545,41 +549,15 @@ export default function SupplierDetailPopup({
                     </div>
                   </div>
                 </div>
-                  {(() => {
-                    // Calculate total ledger entry amount vs total distributed to orders
-                    const totalLedgerEntryAmount = group.ledgerPayments.reduce((sum, p) => sum + Number(p.entry.amount || 0), 0)
-                    const totalDistributedToOrders = group.orders.reduce((sum, order) => {
-                      const ledgerPayments = (order.partialPayments || []).filter(p => {
-                        const ledgerEntryIds = new Set(group.ledgerPayments.map(p => p.entry.id).filter(Boolean))
-                        return p.ledgerEntryId && ledgerEntryIds.has(p.ledgerEntryId)
-                      })
-                      return sum + ledgerPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
-                    }, 0)
-                    const undistributedAmount = totalLedgerEntryAmount - totalDistributedToOrders
-                    
-                    if (Math.abs(undistributedAmount) > 0.01) {
-                      return (
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <div className="flex justify-between items-center text-xs mb-1">
-                            <span className="text-gray-600">Distributed to Orders:</span>
-                            <span className="font-semibold text-blue-600">{formatIndianCurrency(totalDistributedToOrders)}</span>
-                          </div>
-                          {undistributedAmount > 0 && (
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="text-gray-600">Undistributed Amount:</span>
-                              <span className="font-semibold text-orange-600">{formatIndianCurrency(undistributedAmount)}</span>
-                            </div>
-                          )}
-                          <div className="text-xs text-gray-600 mt-1.5 px-2 py-1 bg-orange-50 rounded">
-                            {undistributedAmount > 0 
-                              ? `Not enough unpaid orders to distribute full amount`
-                              : `Over-distributed - check for errors`}
-                          </div>
-                        </div>
-                      )
-                    }
-                    return null
-                  })()}
+                  <div className="flex justify-between items-center pt-2 mt-1 border-t border-gray-200">
+                    <span className="text-sm text-gray-700 font-medium">Payable (after carting)</span>
+                    <span className="text-base font-bold text-gray-900">
+                      {formatIndianCurrency(supplierPayableAfterCarting)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    (Raw material cost minus carting payments)
+                  </div>
                 </div>
                 
                 <div className="py-2.5 border-b border-gray-200">
