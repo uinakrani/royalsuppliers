@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { orderService, isOrderPaid, isCustomerPaid, PAYMENT_TOLERANCE } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
 import { partyPaymentService } from '@/lib/partyPaymentService'
@@ -176,9 +176,7 @@ function OrdersPageContent() {
           loadPartyNames(),
           loadLedgerEntries()
         ])
-        if (loading) {
-          setLoading(false)
-        }
+        setLoading(false)
       } catch (error) {
         console.error('Error initializing data:', error)
         setLoading(false)
@@ -307,7 +305,7 @@ function OrdersPageContent() {
 
 
   // Helper function to apply filters to orders
-  const applyFiltersToOrders = (ordersToFilter: Order[]) => {
+  const applyFiltersToOrders = useCallback((ordersToFilter: Order[]) => {
     let filtered = [...ordersToFilter]
 
     // Apply inline party filter (takes highest priority)
@@ -371,25 +369,13 @@ function OrdersPageContent() {
     filtered.sort((a, b) => getTime(b) - getTime(a))
 
     return filtered
-  }
+  }, [filters, selectedPartyTags, inlinePartyFilter, inlineMaterialFilter])
 
   // Apply filters whenever orders, filters, selectedPartyTags, or inline filters change
   useEffect(() => {
     const filtered = applyFiltersToOrders(orders)
     setFilteredOrders(filtered)
-  }, [orders, filters, selectedPartyTags, inlinePartyFilter, inlineMaterialFilter])
-
-  // Refresh selected supplier group when orders change (for direct payment updates)
-  useEffect(() => {
-    if (selectedSupplierGroup?.supplierName && showSupplierDetailDrawer) {
-      const updated = getSupplierGroups().find(
-        g => g.supplierName === selectedSupplierGroup.supplierName
-      )
-      if (updated) {
-        setSelectedSupplierGroup(updated)
-      }
-    }
-  }, [orders, ledgerEntries, selectedSupplierGroup?.supplierName, showSupplierDetailDrawer])
+  }, [orders, applyFiltersToOrders])
 
   // Refresh supplier groups when ledger entries change (for supplier payment updates)
   useEffect(() => {
@@ -599,8 +585,8 @@ function OrdersPageContent() {
       const dateInput = await sweetAlert.prompt({
         title: 'Payment Date',
         inputLabel: 'Date',
-        inputType: 'date',
-        defaultValue: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+        inputType: 'text',
+        inputValue: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
         confirmText: 'Add Payment',
         cancelText: 'Cancel',
       })
@@ -1387,7 +1373,7 @@ function OrdersPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, filteredOrders, selectedPartyGroup, showPartyDetailDrawer])
 
-  const getSupplierGroups = (): SupplierGroup[] => {
+  const getSupplierGroups = useCallback((): SupplierGroup[] => {
     // Group orders by supplier
     const supplierMap = new Map<string, Order[]>()
     filteredOrders.forEach(order => {
@@ -1496,7 +1482,19 @@ function OrdersPageContent() {
       const bLastDate = safeGetTime(b.lastPaymentDate)
       return bLastDate - aLastDate
     })
-  }
+  }, [filteredOrders, ledgerEntries])
+
+  // Refresh selected supplier group when orders change (for direct payment updates)
+  useEffect(() => {
+    if (selectedSupplierGroup?.supplierName && showSupplierDetailDrawer) {
+      const updated = getSupplierGroups().find(
+        g => g.supplierName === selectedSupplierGroup.supplierName
+      )
+      if (updated) {
+        setSelectedSupplierGroup(updated)
+      }
+    }
+  }, [selectedSupplierGroup?.supplierName, showSupplierDetailDrawer, getSupplierGroups])
 
   const handleSupplierGroupClick = (group: SupplierGroup) => {
     setSelectedSupplierGroup(group)
@@ -1884,10 +1882,7 @@ function OrdersPageContent() {
 
                             await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
                             showToast('Payment added successfully!', 'success')
-                            await Promise.all([
-                              loadPartyPayments(),
-                              loadOrders(),
-                            ])
+                            await loadOrders()
                           } catch (error: any) {
                             if (error?.message && !error.message.includes('SweetAlert')) {
                               showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
@@ -2460,7 +2455,7 @@ function OrdersPageContent() {
             setSelectedOrderDetail(order)
             setShowOrderDetailDrawer(true)
           }}
-          onPaymentAdded={() => {
+          onPaymentAdded={async () => {
             // Ledger subscription handles data updates, just refresh selected group
             if (selectedPartyGroup?.partyName) {
               const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)
@@ -2469,7 +2464,7 @@ function OrdersPageContent() {
               }
             }
           }}
-          onPaymentRemoved={() => {
+          onPaymentRemoved={async () => {
             // Ledger subscription handles data updates, just refresh selected group
             if (selectedPartyGroup?.partyName) {
               const updatedGroup = getPartyGroups().find(g => g.partyName === selectedPartyGroup.partyName)

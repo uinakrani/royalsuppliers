@@ -134,7 +134,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
         inputPlaceholder: 'Enter amount',
         inputType: 'text',
         formatCurrencyInr: true,
-        defaultValue: String(currentAmount),
+        inputValue: String(currentAmount),
         confirmText: 'Save',
         cancelText: 'Cancel'
       })
@@ -155,7 +155,7 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
         required: false,
         confirmText: 'Save',
         cancelText: 'Skip',
-        defaultValue: currentNote || ''
+        inputValue: currentNote || ''
       })
 
       setIsProcessing(true)
@@ -409,7 +409,6 @@ export default function PartyDetailDrawer({ group, isOpen, onClose, onEditOrder,
                 >
                   Add Payment
                 </Button>
-              </div>
             </div>
             {group.payments.length > 0 ? (
               <div className="space-y-2">
