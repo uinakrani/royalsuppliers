@@ -22,6 +22,7 @@ import LedgerTimelineView from '@/components/LedgerTimelineView'
 
 import { invoiceService } from '@/lib/invoiceService'
 import { Invoice } from '@/types/invoice'
+import AuthGate from '@/components/AuthGate'
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([])
@@ -1138,7 +1139,8 @@ export default function LedgerPage() {
   }
 
   return (
-    <div className="bg-gray-50" style={{
+    <AuthGate>
+      <div className="bg-gray-50" style={{
       height: '100dvh',
       minHeight: '100dvh',
       display: 'flex',
@@ -1772,8 +1774,9 @@ export default function LedgerPage() {
         </div>
       </BottomSheet>
 
-      <NavBar />
-    </div>
+        <NavBar />
+      </div>
+    </AuthGate>
   )
 }
 

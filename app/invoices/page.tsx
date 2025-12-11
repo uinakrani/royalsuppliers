@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { invoiceService } from '@/lib/invoiceService'
 import { orderService } from '@/lib/orderService'
 import { generateInvoicePDF, generateMultipleInvoicesPDF } from '@/lib/pdfService'
@@ -17,6 +17,7 @@ import TruckLoading from '@/components/TruckLoading'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { createRipple } from '@/lib/rippleEffect'
+import AuthGate from '@/components/AuthGate'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -37,17 +38,7 @@ export default function InvoicesPage() {
   const [filterPaid, setFilterPaid] = useState<string>('')
   const [filterOverdue, setFilterOverdue] = useState<string>('')
 
-  useEffect(() => {
-    loadInvoices()
-    loadPartyNames()
-  }, [])
-
-  useEffect(() => {
-    applyFilters()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, filters])
-
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
     // Don't set loading true for initial load - data comes from local storage instantly
     // Only show loading if we're forcing a refresh from server
     const isRefresh = loading // If already loading, this is a refresh
@@ -75,16 +66,26 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loading])
 
-  const loadPartyNames = async () => {
+  const loadPartyNames = useCallback(async () => {
     try {
       const uniquePartyNames = await invoiceService.getUniquePartyNames()
       setPartyNames(uniquePartyNames)
     } catch (error) {
       console.error('Error loading party names:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadInvoices()
+    loadPartyNames()
+  }, [loadInvoices, loadPartyNames])
+
+  useEffect(() => {
+    applyFilters()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices, filters])
 
   const applyFilters = () => {
     let filtered = [...invoices]
@@ -276,35 +277,38 @@ export default function InvoicesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-        <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40">
-          <div className="flex justify-between items-center">
-            <h1 className="text-xl font-bold">Invoices</h1>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowForm(true)}
-                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-              >
-                <Plus size={18} />
-              </button>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
-              >
-                <Filter size={18} />
-              </button>
+      <AuthGate>
+        <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
+          <div className="bg-primary-600 text-white p-2.5 sticky top-0 z-40">
+            <div className="flex justify-between items-center">
+              <h1 className="text-xl font-bold">Invoices</h1>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+                >
+                  <Plus size={18} />
+                </button>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="p-1.5 bg-primary-500 rounded-lg hover:bg-primary-500/80 transition-colors flex items-center justify-center"
+                >
+                  <Filter size={18} />
+                </button>
+              </div>
             </div>
           </div>
+          <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
+            <TruckLoading size={100} />
+          </div>
+          <NavBar />
         </div>
-        <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
-          <TruckLoading size={100} />
-        </div>
-        <NavBar />
-      </div>
+      </AuthGate>
     )
   }
 
   return (
+    <AuthGate>
     <div className="bg-gray-50" style={{ 
       height: '100dvh',
       minHeight: '100dvh',
@@ -763,6 +767,7 @@ export default function InvoicesPage() {
       {/* Bottom Navigation - Fixed at bottom */}
       <NavBar />
     </div>
+    </AuthGate>
   )
 }
 

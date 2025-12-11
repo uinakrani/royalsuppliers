@@ -8,6 +8,7 @@ import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import { Invoice } from '@/types/invoice'
 import NavBar from '@/components/NavBar'
+import AuthGate from '@/components/AuthGate'
 import { format } from 'date-fns'
 import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus, ArrowRight, Activity, ArrowDown, ArrowUp, Wallet, AlertCircle } from 'lucide-react'
 import { createRipple } from '@/lib/rippleEffect'
@@ -465,7 +466,8 @@ export default function Dashboard() {
 
 
   return (
-    <div className="bg-gray-50" style={{
+    <AuthGate>
+      <div className="bg-gray-50" style={{
       height: '100dvh',
       minHeight: '100dvh',
       display: 'flex',
@@ -1091,8 +1093,9 @@ export default function Dashboard() {
       </div >
 
       {/* Bottom Navigation - Fixed at bottom */}
-      < NavBar />
-    </div >
+        < NavBar />
+      </div >
+    </AuthGate>
   )
 }
 

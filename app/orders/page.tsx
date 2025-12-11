@@ -28,6 +28,7 @@ import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { getDb } from '@/lib/firebase'
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { getAdjustedProfit, hasProfitAdjustments, getEstimatedProfit } from '@/lib/orderCalculations'
+import AuthGate from '@/components/AuthGate'
 
 interface PartyGroup {
   partyName: string
@@ -1206,7 +1207,7 @@ function OrdersPageContent() {
     setShowPartyDetailDrawer(true)
   }
 
-  const getPartyGroups = (): PartyGroup[] => {
+  const getPartyGroups = useCallback((): PartyGroup[] => {
     // Use only ledger income entries (credits with partyName) as the single source of truth
     const partyPayments = ledgerEntries
       .filter((entry) => entry.type === 'credit' && entry.partyName)
@@ -1342,11 +1343,11 @@ function OrdersPageContent() {
 
     // Sort groups by party name
     return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
-  }
+  }, [ledgerEntries, invoices, orders, selectedMonth, filteredOrders])
 
   const partyGroups = useMemo(
     () => getPartyGroups(),
-    [filteredOrders, orders, selectedMonth, ledgerEntries]
+    [getPartyGroups]
   )
 
   const partySummaries = useMemo(
@@ -2848,7 +2849,9 @@ export default function OrdersPage() {
         </div>
       </div>
     }>
-      <OrdersPageContent />
+      <AuthGate>
+        <OrdersPageContent />
+      </AuthGate>
     </Suspense>
   )
 }

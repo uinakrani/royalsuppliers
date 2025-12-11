@@ -16,7 +16,7 @@ export interface PopupOptions {
   inputLabel?: string
   inputPlaceholder?: string
   inputValue?: string
-  inputType?: 'text' | 'number' | 'email' | 'password' | 'tel' | 'textarea'
+  inputType?: 'text' | 'number' | 'email' | 'password' | 'tel' | 'textarea' | 'date'
   required?: boolean
   formatCurrencyInr?: boolean
   onConfirm?: (value?: string) => void
@@ -69,7 +69,7 @@ export const nativePopup = {
     inputLabel?: string
     inputPlaceholder?: string
     inputValue?: string
-    inputType?: 'text' | 'number' | 'email' | 'password' | 'tel' | 'textarea'
+    inputType?: 'text' | 'number' | 'email' | 'password' | 'tel' | 'textarea' | 'date'
     confirmText?: string
     cancelText?: string
     required?: boolean
@@ -512,7 +512,15 @@ export default function NativePopup() {
                       <input
                         ref={inputRef as React.RefObject<HTMLInputElement>}
                         type={state.inputType === 'number' ? 'text' : state.inputType}
-                        inputMode={state.formatCurrencyInr ? 'numeric' : state.inputType === 'number' ? 'decimal' : 'text'}
+                        inputMode={
+                          state.formatCurrencyInr
+                            ? 'numeric'
+                            : state.inputType === 'number'
+                              ? 'decimal'
+                              : state.inputType === 'tel'
+                                ? 'tel'
+                                : undefined
+                        }
                         value={state.inputValue}
                         onChange={handleInputChange}
                         placeholder={state.inputPlaceholder}

@@ -18,6 +18,7 @@ import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 // LedgerService import removed to avoid circular dependency
 import { offlineStorage, STORES } from './offlineStorage'
 import { syncService } from './syncService'
+import { matchesActiveWorkspace, getActiveWorkspaceId, WORKSPACE_DEFAULTS } from './workspaceSession'
 
 const ORDERS_COLLECTION = 'orders'
 export const PAYMENT_TOLERANCE = 100
@@ -250,6 +251,7 @@ export const orderService = {
 
   async getNextOrderCodeSequence(): Promise<number> {
     let sourceOrders: Order[] = []
+    const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
     const db = getDb()
     const canFetchRemote = offlineStorage.isOnline() && db
 
@@ -266,6 +268,10 @@ export const orderService = {
       sourceOrders = await offlineStorage.getAll(STORES.ORDERS)
     }
 
+    sourceOrders = sourceOrders
+      .map((order) => (order.workspaceId ? order : { ...(order as Order), workspaceId: fallbackWorkspaceId }))
+      .filter(matchesActiveWorkspace)
+
     const ordersWithCodes = await this.ensureOrderCodesForOrders(sourceOrders)
     // After ensureOrderCodesForOrders, codes are dense: RS1...RSN in chronological order
     return ordersWithCodes.length + 1
@@ -281,6 +287,7 @@ export const orderService = {
     const now = new Date().toISOString()
     const nextOrderCodeSequence = await this.getNextOrderCodeSequence()
     const orderCode = formatOrderCode(nextOrderCodeSequence)
+    const workspaceId = getActiveWorkspaceId()
 
     try {
       // Extract paidAmountForRawMaterials if provided (temporary field from form)
@@ -312,6 +319,7 @@ export const orderService = {
         ...(initialCustomerPayments.length > 0 ? { revenueAdjustment } : {}),
         createdAt: now,
         updatedAt: now,
+        workspaceId,
       }
 
       const canWriteRemote = offlineStorage.isOnline() && db
@@ -332,6 +340,7 @@ export const orderService = {
             ...(initialCustomerPayments.length > 0 ? { revenueAdjustment } : {}),
             createdAt: now,
             updatedAt: now,
+            workspaceId,
           })
 
           const docRef = await Promise.race([savePromise, timeoutPromise])
@@ -510,8 +519,14 @@ export const orderService = {
   ): Promise<Order[]> {
     try {
       const localOrders = await offlineStorage.getAll(STORES.ORDERS)
-      const localOrdersWithCodes = await this.ensureOrderCodesForOrders(localOrders)
-      const filteredLocal = this.applyFilters(localOrdersWithCodes, filters)
+      const localOrdersWithWorkspace = localOrders.map((order) =>
+        order.workspaceId ? order : { ...(order as Order), workspaceId: WORKSPACE_DEFAULTS.id }
+      )
+      const localOrdersWithCodes = await this.ensureOrderCodesForOrders(localOrdersWithWorkspace)
+      const filteredLocal = this.applyFilters(
+        localOrdersWithCodes.filter(matchesActiveWorkspace),
+        filters
+      )
 
       if (offlineStorage.isOnline()) {
         try {
@@ -582,6 +597,8 @@ export const orderService = {
   async fetchOrdersFromFirestore(filters?: OrderFilters): Promise<Order[]> {
     const db = getDb()
     if (!db) return []
+    const activeWorkspaceId = getActiveWorkspaceId()
+    const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
 
     // Check if we need to avoid orderBy to prevent composite index requirement
     const needsClientSideSort = !!(filters?.supplier || filters?.partyName || filters?.material || filters?.truckOwner || filters?.truckNo)
@@ -614,12 +631,12 @@ export const orderService = {
     const querySnapshot = await getDocs(q)
     const orders: Order[] = []
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data()
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data()
 
       // Convert Timestamp objects to ISO strings
       const orderData: any = {
-        id: doc.id,
+        id: docSnap.id,
       }
 
       // Process each field, converting Timestamps to strings
@@ -666,6 +683,20 @@ export const orderService = {
       }
 
       const order = orderData as Order
+      if (!order.workspaceId) {
+        order.workspaceId = fallbackWorkspaceId
+        try {
+          const ref = doc(db, ORDERS_COLLECTION, docSnap.id)
+          updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
+        } catch {
+          // ignore best-effort tag
+        }
+      }
+
+      if (!matchesActiveWorkspace(order)) {
+        return
+      }
+
       orders.push(order)
 
       // Cache in local storage

@@ -1,10 +1,12 @@
 import { getDb } from './firebase'
 import { collection, addDoc, query, where, getDocs, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
+import { getActiveWorkspaceId, matchesActiveWorkspace, WORKSPACE_DEFAULTS } from './workspaceSession'
 
 export type LedgerActivityType = 'created' | 'updated' | 'deleted'
 
 export interface LedgerActivity {
   id?: string
+  workspaceId?: string
   ledgerEntryId: string
   activityType: LedgerActivityType
   timestamp: string // ISO date string
@@ -29,6 +31,7 @@ export const ledgerActivityService = {
   async logActivity(activity: Omit<LedgerActivity, 'id' | 'timestamp'>): Promise<string> {
     const db = getDb()
     if (!db) throw new Error('Firebase is not configured.')
+    const workspaceId = getActiveWorkspaceId()
     
     // Convert undefined values to null for Firestore compatibility
     // Firestore doesn't allow undefined, but allows null
@@ -37,6 +40,7 @@ export const ledgerActivityService = {
       activityType: activity.activityType,
       timestamp: new Date().toISOString(),
       timestampTs: Timestamp.now(),
+      workspaceId: workspaceId || WORKSPACE_DEFAULTS.id,
     }
     
     // Only include fields that are defined (not undefined)
@@ -62,6 +66,7 @@ export const ledgerActivityService = {
   async getActivities(startDate?: string, endDate?: string): Promise<LedgerActivity[]> {
     const db = getDb()
     if (!db) return []
+    const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
     
     // Build query - Use timestampTs for ordering since that's what's stored in Firestore
     // Firestore requires orderBy on the same field as where clauses
@@ -73,6 +78,8 @@ export const ledgerActivityService = {
     
     snap.forEach((doc) => {
       const data = doc.data() as any
+      const workspaceId = data.workspaceId || fallbackWorkspaceId
+      if (!matchesActiveWorkspace({ workspaceId })) return
       const timestamp = data.timestamp || 
         (data.timestampTs && (data.timestampTs as Timestamp).toDate().toISOString()) ||
         new Date().toISOString()
@@ -117,6 +124,7 @@ export const ledgerActivityService = {
   subscribe(callback: (activities: LedgerActivity[]) => void, startDate?: string, endDate?: string): () => void {
     const db = getDb()
     if (!db) return () => {}
+    const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
     
     // Use timestampTs for ordering since that's what's stored in Firestore
     const q = query(collection(db, LEDGER_ACTIVITIES_COLLECTION), orderBy('timestampTs', 'desc'))
@@ -126,6 +134,8 @@ export const ledgerActivityService = {
       
       snap.forEach((doc) => {
         const data = doc.data() as any
+        const workspaceId = data.workspaceId || fallbackWorkspaceId
+        if (!matchesActiveWorkspace({ workspaceId })) return
         const timestamp = data.timestamp || 
           (data.timestampTs && (data.timestampTs as Timestamp).toDate().toISOString()) ||
           new Date().toISOString()

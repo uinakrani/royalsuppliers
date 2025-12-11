@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Package, FileText, Wallet } from 'lucide-react'
+import { Home, Package, FileText, Wallet, UserRound } from 'lucide-react'
 import { createRipple } from '@/lib/rippleEffect'
 
 export default function NavBar() {
@@ -13,6 +13,7 @@ export default function NavBar() {
     { href: '/orders', icon: Package, label: 'Orders' },
     { href: '/ledger', icon: Wallet, label: 'Ledger' },
     { href: '/invoices', icon: FileText, label: 'Invoices' },
+    { href: '/account', icon: UserRound, label: 'Account' },
   ]
 
   return (

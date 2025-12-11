@@ -8,6 +8,7 @@ export interface InvoicePayment {
 
 export interface Invoice {
   id?: string
+  workspaceId?: string
   invoiceNumber: string // ROYAL + timestamp
   orderIds: string[] // Array of order IDs included in this invoice
   totalAmount: number // Total invoice amount

@@ -12,6 +12,7 @@ import AutoBackupScheduler from '@/components/AutoBackupScheduler'
 import OfflineIndicator from '@/components/OfflineIndicator'
 import { PopupStackProvider } from '@/contexts/PopupStackContext'
 import '@/lib/firebaseTest' // Load test utility
+import { AuthProvider } from '@/contexts/AuthContext'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -190,18 +191,20 @@ export default function RootLayout({
             `,
           }}
         />
-        <PopupStackProvider>
-          <AutoBackupScheduler />
-          <NativePopup />
-          <PWARegister />
-          <PWAInstallPrompt />
-          <AndroidFullscreen />
-          <FirebaseSetupAlert />
-          <FirestoreRulesAlert />
-          {/* <OfflineIndicator /> */}
-          <ToastContainer />
-          {children}
-        </PopupStackProvider>
+        <AuthProvider>
+          <PopupStackProvider>
+            <AutoBackupScheduler />
+            <NativePopup />
+            <PWARegister />
+            <PWAInstallPrompt />
+            <AndroidFullscreen />
+            <FirebaseSetupAlert />
+            <FirestoreRulesAlert />
+            {/* <OfflineIndicator /> */}
+            <ToastContainer />
+            {children}
+          </PopupStackProvider>
+        </AuthProvider>
       </body>
     </html>
   )

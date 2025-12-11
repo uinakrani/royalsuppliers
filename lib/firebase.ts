@@ -127,3 +127,17 @@ export function getDb(): Firestore | undefined {
 // Export db for backward compatibility
 export { db }
 
+// Expose the current Firebase app instance so other modules (auth/storage)
+// can share a single initialization.
+export function getFirebaseApp(): FirebaseApp | undefined {
+  if (app) {
+    return app
+  }
+  // Initialize if we haven't yet (client-only)
+  if (typeof window !== 'undefined') {
+    initializeFirebase()
+    return app
+  }
+  return undefined
+}
+

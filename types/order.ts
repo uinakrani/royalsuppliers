@@ -10,6 +10,7 @@ export interface PaymentRecord {
 
 export interface Order {
   id?: string
+  workspaceId?: string
   orderCode?: string // Human-friendly incremental code (e.g., RS1, RS2)
   date: string // ISO date string
   challanNo?: number | null // Optional challan/lorry receipt number

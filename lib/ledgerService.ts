@@ -16,12 +16,14 @@ import {
 import { getDb } from './firebase'
 import { ledgerActivityService } from './ledgerActivityService'
 import { offlineStorage, STORES } from './offlineStorage'
+import { getActiveWorkspaceId, matchesActiveWorkspace, WORKSPACE_DEFAULTS } from './workspaceSession'
 
 export type LedgerType = 'credit' | 'debit'
 export type LedgerSource = 'manual' | 'partyPayment' | 'invoicePayment' | 'orderExpense' | 'orderProfit' | 'orderPaymentUpdate'
 
 export interface LedgerEntry {
   id?: string
+  workspaceId?: string
   type: LedgerType
   amount: number
   note?: string
@@ -95,6 +97,7 @@ export const ledgerService = {
     const shouldPersistLocally = !options.skipLocalWrite
     const now = new Date().toISOString()
     const createdAtValue = options.createdAtOverride || now
+    const workspaceId = getActiveWorkspaceId()
     // Use provided date or default to now
     // If date is provided, convert it to ISO string with time component
     let dateValue = date || now
@@ -117,6 +120,7 @@ export const ledgerService = {
       createdAt: createdAtValue,
       source,
       voided: false,
+      workspaceId,
     }
     if (note && note.trim()) {
       payload.note = note.trim()
@@ -256,7 +260,12 @@ export const ledgerService = {
 
   async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean }): Promise<LedgerEntry[]> {
     try {
-      const localItems = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
+      const activeWorkspaceId = getActiveWorkspaceId()
+      const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
+      const localItemsRaw = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
+      const localItems = localItemsRaw
+        .map((entry) => (entry.workspaceId ? entry : { ...(entry as LedgerEntry), workspaceId: fallbackWorkspaceId }))
+        .filter(matchesActiveWorkspace)
 
       if (offlineStorage.isOnline()) {
         const db = getDb()
@@ -279,7 +288,7 @@ export const ledgerService = {
                 dateValue = (dateValue as Timestamp).toDate().toISOString()
               }
 
-              const item = {
+              const item: LedgerEntry = {
                 id: d.id,
                 type: data.type,
                 amount: data.amount,
@@ -293,6 +302,20 @@ export const ledgerService = {
                 voidReason: data.voidReason,
                 replacedById: data.replacedById,
                 ...(createdAt ? { createdAt } : {}),
+              }
+
+              if (!item.workspaceId) {
+                item.workspaceId = fallbackWorkspaceId
+                try {
+                  const ref = doc(db, LEDGER_COLLECTION, d.id)
+                  updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
+                } catch {
+                  // ignore best-effort tag
+                }
+              }
+
+              if (!matchesActiveWorkspace(item)) {
+                return
               }
 
               firestoreItems.push(item)

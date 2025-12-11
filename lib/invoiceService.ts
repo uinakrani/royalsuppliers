@@ -16,6 +16,7 @@ import { orderService } from './orderService'
 import { offlineStorage, STORES } from './offlineStorage'
 import { Order } from '@/types/order'
 import { format } from 'date-fns'
+import { matchesActiveWorkspace, getActiveWorkspaceId, WORKSPACE_DEFAULTS } from './workspaceSession'
 
 const INVOICES_COLLECTION = 'invoices'
 const generateLocalInvoiceId = () => `local-invoice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -34,6 +35,7 @@ export const invoiceService = {
     const localId = generateLocalInvoiceId()
     const createdAt = new Date().toISOString()
     const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week from now
+    const workspaceId = getActiveWorkspaceId()
 
     try {
       // Fetch all orders
@@ -71,6 +73,7 @@ export const invoiceService = {
         partyName,
         siteName,
         archived: false,
+        workspaceId,
       }
       
       const canWriteRemote = offlineStorage.isOnline() && db
@@ -140,9 +143,17 @@ export const invoiceService = {
     options?: { onRemoteUpdate?: (invoices: Invoice[]) => void, preferRemote?: boolean }
   ): Promise<Invoice[]> {
     try {
+      const activeWorkspaceId = getActiveWorkspaceId()
+      const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
       const localInvoices = await offlineStorage.getAll(STORES.INVOICES)
-      const processedLocal = localInvoices.map(this.processInvoiceData)
-      const filteredLocal = this.applyInvoiceFilters(processedLocal, filters)
+      const scopedLocal = localInvoices.map((inv) =>
+        inv.workspaceId ? inv : { ...(inv as Invoice), workspaceId: fallbackWorkspaceId }
+      )
+      const processedLocal = scopedLocal.map(this.processInvoiceData)
+      const filteredLocal = this.applyInvoiceFilters(
+        processedLocal.filter(matchesActiveWorkspace),
+        filters
+      )
 
       if (offlineStorage.isOnline()) {
         try {
@@ -162,12 +173,26 @@ export const invoiceService = {
             const querySnapshot = await getDocs(q)
             const invoices: Invoice[] = []
 
-            querySnapshot.forEach((doc) => {
-              const data = doc.data()
+            querySnapshot.forEach((docSnap) => {
+              const data = docSnap.data()
               const invoiceData = this.processInvoiceData({
-                id: doc.id,
+                id: docSnap.id,
                 ...data,
               } as Invoice)
+
+              if (!invoiceData.workspaceId) {
+                invoiceData.workspaceId = fallbackWorkspaceId
+                try {
+                  const ref = doc(db, INVOICES_COLLECTION, docSnap.id)
+                  updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
+                } catch {
+                  // ignore best-effort tag
+                }
+              }
+
+              if (!matchesActiveWorkspace(invoiceData)) {
+                return
+              }
 
               invoices.push(invoiceData)
 

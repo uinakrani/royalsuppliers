@@ -1,9 +1,11 @@
 import { getDb } from './firebase'
 import { collection, addDoc, getDocs, updateDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore'
 import { offlineStorage, STORES } from './offlineStorage'
+import { getActiveWorkspaceId, matchesActiveWorkspace, WORKSPACE_DEFAULTS } from './workspaceSession'
 
 export interface InvestmentRecord {
     id?: string
+    workspaceId?: string
     amount: number
     date: string
     note?: string
@@ -13,6 +15,7 @@ export interface InvestmentRecord {
 
 export interface InvestmentActivity {
     id?: string
+    workspaceId?: string
     timestamp: string
     activityType: 'created' | 'updated'
     amount: number
@@ -29,6 +32,8 @@ class InvestmentService {
 
     async getInvestment(): Promise<InvestmentRecord | null> {
         try {
+            const activeWorkspaceId = getActiveWorkspaceId()
+            const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
             if (offlineStorage.isOnline()) {
                 const db = getDb()
                 if (db) {
@@ -36,14 +41,28 @@ class InvestmentService {
                         const investmentSnapshot = await getDocs(collection(db, this.collectionName))
 
                         if (!investmentSnapshot.empty) {
-                            const doc = investmentSnapshot.docs[0]
-                            const investment = {
-                                id: doc.id,
-                                ...doc.data()
-                            } as InvestmentRecord
+                            for (const docSnap of investmentSnapshot.docs) {
+                                const investment = {
+                                    id: docSnap.id,
+                                    ...docSnap.data()
+                                } as InvestmentRecord
 
-                            await offlineStorage.put(STORES.INVESTMENTS, investment)
-                            return investment
+                                if (!investment.workspaceId) {
+                                    investment.workspaceId = fallbackWorkspaceId
+                                    try {
+                                        updateDoc(doc(db, this.collectionName, docSnap.id), { workspaceId: fallbackWorkspaceId }).catch(() => {})
+                                    } catch {
+                                        // ignore best effort
+                                    }
+                                }
+
+                                if (!matchesActiveWorkspace(investment)) {
+                                    continue
+                                }
+
+                                await offlineStorage.put(STORES.INVESTMENTS, investment)
+                                return investment
+                            }
                         }
                     } catch (error) {
                         console.error('Error fetching investment from Firestore:', error)
@@ -53,8 +72,11 @@ class InvestmentService {
 
             // Fallback to cached value when offline or remote fails
             const localInvestments = await offlineStorage.getAll(STORES.INVESTMENTS)
-            if (localInvestments.length > 0) {
-                return localInvestments[0] as InvestmentRecord
+            const scoped = localInvestments
+                .map((inv) => (inv.workspaceId ? inv : { ...(inv as InvestmentRecord), workspaceId: fallbackWorkspaceId }))
+                .filter(matchesActiveWorkspace)
+            if (scoped.length > 0) {
+                return scoped[0] as InvestmentRecord
             }
 
             return null
@@ -97,6 +119,7 @@ class InvestmentService {
             const existingInvestment = await this.getInvestment()
 
             const now = new Date().toISOString()
+            const workspaceId = getActiveWorkspaceId()
 
             if (existingInvestment && existingInvestment.id) {
                 // Update existing
@@ -120,6 +143,7 @@ class InvestmentService {
                     date,
                     note: note || '',
                     updatedAt: now,
+                    workspaceId,
                 })
 
                 // Log activity
@@ -143,6 +167,7 @@ class InvestmentService {
                     note: note || '',
                     createdAt: now,
                     updatedAt: now,
+                    workspaceId,
                 })
 
                 // Log activity
@@ -164,6 +189,9 @@ class InvestmentService {
 
     async getActivityLog(): Promise<InvestmentActivity[]> {
         try {
+            const activeWorkspaceId = getActiveWorkspaceId()
+            const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
+
             if (offlineStorage.isOnline()) {
                 const db = getDb()
                 if (db) {
@@ -174,10 +202,21 @@ class InvestmentService {
                         )
                         const snapshot = await getDocs(q)
 
-                        const activities = snapshot.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data()
-                        })) as InvestmentActivity[]
+                        const activities: InvestmentActivity[] = []
+                        for (const docSnap of snapshot.docs) {
+                            const data = docSnap.data() as InvestmentActivity
+                            const workspaceId = data.workspaceId || fallbackWorkspaceId
+                            if (!matchesActiveWorkspace({ workspaceId })) continue
+
+                            if (!data.workspaceId) {
+                                // Best-effort tag legacy docs
+                                try {
+                                    await updateDoc(doc(db, this.activityCollectionName, docSnap.id), { workspaceId: fallbackWorkspaceId })
+                                } catch { /* ignore */ }
+                            }
+
+                            activities.push({ id: docSnap.id, ...data, workspaceId })
+                        }
 
                         for (const activity of activities) {
                             await offlineStorage.put(STORES.LEDGER_ACTIVITIES, { ...activity, id: `investment-${activity.id}` })
@@ -192,9 +231,15 @@ class InvestmentService {
 
             // Fallback to cached activity when offline
             const localActivities = await offlineStorage.getAll(STORES.LEDGER_ACTIVITIES)
-            const investmentActivities = localActivities.filter(item =>
-                (item as any).activityType === 'created' || (item as any).activityType === 'updated'
-            ) as InvestmentActivity[]
+            const investmentActivities = localActivities
+                .map((item) => {
+                    const workspaceId = (item as any).workspaceId || fallbackWorkspaceId
+                    return { ...(item as any), workspaceId }
+                })
+                .filter((item) =>
+                    ((item as any).activityType === 'created' || (item as any).activityType === 'updated') &&
+                    matchesActiveWorkspace(item as any)
+                ) as InvestmentActivity[]
 
             if (investmentActivities.length > 0) {
                 return investmentActivities.sort((a, b) =>
@@ -217,16 +262,27 @@ class InvestmentService {
         if (!db) return
 
         try {
+            const activeWorkspaceId = getActiveWorkspaceId()
+            const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
+
             const q = query(
                 collection(db, this.activityCollectionName),
                 orderBy('timestamp', 'desc')
             )
             const snapshot = await getDocs(q)
 
-            const activities = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as InvestmentActivity[]
+            const activities: InvestmentActivity[] = []
+            for (const docSnap of snapshot.docs) {
+                const data = docSnap.data() as InvestmentActivity
+                const workspaceId = data.workspaceId || fallbackWorkspaceId
+                if (!matchesActiveWorkspace({ workspaceId })) continue
+                if (!data.workspaceId) {
+                    try {
+                        await updateDoc(doc(db, this.activityCollectionName, docSnap.id), { workspaceId: fallbackWorkspaceId })
+                    } catch { /* ignore */ }
+                }
+                activities.push({ id: docSnap.id, ...data, workspaceId })
+            }
 
             // Update local storage
             for (const activity of activities) {
@@ -241,8 +297,9 @@ class InvestmentService {
         try {
             const db = getDb()
             if (!db) return
+            const workspaceId = getActiveWorkspaceId() || WORKSPACE_DEFAULTS.id
 
-            await addDoc(collection(db, this.activityCollectionName), activity)
+            await addDoc(collection(db, this.activityCollectionName), { ...activity, workspaceId })
         } catch (error) {
             console.error('Error logging investment activity:', error)
             // Don't throw - activity logging shouldn't break the main operation
