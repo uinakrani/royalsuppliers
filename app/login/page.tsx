@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { LogIn, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
-  const { user, login, loading } = useAuth()
+  const { user, login, loading, redirecting } = useAuth()
   const router = useRouter()
+  const [signing, setSigning] = useState(false)
 
   useEffect(() => {
     if (!loading && user) {
@@ -38,11 +39,19 @@ export default function LoginPage() {
         </div>
 
         <button
-          onClick={() => login().catch(console.error)}
-          className="w-full inline-flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-primary-600 text-white font-semibold shadow-lg shadow-primary-200 hover:bg-primary-700 transition-colors"
+          onClick={async () => {
+            setSigning(true)
+            try {
+              await login()
+            } catch (err) {
+              setSigning(false)
+            }
+          }}
+          disabled={loading || redirecting || signing}
+          className="w-full inline-flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-primary-600 text-white font-semibold shadow-lg shadow-primary-200 hover:bg-primary-700 transition-colors disabled:opacity-60"
         >
           <LogIn size={20} />
-          Login with Google
+          {redirecting ? 'Opening Google...' : signing ? 'Signing in...' : 'Login with Google'}
         </button>
       </div>
     </div>

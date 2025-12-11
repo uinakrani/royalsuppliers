@@ -1,6 +1,6 @@
 'use client'
 
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence, signInWithRedirect, getRedirectResult } from 'firebase/auth'
 import { getFirebaseApp } from './firebase'
 
 let authInitialized = false
@@ -30,6 +30,26 @@ function getAuthInstance() {
 export async function loginWithGoogle() {
   const auth = getAuthInstance()
   return signInWithPopup(auth, provider)
+}
+
+export async function loginWithGooglePopup() {
+  const auth = getAuthInstance()
+  return signInWithPopup(auth, provider)
+}
+
+export async function loginWithGoogleRedirect() {
+  const auth = getAuthInstance()
+  return signInWithRedirect(auth, provider)
+}
+
+export async function handleRedirectResult() {
+  const auth = getAuthInstance()
+  try {
+    return await getRedirectResult(auth)
+  } catch (err) {
+    console.warn('Redirect result handling failed', err)
+    return null
+  }
 }
 
 export async function logoutUser() {

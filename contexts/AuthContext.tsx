@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { onAuthStateChanged, updateProfile, User } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { getAuthInstance, loginWithGoogle, logoutUser } from '@/lib/authClient'
+import { getAuthInstance, loginWithGooglePopup, loginWithGoogleRedirect, logoutUser, handleRedirectResult } from '@/lib/authClient'
 import { getDb, getFirebaseApp } from '@/lib/firebase'
 import { workspaceService, Workspace } from '@/lib/workspaceService'
 import { getActiveWorkspaceId, setActiveWorkspaceId, WORKSPACE_DEFAULTS } from '@/lib/workspaceSession'
@@ -12,6 +12,7 @@ import { getActiveWorkspaceId, setActiveWorkspaceId, WORKSPACE_DEFAULTS } from '
 type AuthContextType = {
   user: User | null
   loading: boolean
+  redirecting: boolean
   profilePhoto: string | null
   workspaces: Workspace[]
   activeWorkspaceId: string | null
@@ -33,6 +34,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(null)
+  const [redirecting, setRedirecting] = useState(false)
+
+  const shouldUseRedirect = useCallback(() => {
+    if (typeof window === 'undefined') return false
+    const ua = navigator.userAgent || ''
+    const isIOS = /iP(ad|hone|od)/i.test(ua)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone
+    const isInApp = /FBAN|FBAV|Instagram|Line|Twitter|LinkedIn|WhatsApp|Snapchat|Pinterest/i.test(ua)
+    return isIOS || isStandalone || isInApp
+  }, [])
 
   const bootstrapWorkspace = useCallback(
     (list: Workspace[]) => {
@@ -56,80 +67,104 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const auth = getAuthInstance()
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsub: (() => void) | undefined
+    ;(async () => {
       setLoading(true)
       try {
-        if (firebaseUser) {
-          setUser(firebaseUser)
-          let photoUrl = firebaseUser.photoURL || null
+        await handleRedirectResult()
+      } catch (err) {
+        console.warn('Redirect handling error', err)
+      }
 
-          const db = getDb()
-          if (db) {
-            const userDoc = doc(db, 'users', firebaseUser.uid)
-            const snap = await getDoc(userDoc)
-            const now = new Date().toISOString()
-            if (snap.exists()) {
-              const data = snap.data() as any
-              if (data.photoURL) {
-                photoUrl = data.photoURL
-              }
-              await setDoc(
-                userDoc,
-                {
-                  lastLoginAt: now,
+      unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+        setLoading(true)
+        try {
+          if (firebaseUser) {
+            setUser(firebaseUser)
+            let photoUrl = firebaseUser.photoURL || null
+
+            const db = getDb()
+            if (db) {
+              const userDoc = doc(db, 'users', firebaseUser.uid)
+              const snap = await getDoc(userDoc)
+              const now = new Date().toISOString()
+              if (snap.exists()) {
+                const data = snap.data() as any
+                if (data.photoURL) {
+                  photoUrl = data.photoURL
+                }
+                await setDoc(
+                  userDoc,
+                  {
+                    lastLoginAt: now,
+                    displayName: firebaseUser.displayName,
+                    email: firebaseUser.email,
+                    photoURL: photoUrl,
+                  },
+                  { merge: true }
+                )
+              } else {
+                await setDoc(userDoc, {
                   displayName: firebaseUser.displayName,
                   email: firebaseUser.email,
                   photoURL: photoUrl,
-                },
-                { merge: true }
-              )
-            } else {
-              await setDoc(userDoc, {
-                displayName: firebaseUser.displayName,
-                email: firebaseUser.email,
-                photoURL: photoUrl,
-                createdAt: now,
-                lastLoginAt: now,
-              })
+                  createdAt: now,
+                  lastLoginAt: now,
+                })
+              }
             }
-          }
 
-          // Ensure the default workspace exists for legacy data (owner only).
-          if (firebaseUser.email && firebaseUser.email.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
-            await workspaceService.ensureDefaultWorkspace(firebaseUser.uid, firebaseUser.email || null)
-          }
-
-          let userWorkspaces = await workspaceService.listForUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-          })
-          if (userWorkspaces.length === 0) {
-            const fallbackName = `${firebaseUser.displayName || 'My'} Workspace`
-            const createdId = await workspaceService.createWorkspace(fallbackName, { uid: firebaseUser.uid, email: firebaseUser.email })
-            if (createdId) {
-              userWorkspaces = await workspaceService.listForUser({ uid: firebaseUser.uid, email: firebaseUser.email })
+            // Ensure the default workspace exists for legacy data (owner only).
+            if (firebaseUser.email && firebaseUser.email.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
+              await workspaceService.ensureDefaultWorkspace(firebaseUser.uid, firebaseUser.email || null)
             }
+
+            let userWorkspaces = await workspaceService.listForUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+            })
+            if (userWorkspaces.length === 0) {
+              const fallbackName = `${firebaseUser.displayName || 'My'} Workspace`
+              const createdId = await workspaceService.createWorkspace(fallbackName, { uid: firebaseUser.uid, email: firebaseUser.email })
+              if (createdId) {
+                userWorkspaces = await workspaceService.listForUser({ uid: firebaseUser.uid, email: firebaseUser.email })
+              }
+            }
+            setWorkspaces(userWorkspaces)
+            bootstrapWorkspace(userWorkspaces)
+            setProfilePhoto(photoUrl)
+          } else {
+            setUser(null)
+            setProfilePhoto(null)
+            setWorkspaces([])
+            setActiveWorkspaceIdState(null)
           }
-          setWorkspaces(userWorkspaces)
-          bootstrapWorkspace(userWorkspaces)
-          setProfilePhoto(photoUrl)
-        } else {
-          setUser(null)
-          setProfilePhoto(null)
-          setWorkspaces([])
-          setActiveWorkspaceIdState(null)
+        } finally {
+          setLoading(false)
+          setRedirecting(false)
         }
-      } finally {
-        setLoading(false)
-      }
-    })
+      })
+    })()
 
-    return () => unsub()
+    return () => {
+      if (unsub) unsub()
+    }
   }, [bootstrapWorkspace])
 
   const login = useCallback(async () => {
-    await loginWithGoogle()
-  }, [])
+    const useRedirect = shouldUseRedirect()
+    try {
+      if (useRedirect) {
+        setRedirecting(true)
+        await loginWithGoogleRedirect()
+      } else {
+        await loginWithGooglePopup()
+      }
+    } catch (err) {
+      setRedirecting(false)
+      throw err
+    }
+  }, [shouldUseRedirect])
 
   const logout = useCallback(async () => {
     await logoutUser()
@@ -237,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       loading,
+      redirecting,
       profilePhoto,
       workspaces,
       activeWorkspaceId,
@@ -249,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       deleteWorkspace,
       removeMember,
     }),
-    [user, loading, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember]
+    [user, loading, redirecting, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
