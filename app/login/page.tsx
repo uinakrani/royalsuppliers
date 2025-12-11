@@ -9,6 +9,10 @@ export default function LoginPage() {
   const { user, login, loading, redirecting } = useAuth()
   const router = useRouter()
   const [signing, setSigning] = useState(false)
+  const [pendingRedirect, setPendingRedirect] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('rs-auth-redirect') === '1'
+  })
 
   useEffect(() => {
     if (!loading && user) {
@@ -43,15 +47,17 @@ export default function LoginPage() {
             setSigning(true)
             try {
               await login()
+              setPendingRedirect(true)
             } catch (err) {
               setSigning(false)
+              setPendingRedirect(false)
             }
           }}
-          disabled={loading || redirecting || signing}
+          disabled={loading || redirecting || signing || pendingRedirect}
           className="w-full inline-flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-primary-600 text-white font-semibold shadow-lg shadow-primary-200 hover:bg-primary-700 transition-colors disabled:opacity-60"
         >
           <LogIn size={20} />
-          {redirecting ? 'Opening Google...' : signing ? 'Signing in...' : 'Login with Google'}
+          {redirecting || pendingRedirect ? 'Opening Google...' : signing ? 'Signing in...' : 'Login with Google'}
         </button>
       </div>
     </div>

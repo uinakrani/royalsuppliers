@@ -27,28 +27,43 @@ function getAuthInstance() {
   return auth
 }
 
-export async function loginWithGoogle() {
+export async function loginWithGoogleSmart(preferRedirect: boolean) {
   const auth = getAuthInstance()
-  return signInWithPopup(auth, provider)
-}
 
-export async function loginWithGooglePopup() {
-  const auth = getAuthInstance()
-  return signInWithPopup(auth, provider)
-}
+  // Try the preferred flow first; if popup is blocked/not supported, fall back to redirect.
+  if (preferRedirect) {
+    // Mark pending so UI can show spinner after reload.
+    if (typeof window !== 'undefined') localStorage.setItem('rs-auth-redirect', '1')
+    return signInWithRedirect(auth, provider)
+  }
 
-export async function loginWithGoogleRedirect() {
-  const auth = getAuthInstance()
-  return signInWithRedirect(auth, provider)
+  try {
+    return await signInWithPopup(auth, provider)
+  } catch (err: any) {
+    const code = err?.code || ''
+    const shouldFallback =
+      code === 'auth/operation-not-supported-in-this-environment' ||
+      code === 'auth/popup-blocked' ||
+      code === 'auth/popup-closed-by-user'
+
+    if (shouldFallback) {
+      if (typeof window !== 'undefined') localStorage.setItem('rs-auth-redirect', '1')
+      return signInWithRedirect(auth, provider)
+    }
+    throw err
+  }
 }
 
 export async function handleRedirectResult() {
   const auth = getAuthInstance()
   try {
-    return await getRedirectResult(auth)
+    const res = await getRedirectResult(auth)
+    return res
   } catch (err) {
     console.warn('Redirect result handling failed', err)
     return null
+  } finally {
+    if (typeof window !== 'undefined') localStorage.removeItem('rs-auth-redirect')
   }
 }
 

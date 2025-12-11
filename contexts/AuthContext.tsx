@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { onAuthStateChanged, updateProfile, User } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { getAuthInstance, loginWithGooglePopup, loginWithGoogleRedirect, logoutUser, handleRedirectResult } from '@/lib/authClient'
+import { getAuthInstance, loginWithGoogleSmart, logoutUser, handleRedirectResult } from '@/lib/authClient'
 import { getDb, getFirebaseApp } from '@/lib/firebase'
 import { workspaceService, Workspace } from '@/lib/workspaceService'
 import { getActiveWorkspaceId, setActiveWorkspaceId, WORKSPACE_DEFAULTS } from '@/lib/workspaceSession'
@@ -154,12 +154,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async () => {
     const useRedirect = shouldUseRedirect()
     try {
-      if (useRedirect) {
-        setRedirecting(true)
-        await loginWithGoogleRedirect()
-      } else {
-        await loginWithGooglePopup()
-      }
+      if (useRedirect) setRedirecting(true)
+      await loginWithGoogleSmart(useRedirect)
     } catch (err) {
       setRedirecting(false)
       throw err
