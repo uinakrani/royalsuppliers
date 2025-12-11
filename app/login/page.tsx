@@ -69,6 +69,29 @@ export default function LoginPage() {
           <LogIn size={20} />
           {redirecting || pendingRedirect ? 'Opening Google...' : signing ? 'Signing in...' : 'Login with Google'}
         </button>
+        <div className="text-xs text-gray-500 space-y-2">
+          <p>If Google login stalls on iOS, try:</p>
+          <ol className="list-decimal list-inside space-y-1">
+            <li>Open Google in this app to seed the session.</li>
+            <li>Return and tap Login again.</li>
+          </ol>
+          <button
+            type="button"
+            onClick={() => {
+              clearRedirectFlag()
+              setSigning(false)
+              setPendingRedirect(false)
+              setError(null)
+              if (typeof window !== 'undefined') {
+                window.location.href = 'https://accounts.google.com/'
+              }
+            }}
+            className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-medium"
+            disabled={loading || redirecting || signing || pendingRedirect}
+          >
+            Open Google to sign in
+          </button>
+        </div>
         {error && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
             {error}
