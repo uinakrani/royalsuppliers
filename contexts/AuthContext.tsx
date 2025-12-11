@@ -95,6 +95,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (firebaseUser) {
             setUser(firebaseUser)
             let photoUrl = firebaseUser.photoURL || null
+            if (typeof window !== 'undefined' && firebaseUser.email) {
+              localStorage.setItem('rs-last-email', firebaseUser.email)
+            }
 
             const db = getDb()
             if (db) {
@@ -169,16 +172,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async () => {
     const useRedirect = shouldUseRedirect()
+    const lastEmail = typeof window !== 'undefined' ? localStorage.getItem('rs-last-email') : undefined
     let fallbackTimer: any
     try {
       if (useRedirect) setRedirecting(true)
-      await loginWithGoogleSmart(useRedirect)
+      await loginWithGoogleSmart(useRedirect, lastEmail || undefined)
 
       if (useRedirect && typeof window !== 'undefined') {
         fallbackTimer = setTimeout(async () => {
           if (document.visibilityState === 'visible' && localStorage.getItem('rs-auth-redirect') === '1') {
             try {
-              await loginWithGoogleSmart(false)
+              await loginWithGoogleSmart(false, lastEmail || undefined)
               setRedirecting(false)
             } catch (err) {
               setRedirecting(false)

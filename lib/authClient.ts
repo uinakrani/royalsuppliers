@@ -9,6 +9,14 @@ provider.setCustomParameters({
   prompt: 'select_account',
 })
 
+export function setLoginHint(email?: string | null) {
+  const params: Record<string, string> = { prompt: 'select_account' }
+  if (email) {
+    params.login_hint = email
+  }
+  provider.setCustomParameters(params)
+}
+
 function getAuthInstance() {
   const app = getFirebaseApp()
   if (!app) {
@@ -27,8 +35,9 @@ function getAuthInstance() {
   return auth
 }
 
-export async function loginWithGoogleSmart(preferRedirect: boolean) {
+export async function loginWithGoogleSmart(preferRedirect: boolean, loginHint?: string | null) {
   const auth = getAuthInstance()
+  setLoginHint(loginHint)
 
   // Try the preferred flow first; if popup is blocked/not supported, fall back to redirect.
   if (preferRedirect) {
