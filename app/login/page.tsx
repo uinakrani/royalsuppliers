@@ -6,19 +6,26 @@ import { useAuth } from '@/contexts/AuthContext'
 import { LogIn, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
-  const { user, login, loading, redirecting } = useAuth()
+  const { user, login, loading, redirecting, clearRedirectFlag } = useAuth()
   const router = useRouter()
   const [signing, setSigning] = useState(false)
   const [pendingRedirect, setPendingRedirect] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('rs-auth-redirect') === '1'
   })
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!loading && user) {
       router.replace('/account')
     }
   }, [loading, user, router])
+
+  useEffect(() => {
+    if (!redirecting) {
+      setPendingRedirect(false)
+    }
+  }, [redirecting])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center px-6">
@@ -45,12 +52,15 @@ export default function LoginPage() {
         <button
           onClick={async () => {
             setSigning(true)
+            setError(null)
             try {
               await login()
               setPendingRedirect(true)
-            } catch (err) {
+            } catch (err: any) {
               setSigning(false)
               setPendingRedirect(false)
+              setError(err?.message || 'Login failed. Please try again.')
+              clearRedirectFlag()
             }
           }}
           disabled={loading || redirecting || signing || pendingRedirect}
@@ -59,6 +69,11 @@ export default function LoginPage() {
           <LogIn size={20} />
           {redirecting || pendingRedirect ? 'Opening Google...' : signing ? 'Signing in...' : 'Login with Google'}
         </button>
+        {error && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+            {error}
+          </div>
+        )}
       </div>
     </div>
   )

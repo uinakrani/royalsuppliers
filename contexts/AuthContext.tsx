@@ -13,6 +13,7 @@ type AuthContextType = {
   user: User | null
   loading: boolean
   redirecting: boolean
+  clearRedirectFlag: () => void
   profilePhoto: string | null
   workspaces: Workspace[]
   activeWorkspaceId: string | null
@@ -35,6 +36,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(null)
   const [redirecting, setRedirecting] = useState(false)
+  const [redirectFailed, setRedirectFailed] = useState(false)
+
+  const clearRedirectFlag = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('rs-auth-redirect')
+    }
+    setRedirecting(false)
+    setRedirectFailed(false)
+  }, [])
 
   const shouldUseRedirect = useCallback(() => {
     if (typeof window === 'undefined') return false
@@ -71,7 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ;(async () => {
       setLoading(true)
       try {
-        await handleRedirectResult()
+        const res = await handleRedirectResult()
+        if (!res && typeof window !== 'undefined' && localStorage.getItem('rs-auth-redirect') === '1') {
+          setRedirectFailed(true)
+        }
       } catch (err) {
         console.warn('Redirect handling error', err)
       }
@@ -142,6 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
           setLoading(false)
           setRedirecting(false)
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('rs-auth-redirect')
+          }
         }
       })
     })()
@@ -153,12 +169,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async () => {
     const useRedirect = shouldUseRedirect()
+    let fallbackTimer: any
     try {
       if (useRedirect) setRedirecting(true)
       await loginWithGoogleSmart(useRedirect)
+
+      if (useRedirect && typeof window !== 'undefined') {
+        fallbackTimer = setTimeout(async () => {
+          if (document.visibilityState === 'visible' && localStorage.getItem('rs-auth-redirect') === '1') {
+            try {
+              await loginWithGoogleSmart(false)
+              setRedirecting(false)
+            } catch (err) {
+              setRedirecting(false)
+              setRedirectFailed(true)
+            }
+          }
+        }, 3500)
+      }
     } catch (err) {
       setRedirecting(false)
+      setRedirectFailed(true)
       throw err
+    } finally {
+      if (fallbackTimer) clearTimeout(fallbackTimer)
     }
   }, [shouldUseRedirect])
 
@@ -280,8 +314,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       uploadProfileImage,
       deleteWorkspace,
       removeMember,
+      clearRedirectFlag,
     }),
-    [user, loading, redirecting, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember]
+    [user, loading, redirecting, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
