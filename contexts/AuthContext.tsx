@@ -51,10 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const shouldUseRedirect = useCallback(() => {
     if (typeof window === 'undefined') return false
     const ua = navigator.userAgent || ''
-    const isIOS = /iP(ad|hone|od)/i.test(ua)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone
     const isInApp = /FBAN|FBAV|Instagram|Line|Twitter|LinkedIn|WhatsApp|Snapchat|Pinterest/i.test(ua)
-    return isIOS || isStandalone || isInApp
+    // Prefer popup for regular Safari/PWA; only force redirect for embedded in-app browsers.
+    return isInApp
   }, [])
 
   const bootstrapWorkspace = useCallback(
