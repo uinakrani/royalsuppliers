@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { LogIn, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
-  const { user, login, loading, redirecting, clearRedirectFlag } = useAuth()
+  const { user, login, loading, redirecting, redirectFailed, clearRedirectFlag } = useAuth()
   const router = useRouter()
   const [signing, setSigning] = useState(false)
   const [pendingRedirect, setPendingRedirect] = useState<boolean>(() => {
@@ -69,6 +69,11 @@ export default function LoginPage() {
           <LogIn size={20} />
           {redirecting || pendingRedirect ? 'Opening Google...' : signing ? 'Signing in...' : 'Login with Google'}
         </button>
+        {redirectFailed && (
+          <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            Google sign-in did not return to the app. Please try again; this is most common on iOS home-screen apps when cookies are blocked.
+          </div>
+        )}
         <div className="text-xs text-gray-500 space-y-2">
           <p>If Google login stalls on iOS, try:</p>
           <ol className="list-decimal list-inside space-y-1">

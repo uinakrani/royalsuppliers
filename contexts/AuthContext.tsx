@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { onAuthStateChanged, updateProfile, User } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -13,6 +13,7 @@ type AuthContextType = {
   user: User | null
   loading: boolean
   redirecting: boolean
+  redirectFailed: boolean
   clearRedirectFlag: () => void
   profilePhoto: string | null
   workspaces: Workspace[]
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(null)
   const [redirecting, setRedirecting] = useState(false)
   const [redirectFailed, setRedirectFailed] = useState(false)
+  const redirectCheckInFlight = useRef(false)
 
   const clearRedirectFlag = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -75,19 +77,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
-  useEffect(() => {
-    const auth = getAuthInstance()
-    let unsub: (() => void) | undefined
-    ;(async () => {
-      setLoading(true)
+  const processRedirectIfNeeded = useCallback(
+    async (force = false) => {
+      if (redirectCheckInFlight.current) return null
+      const hasPendingRedirect =
+        typeof window !== 'undefined' && localStorage.getItem('rs-auth-redirect') === '1'
+      if (!force && !hasPendingRedirect) return null
+      redirectCheckInFlight.current = true
+      setRedirecting(true)
       try {
         const res = await handleRedirectResult()
         if (!res && typeof window !== 'undefined' && localStorage.getItem('rs-auth-redirect') === '1') {
           setRedirectFailed(true)
         }
+        return res
       } catch (err) {
         console.warn('Redirect handling error', err)
+        setRedirectFailed(true)
+        return null
+      } finally {
+        setRedirecting(false)
+        redirectCheckInFlight.current = false
       }
+    },
+    []
+  )
+
+  useEffect(() => {
+    const auth = getAuthInstance()
+    let unsub: (() => void) | undefined
+    ;(async () => {
+      setLoading(true)
+      await processRedirectIfNeeded(true)
 
       unsub = onAuthStateChanged(auth, async (firebaseUser) => {
         setLoading(true)
@@ -168,9 +189,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (unsub) unsub()
     }
-  }, [bootstrapWorkspace])
+  }, [bootstrapWorkspace, processRedirectIfNeeded])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const tryHandleRedirect = () => {
+      if (document.visibilityState === 'visible') {
+        processRedirectIfNeeded()
+      }
+    }
+    window.addEventListener('focus', tryHandleRedirect)
+    document.addEventListener('visibilitychange', tryHandleRedirect)
+    return () => {
+      window.removeEventListener('focus', tryHandleRedirect)
+      document.removeEventListener('visibilitychange', tryHandleRedirect)
+    }
+  }, [processRedirectIfNeeded])
 
   const login = useCallback(async () => {
+    setRedirectFailed(false)
     const useRedirect = shouldUseRedirect()
     const lastEmail = typeof window !== 'undefined' ? localStorage.getItem('rs-last-email') : undefined
     let fallbackTimer: any
@@ -307,6 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading,
       redirecting,
+      redirectFailed,
       profilePhoto,
       workspaces,
       activeWorkspaceId,
@@ -320,7 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       removeMember,
       clearRedirectFlag,
     }),
-    [user, loading, redirecting, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag]
+    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
