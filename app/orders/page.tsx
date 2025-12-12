@@ -118,7 +118,7 @@ function OrdersPageContent() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
@@ -169,6 +169,7 @@ function OrdersPageContent() {
   useEffect(() => {
     const initializeData = async () => {
       try {
+        setLoading(true)
         // Load orders first (it manages its own loading state, but we'll override)
         await loadOrders()
         // Load other data in parallel - these will be instant from local storage
@@ -278,6 +279,7 @@ function OrdersPageContent() {
 
   const loadOrders = async (): Promise<Order[]> => {
     try {
+      setLoading(true)
       const allOrders = await orderService.getAllOrders(undefined, {
         onRemoteUpdate: (fresh) => {
           setOrders(fresh)
@@ -285,10 +287,11 @@ function OrdersPageContent() {
         }
       })
       setOrders(allOrders)
-      setLoading(allOrders.length === 0)
+      setLoading(false)
       return allOrders
     } catch (error) {
       console.error('Error loading orders:', error)
+      setLoading(false)
       throw error // Re-throw to let caller handle
     }
   }

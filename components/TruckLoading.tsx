@@ -11,8 +11,8 @@ interface TruckLoadingProps {
 }
 
 export default function TruckLoading({ size = 200, className = '', text, inline = false }: TruckLoadingProps) {
-  // Try to load GIF from public folder, bump querystring when updating the asset to break caches
-  const gifUrl = '/truck-unloading.gif?v=3'
+  // Try to load GIF from public folder (no versioned querystring to match /public/truck-unloading.gif)
+  const gifUrl = '/truck-unloading.gif'
   
   const [gifError, setGifError] = useState(false)
   
