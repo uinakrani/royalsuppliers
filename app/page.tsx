@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 import { orderService } from '@/lib/orderService'
 import { invoiceService } from '@/lib/invoiceService'
-import { calculateStats, getDateRangeForDuration } from '@/lib/statsService'
+import { calculateStats } from '@/lib/statsService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
 import { Order, DashboardStats, OrderFilters } from '@/types/order'
 import { Invoice } from '@/types/invoice'
 import NavBar from '@/components/NavBar'
 import AuthGate from '@/components/AuthGate'
-import { format } from 'date-fns'
+import { format, parse, endOfMonth, startOfMonth } from 'date-fns'
 import { TrendingUp, DollarSign, Package, CreditCard, Calendar, Filter, Receipt, Plus, ArrowRight, Activity, ArrowDown, ArrowUp, Wallet, AlertCircle } from 'lucide-react'
 import { createRipple } from '@/lib/rippleEffect'
 import FilterPopup from '@/components/FilterPopup'
@@ -20,6 +20,34 @@ import { partyPaymentService } from '@/lib/partyPaymentService'
 import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
 import { investmentService, InvestmentRecord } from '@/lib/investmentService'
 import { getAdjustedProfit } from '@/lib/orderCalculations'
+
+const MONTH_FILTER_START = new Date(2025, 10, 1) // Nov 2025 (0-indexed)
+
+const generateMonthOptions = (): string[] => {
+  const options = ['all']
+  const now = new Date()
+  let cursor = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  while (cursor >= MONTH_FILTER_START) {
+    options.push(format(cursor, 'MMM yyyy'))
+    cursor.setMonth(cursor.getMonth() - 1)
+  }
+
+  return options
+}
+
+const getMonthDateRange = (selectedMonth: string): { start: Date; end: Date } | null => {
+  if (selectedMonth === 'all') return null
+
+  const parsed = parse(selectedMonth, 'MMM yyyy', new Date())
+  if (isNaN(parsed.getTime())) return null
+
+  const start = startOfMonth(parsed)
+  const end = endOfMonth(parsed)
+  start.setHours(0, 0, 0, 0)
+  end.setHours(23, 59, 59, 999)
+  return { start, end }
+}
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -46,7 +74,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState<OrderFilters>({})
   const [showFilters, setShowFilters] = useState(false)
-  const [duration, setDuration] = useState('currentMonth')
+  const [selectedMonth, setSelectedMonth] = useState<string>('all')
   const [filterPartyName, setFilterPartyName] = useState('')
   const [filterMaterial, setFilterMaterial] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -54,6 +82,11 @@ export default function Dashboard() {
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [showForm, setShowForm] = useState(false)
   const [investment, setInvestment] = useState<InvestmentRecord | null>(null)
+  const [financialSummary, setFinancialSummary] = useState({
+    investmentTotal: 0,
+    supplierSpend: 0,
+    receivedTotal: 0,
+  })
   const router = useRouter()
 
   useEffect(() => {
@@ -63,19 +96,22 @@ export default function Dashboard() {
   useEffect(() => {
     // Small delay to ensure Firebase is initialized
     const timer = setTimeout(() => {
-      loadOrders()
-      loadInvestment()
+      loadInvestment().then((investmentData) => {
+        loadOrders(investmentData)
+      })
     }, 100)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, duration])
+  }, [filters, selectedMonth])
 
-  const loadInvestment = async () => {
+  const loadInvestment = async (): Promise<InvestmentRecord | null> => {
     try {
       const investmentData = await investmentService.getInvestment()
       setInvestment(investmentData)
+      return investmentData
     } catch (error) {
       console.error('Error loading investment:', error)
+      return null
     }
   }
 
@@ -88,7 +124,7 @@ export default function Dashboard() {
     }
   }
 
-  const loadOrders = async () => {
+  const loadOrders = async (latestInvestment?: InvestmentRecord | null) => {
     // Don't set loading true for initial load - data comes from local storage instantly
     // Only show loading if we're forcing a refresh from server
     const isRefresh = loading // If already loading, this is a refresh
@@ -105,11 +141,16 @@ export default function Dashboard() {
         timeoutPromise
       ]) as Order[]
 
-      // Determine date range: custom date filters take precedence over duration
+      // Determine date range: month bar overrides, then custom dates
       let dateRangeStart: Date | null = null
       let dateRangeEnd: Date | null = null
 
-      if (filters.startDate || filters.endDate) {
+      const monthRange = getMonthDateRange(selectedMonth)
+
+      if (monthRange) {
+        dateRangeStart = monthRange.start
+        dateRangeEnd = monthRange.end
+      } else if (filters.startDate || filters.endDate) {
         // Use custom date filters if provided
         if (filters.startDate) {
           dateRangeStart = new Date(filters.startDate)
@@ -119,13 +160,6 @@ export default function Dashboard() {
           dateRangeEnd = new Date(filters.endDate)
           dateRangeEnd.setHours(23, 59, 59, 999) // End of day
         }
-      } else if (duration) {
-        // Use duration filter if no custom dates provided
-        const { start, end } = getDateRangeForDuration(duration)
-        dateRangeStart = start
-        dateRangeStart.setHours(0, 0, 0, 0) // Start of day
-        dateRangeEnd = end
-        dateRangeEnd.setHours(23, 59, 59, 999) // End of day
       }
 
       // Apply all filters to orders
@@ -183,6 +217,16 @@ export default function Dashboard() {
         console.warn('Error loading ledger entries:', error)
       }
 
+      const isInDateRange = (dateString: string | undefined | null) => {
+        if (!dateRangeStart && !dateRangeEnd) return true
+        if (!dateString) return false
+        const d = new Date(dateString)
+        if (isNaN(d.getTime())) return false
+        if (dateRangeStart && d < dateRangeStart) return false
+        if (dateRangeEnd && d > dateRangeEnd) return false
+        return true
+      }
+
       // Calculate All-Time Stats (independent of filters)
       const totalLedgerBalance = ledgerEntries.reduce((acc, e) => acc + (e.type === 'credit' ? e.amount : -e.amount), 0)
       const totalMoneyOutAllTime = ledgerEntries.reduce((acc, e) => acc + (e.type === 'debit' ? e.amount : 0), 0)
@@ -196,6 +240,43 @@ export default function Dashboard() {
 
       // Calculate stats from filtered orders and ledger entries
       const calculatedStats = calculateStats(filteredOrders, ledgerEntries, dateRangeStart || undefined, dateRangeEnd || undefined)
+
+      // Month-scoped financial summary
+      const ledgerEntriesInRange = ledgerEntries.filter(
+        (entry) => !entry.voided && isInDateRange(entry.date)
+      )
+
+      const supplierLedgerEntries = ledgerEntriesInRange.filter(
+        entry => entry.type === 'debit' && !!entry.supplier
+      )
+      const supplierLedgerIds = new Set(
+        supplierLedgerEntries.map(entry => entry.id).filter(Boolean) as string[]
+      )
+      const supplierSpendFromLedger = supplierLedgerEntries.reduce((sum, entry) => sum + entry.amount, 0)
+
+      const supplierSpendFromOrders = filteredOrders.reduce((sum, order) => {
+        const payments = (order.partialPayments || []).filter(p => isInDateRange(p.date))
+        const uncapturedPayments = payments.filter(p => !p.ledgerEntryId || !supplierLedgerIds.has(p.ledgerEntryId))
+        return sum + uncapturedPayments.reduce((s, p) => s + p.amount, 0)
+      }, 0)
+
+      const supplierSpend = supplierSpendFromLedger + supplierSpendFromOrders
+
+      const receivedTotal = ledgerEntriesInRange
+        .filter(entry => entry.type === 'credit' && entry.partyName)
+        .reduce((sum, entry) => sum + entry.amount, 0)
+
+      const resolvedInvestment = latestInvestment ?? investment ?? await investmentService.getInvestment().catch(() => null)
+      if (resolvedInvestment && !investment) {
+        setInvestment(resolvedInvestment)
+      }
+
+      const investmentTotal = (() => {
+        if (!resolvedInvestment) return 0
+        if (!resolvedInvestment.date && (dateRangeStart || dateRangeEnd)) return 0
+        if (resolvedInvestment.date && !isInDateRange(resolvedInvestment.date)) return 0
+        return resolvedInvestment.amount || 0
+      })()
 
       // --- INTELLIGENT FORMULAS FOR ADJUSTED PROFIT AND CASH ---
 
@@ -245,13 +326,19 @@ export default function Dashboard() {
       
       // Intelligent Available Cash = Investment + All Customer Income - All Expenses
       // This ignores "Manual Credits" without party name (preventing double count if investment was added that way)
-      const intelligentAvailableCash = (investment?.amount || 0) + allTimeCustomerPayments - allTimeExpenses
+      const intelligentAvailableCash = (resolvedInvestment?.amount || 0) + allTimeCustomerPayments - allTimeExpenses
 
       // Add All-Time stats to the state object
       calculatedStats.totalLedgerBalance = intelligentAvailableCash // Override with intelligent formula
       calculatedStats.totalMoneyOutAllTime = totalMoneyOutAllTime
       calculatedStats.totalRevenueAllTime = totalRevenueAllTime
       calculatedStats.totalReceivables = totalReceivables
+
+      setFinancialSummary({
+        investmentTotal,
+        supplierSpend,
+        receivedTotal,
+      })
 
       setOrders(filteredOrders)
       setStats(calculatedStats)
@@ -450,6 +537,7 @@ export default function Dashboard() {
     if (filterMaterial) newFilters.material = filterMaterial
     if (startDate) newFilters.startDate = startDate
     if (endDate) newFilters.endDate = endDate
+    setSelectedMonth('all') // Custom date filters override month selection
     setFilters(newFilters)
     setShowFilters(false)
   }
@@ -459,9 +547,13 @@ export default function Dashboard() {
     setFilterMaterial('')
     setStartDate('')
     setEndDate('')
-    setDuration('currentMonth')
+    setSelectedMonth('all')
     setFilters({})
     setShowFilters(false)
+  }
+
+  const handleMonthChange = (month: string) => {
+    setSelectedMonth(month)
   }
 
 
@@ -474,55 +566,61 @@ export default function Dashboard() {
       flexDirection: 'column',
       overflow: 'hidden'
     }}>
-      {/* Header - Fixed at top */}
-      <div className="bg-primary-600 text-white p-2.5 pt-safe sticky top-0 z-40" style={{ flexShrink: 0 }}>
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-xl font-bold">Dashboard</h1>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={(e) => {
-                createRipple(e)
-                setShowForm(true)
-              }}
-              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center"
-              style={{
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <Plus size={18} />
-            </button>
-            <button
-              onClick={(e) => {
-                createRipple(e)
-                setShowFilters(!showFilters)
-              }}
-              className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center"
-              style={{
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <Filter size={18} />
-            </button>
+      {/* Header & Month Filter - Fixed at top */}
+      <div className="sticky top-0 z-40" style={{ flexShrink: 0 }}>
+        <div className="bg-primary-600 text-white p-2.5 pt-safe">
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-xl font-bold">Dashboard</h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  setShowForm(true)
+                }}
+                className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  setShowFilters(!showFilters)
+                }}
+                className="p-2 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 transition-all native-press flex items-center justify-center"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <Filter size={18} />
+              </button>
+            </div>
           </div>
         </div>
-        {/* Duration Filter - Enhanced */}
-        <div className="mt-2">
-          <select
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            className="w-full px-3 py-2 bg-white/95 backdrop-blur-sm border border-white/30 rounded-xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all"
-          >
-            <option value="currentMonth">Current Month</option>
-            <option value="7days">Last 7 Days</option>
-            <option value="lastMonth">Last Month</option>
-            <option value="last3Months">Last 3 Months</option>
-            <option value="last6Months">Last 6 Months</option>
-            <option value="lastYear">Last Year</option>
-          </select>
+        <div className="bg-white border-b border-gray-200">
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {generateMonthOptions().map((month) => (
+                <button
+                  key={month}
+                  onClick={() => handleMonthChange(month)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                    selectedMonth === month
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                  }`}
+                >
+                  {month === 'all' ? 'All' : month}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -672,120 +770,32 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="p-3 space-y-3">
-            {/* Investment / Capital Card - MOST IMPORTANT */}
+            {/* Key Totals - Month scoped */}
             <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white border-2 border-amber-400">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                  <Wallet size={20} className="text-white" />
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                    <Wallet size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Key Totals</h3>
+                    <p className="text-[11px] opacity-80">Period: {selectedMonth === 'all' ? 'All' : selectedMonth}</p>
+                  </div>
                 </div>
-                <h3 className="text-base font-bold text-white">Your Investment (Capital)</h3>
               </div>
-              <p className="text-3xl font-bold mb-1">
-                {investment ? formatIndianCurrency(investment.amount) : formatIndianCurrency(0)}
-              </p>
-              <p className="text-xs opacity-90 mb-3">
-                {investment ? (investment.note || 'Your actual capital in the business') : 'Set your investment in Ledger page'}
-              </p>
-              {investment && (
-                <div className="pt-3 border-t border-white/20 space-y-3">
-                  
-                  {/* Liquidity & Receivables Grid */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
-                       <p className="text-[10px] opacity-80 mb-0.5 uppercase tracking-wider">Available Cash</p>
-                       <p className="text-sm font-bold text-white">
-                         {formatIndianCurrency(stats.totalLedgerBalance || 0)}
-                       </p>
-                    </div>
-                    <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
-                       <p className="text-[10px] opacity-80 mb-0.5 uppercase tracking-wider">Market Receivables</p>
-                       <p className="text-sm font-bold text-white">
-                         {formatIndianCurrency(stats.totalReceivables || 0)}
-                       </p>
-                    </div>
-                  </div>
-
-                  {/* Rotation Stats */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="opacity-80">Total Business Volume:</span>
-                      <span className="font-semibold">{formatIndianCurrency(stats.totalRevenueAllTime || 0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="opacity-80">Capital Rotation:</span>
-                      <div className="flex items-center gap-1">
-                         <Activity size={12} className="text-amber-200"/>
-                         <span className="font-bold text-amber-100">
-                           {((stats.totalRevenueAllTime || 0) / (investment.amount || 1)).toFixed(1)}x
-                         </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="opacity-80">Investment Date:</span>
-                      <span className="font-semibold opacity-90">{format(new Date(investment.date), 'dd MMM yyyy')}</span>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="bg-white/15 rounded-lg p-3 backdrop-blur-sm border border-white/10">
+                  <p className="text-[11px] opacity-80 mb-1 uppercase tracking-wider">Investment</p>
+                  <p className="text-xl font-bold text-white">{formatIndianCurrency(financialSummary.investmentTotal || 0)}</p>
                 </div>
-              )}
-            </div>
-
-            {/* Financial Overview - Money Flow */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-100">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 bg-primary-100 rounded-xl">
-                  <Wallet size={18} className="text-primary-600" />
+                <div className="bg-white/15 rounded-lg p-3 backdrop-blur-sm border border-white/10">
+                  <p className="text-[11px] opacity-80 mb-1 uppercase tracking-wider">Paid to Suppliers</p>
+                  <p className="text-xl font-bold text-white">{formatIndianCurrency(financialSummary.supplierSpend || 0)}</p>
                 </div>
-                <h3 className="text-base font-bold text-gray-900">Financial Overview</h3>
-              </div>
-
-              {/* Money Out */}
-              <div className="mb-3 p-3 bg-red-50 rounded-xl border border-red-100">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <ArrowDown size={16} className="text-red-600" />
-                    <span className="text-sm font-semibold text-gray-700">Money Going Out</span>
-                  </div>
-                  <span className="text-lg font-bold text-red-600">
-                    {formatIndianCurrency(stats.moneyOut)}
-                  </span>
+                <div className="bg-white/15 rounded-lg p-3 backdrop-blur-sm border border-white/10">
+                  <p className="text-[11px] opacity-80 mb-1 uppercase tracking-wider">Money Received</p>
+                  <p className="text-xl font-bold text-white">{formatIndianCurrency(financialSummary.receivedTotal || 0)}</p>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Total expenses (Raw materials + Additional costs)
-                </p>
-              </div>
-
-              {/* Outstanding Raw Materials */}
-              {stats.rawMaterialPaymentsOutstanding > 0 && (
-                <div className="mb-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle size={16} className="text-orange-600" />
-                      <span className="text-sm font-semibold text-gray-700">Outstanding Raw Materials</span>
-                    </div>
-                    <span className="text-lg font-bold text-orange-600">
-                      {formatIndianCurrency(stats.rawMaterialPaymentsOutstanding)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Yet to be paid for raw materials
-                  </p>
-                </div>
-              )}
-
-              {/* Money Received */}
-              <div className="mb-3 p-3 bg-green-50 rounded-xl border border-green-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <ArrowUp size={16} className="text-green-600" />
-                    <span className="text-sm font-semibold text-gray-700">Money Received</span>
-                  </div>
-                  <span className="text-lg font-bold text-green-600">
-                    {formatIndianCurrency(stats.customerPaymentsReceived)}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Money received from parties (ledger credit entries with party name)
-                </p>
               </div>
             </div>
 

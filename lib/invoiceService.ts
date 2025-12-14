@@ -549,12 +549,20 @@ export const invoiceService = {
     }
     
     try {
-      const q = query(collection(db, INVOICES_COLLECTION))
+      const workspaceId = getActiveWorkspaceId()
+      const includeLegacy = workspaceId === WORKSPACE_DEFAULTS.id
+      const q = includeLegacy
+        ? query(collection(db, INVOICES_COLLECTION))
+        : query(collection(db, INVOICES_COLLECTION), where('workspaceId', '==', workspaceId))
       const querySnapshot = await getDocs(q)
       const partyNames = new Set<string>()
       
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        const belongsToWorkspace = includeLegacy
+          ? matchesActiveWorkspace({ workspaceId: (data as any).workspaceId })
+          : true
+        if (!belongsToWorkspace) return
         if (data.partyName && typeof data.partyName === 'string') {
           partyNames.add(data.partyName.trim())
         }

@@ -155,13 +155,22 @@ export const orderService = {
           const { ledgerService } = await import('./ledgerService');
           console.log('Creating missing ledger entry for payment:', payment);
           
+          // Carting entry: keep it untagged (no supplier/party) so it remains a carting expense
+          const ledgerNoteParts = [
+            'Carting',
+            orderInfo.supplier ? `(${orderInfo.supplier})` : null,
+            orderInfo.truckNo ? `Truck ${orderInfo.truckNo}` : orderInfo.id ? `Order ${orderInfo.id}` : null,
+            payment.note?.trim()
+          ].filter(Boolean);
+          const ledgerNote = ledgerNoteParts.join(' - ') || `Carting - ${orderInfo.truckNo || orderInfo.id || 'Unknown Order'}`;
+
           const ledgerEntryId = await ledgerService.addEntry(
             'debit',
             payment.amount,
-            payment.note ? `Order Payment (${orderInfo.truckNo || 'Unknown Truck'}): ${payment.note}` : `Order Payment: ${orderInfo.truckNo || orderInfo.id || 'Unknown Order'}`,
+            ledgerNote,
             'orderExpense',
             payment.date || new Date().toISOString(),
-            undefined, // No supplier to avoid auto-distribution as per user request
+            undefined, // No supplier -> stays as carting
             undefined // No partyName
           );
           
@@ -173,6 +182,7 @@ export const orderService = {
           console.log('Γ£à Created ledger entry:', ledgerEntryId);
         } catch (error) {
           console.error('Γ¥î Failed to create ledger entry for payment:', error);
+          throw new Error('Failed to create ledger entry for payment. Please try again.');
         }
       }
     }
@@ -836,11 +846,14 @@ export const orderService = {
     // Add new payment record
     const actualPaymentDate = paymentDate || new Date().toISOString()
 
-    // --- NEW: Create Linked Ledger Entry ---
-    // Tag order-level payments as "Carting" to distinguish from supplier-level payouts
-    const cartingNote = [ 'Carting', order.supplier ? `(${order.supplier})` : null, order.truckNo ? `Truck ${order.truckNo}` : null, note?.trim() ]
-      .filter(Boolean)
-      .join(' - ')
+    // Create linked ledger entry as carting expense (no supplier tag)
+    const ledgerNoteParts = [
+      'Carting',
+      order.supplier ? `(${order.supplier})` : null,
+      order.truckNo ? `Truck ${order.truckNo}` : null,
+      note?.trim()
+    ].filter(Boolean)
+    const ledgerNote = ledgerNoteParts.join(' - ') || `Carting - ${order.truckNo || id}`
 
     let ledgerEntryId: string | undefined = undefined
     try {
@@ -848,19 +861,20 @@ export const orderService = {
       ledgerEntryId = await ledgerService.addEntry(
         'debit',
         paymentAmount,
-        cartingNote || `Carting - ${order.truckNo || id}`,
+        ledgerNote,
         'orderExpense',
         actualPaymentDate,
-        undefined, // No supplier to avoid auto-distribution
+        undefined, // No supplier -> carting
         undefined // No partyName
       )
       console.log('Γ£à Created linked ledger entry:', ledgerEntryId)
     } catch (error) {
       console.error('Γ¥î Failed to create linked ledger entry for order payment:', error)
-      // We could throw here, but arguably we should let the payment proceed without ledger link?
-      // Requirement says "that should created ledger expanse entry", so failing is probably better than inconsistency.
-      // But for robustness, let's log and maybe alert. 
-      // For now, we'll proceed but the link will be missing.
+      throw new Error('Failed to create ledger expense entry for this payment. Please try again.')
+    }
+    if (!ledgerEntryId) {
+      // Defensive guard: do not proceed without a carting ledger entry
+      throw new Error('Ledger expense entry was not created. Please try again.')
     }
     // ---------------------------------------
 
@@ -872,10 +886,18 @@ export const orderService = {
       note: note || undefined,
       ledgerEntryId: ledgerEntryId, // Store the link
     }
-    const updatedPayments = [...existingPayments, newPayment]
+    let updatedPayments = [...existingPayments, newPayment]
+
+    // Defensive: ensure every payment has a carting ledger entry (backfill if missing)
+    updatedPayments = await this.ensureLedgerEntriesForPayments(updatedPayments, {
+      truckNo: order.truckNo,
+      id,
+      supplier: order.supplier,
+    })
 
     // Prepare update data
-    const isFullyPaid = newTotalPaid >= (expenseAmount - PAYMENT_TOLERANCE)
+    const totalPaidEnsured = updatedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    const isFullyPaid = totalPaidEnsured >= (expenseAmount - PAYMENT_TOLERANCE)
 
     const updateData: any = {
       partialPayments: updatedPayments,
@@ -887,7 +909,7 @@ export const orderService = {
     if (isFullyPaid) {
       updateData.paidAmount = deleteField()
     } else {
-      updateData.paidAmount = newTotalPaid
+      updateData.paidAmount = totalPaidEnsured
     }
 
     await this.updateOrder(id, updateData)
@@ -1410,12 +1432,20 @@ export const orderService = {
       return []
     }
     try {
-      const q = query(collection(db, ORDERS_COLLECTION))
+      const workspaceId = getActiveWorkspaceId()
+      const includeLegacy = workspaceId === WORKSPACE_DEFAULTS.id
+      const q = includeLegacy
+        ? query(collection(db, ORDERS_COLLECTION))
+        : query(collection(db, ORDERS_COLLECTION), where('workspaceId', '==', workspaceId))
       const querySnapshot = await getDocs(q)
       const partyNames = new Set<string>()
 
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        const belongsToWorkspace = includeLegacy
+          ? matchesActiveWorkspace({ workspaceId: (data as any).workspaceId })
+          : true
+        if (!belongsToWorkspace) return
         if (data.partyName && typeof data.partyName === 'string') {
           partyNames.add(data.partyName.trim())
         }
@@ -1436,12 +1466,20 @@ export const orderService = {
       return []
     }
     try {
-      const q = query(collection(db, ORDERS_COLLECTION))
+      const workspaceId = getActiveWorkspaceId()
+      const includeLegacy = workspaceId === WORKSPACE_DEFAULTS.id
+      const q = includeLegacy
+        ? query(collection(db, ORDERS_COLLECTION))
+        : query(collection(db, ORDERS_COLLECTION), where('workspaceId', '==', workspaceId))
       const querySnapshot = await getDocs(q)
       const truckOwners = new Set<string>()
 
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        const belongsToWorkspace = includeLegacy
+          ? matchesActiveWorkspace({ workspaceId: (data as any).workspaceId })
+          : true
+        if (!belongsToWorkspace) return
         if (data.truckOwner && typeof data.truckOwner === 'string') {
           truckOwners.add(data.truckOwner.trim())
         }
@@ -1462,12 +1500,20 @@ export const orderService = {
       return []
     }
     try {
-      const q = query(collection(db, ORDERS_COLLECTION))
+      const workspaceId = getActiveWorkspaceId()
+      const includeLegacy = workspaceId === WORKSPACE_DEFAULTS.id
+      const q = includeLegacy
+        ? query(collection(db, ORDERS_COLLECTION))
+        : query(collection(db, ORDERS_COLLECTION), where('workspaceId', '==', workspaceId))
       const querySnapshot = await getDocs(q)
       const truckNumbers = new Set<string>()
 
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        const belongsToWorkspace = includeLegacy
+          ? matchesActiveWorkspace({ workspaceId: (data as any).workspaceId })
+          : true
+        if (!belongsToWorkspace) return
         if (data.truckNo && typeof data.truckNo === 'string') {
           truckNumbers.add(data.truckNo.trim())
         }
@@ -1488,12 +1534,20 @@ export const orderService = {
       return []
     }
     try {
-      const q = query(collection(db, ORDERS_COLLECTION))
+      const workspaceId = getActiveWorkspaceId()
+      const includeLegacy = workspaceId === WORKSPACE_DEFAULTS.id
+      const q = includeLegacy
+        ? query(collection(db, ORDERS_COLLECTION))
+        : query(collection(db, ORDERS_COLLECTION), where('workspaceId', '==', workspaceId))
       const querySnapshot = await getDocs(q)
       const siteNames = new Set<string>()
 
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        const belongsToWorkspace = includeLegacy
+          ? matchesActiveWorkspace({ workspaceId: (data as any).workspaceId })
+          : true
+        if (!belongsToWorkspace) return
         if (data.siteName && typeof data.siteName === 'string') {
           siteNames.add(data.siteName.trim())
         }
@@ -1514,12 +1568,20 @@ export const orderService = {
       return []
     }
     try {
-      const q = query(collection(db, ORDERS_COLLECTION))
+      const workspaceId = getActiveWorkspaceId()
+      const includeLegacy = workspaceId === WORKSPACE_DEFAULTS.id
+      const q = includeLegacy
+        ? query(collection(db, ORDERS_COLLECTION))
+        : query(collection(db, ORDERS_COLLECTION), where('workspaceId', '==', workspaceId))
       const querySnapshot = await getDocs(q)
       const suppliers = new Set<string>()
 
       querySnapshot.forEach((doc) => {
         const data = doc.data()
+        const belongsToWorkspace = includeLegacy
+          ? matchesActiveWorkspace({ workspaceId: (data as any).workspaceId })
+          : true
+        if (!belongsToWorkspace) return
         if (data.supplier && typeof data.supplier === 'string') {
           suppliers.add(data.supplier.trim())
         }

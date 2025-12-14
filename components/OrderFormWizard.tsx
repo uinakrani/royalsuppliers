@@ -121,6 +121,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
   const [siteNames, setSiteNames] = useState<string[]>([])
   const [truckOwners, setTruckOwners] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
+  const [materials, setMaterials] = useState<string[]>([...MATERIAL_OPTIONS])
   const lastEnteredValue = useRef<number | string | null>(null)
 
   useEffect(() => {
@@ -148,16 +149,25 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
 
   const loadOptions = async () => {
     try {
-      const [parties, sites, owners, supplierList] = await Promise.all([
+      const [parties, sites, owners, supplierList, allOrders] = await Promise.all([
         orderService.getUniquePartyNames(),
         orderService.getUniqueSiteNames(),
         orderService.getUniqueTruckOwners(),
-        orderService.getUniqueSuppliers()
+        orderService.getUniqueSuppliers(),
+        orderService.getAllOrders(),
       ])
       setPartyNames(parties)
       setSiteNames(sites)
       setTruckOwners(owners)
       setSuppliers(supplierList)
+      const materialsFromOrders = Array.from(new Set<string>([
+        ...MATERIAL_OPTIONS,
+        ...allOrders.flatMap(o => {
+          const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : [])
+          return mats.filter(Boolean)
+        })
+      ]))
+      setMaterials(materialsFromOrders)
     } catch (error) {
       console.error('Error loading options:', error)
     }
@@ -371,7 +381,7 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
       case 'material':
         return (
           <SelectList
-            options={[...MATERIAL_OPTIONS]}
+            options={materials}
             value=""
             onChange={() => {}}
             onClose={() => {
@@ -384,8 +394,17 @@ export default function OrderFormWizard({ order, onClose, onSave }: OrderFormWiz
             multiSelect={true}
             selectedValues={formData.material}
             onMultiChange={(vals) => {
-              setFormData({ ...formData, material: vals })
+              const uniqueVals = Array.from(new Set(vals))
+              setFormData({ ...formData, material: uniqueVals })
               // Don't auto-advance, wait for Done button
+            }}
+            allowCustom={true}
+            onCustomAdd={(val) => {
+              setMaterials(prev => Array.from(new Set([...prev, val])))
+              setFormData(prev => ({
+                ...prev,
+                material: Array.from(new Set([...(prev.material || []), val]))
+              }))
             }}
             inline={true}
           />

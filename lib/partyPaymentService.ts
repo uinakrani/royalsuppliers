@@ -83,6 +83,23 @@ export const partyPaymentService = {
       }))
   },
 
+  // Best-effort shim to keep backward compatibility with ledgerService.
+  // Party payments are derived directly from ledger credits, so we don't need
+  // to persist anything here—just validate input and return to avoid runtime errors.
+  async upsertPaymentFromLedgerCredit(payment: {
+    id?: string
+    partyName: string
+    amount: number
+    date: string
+    note?: string | null
+    createdAt?: string
+  }): Promise<void> {
+    if (!payment?.partyName?.trim()) {
+      return
+    }
+    // No-op: ledger credits already represent party payments in list()
+  },
+
 
   async addPayment(partyName: string, amount: number, note?: string): Promise<void> {
     if (!partyName?.trim()) {

@@ -1412,9 +1412,13 @@ function OrdersPageContent() {
   }, [partyGroups, selectedPartyGroup, showPartyDetailDrawer])
 
   const getSupplierGroups = useCallback((): SupplierGroup[] => {
+    const monthFilteredOrders = selectedMonth === 'all'
+      ? filteredOrders
+      : filteredOrders.filter(order => isOrderInSelectedMonth(order, selectedMonth))
+
     // Group orders by supplier
     const supplierMap = new Map<string, Order[]>()
-    filteredOrders.forEach(order => {
+    monthFilteredOrders.forEach(order => {
       const supplier = order.supplier
       if (!supplier || supplier.trim() === '') return
       if (!supplierMap.has(supplier)) {
@@ -1441,13 +1445,19 @@ function OrdersPageContent() {
 
       // Get supplier payments from ledger expense entries
       const supplierLedgerEntries = ledgerEntries.filter(
-        e => e.type === 'debit' && e.supplier === supplierName && !e.voided
+        e =>
+          e.type === 'debit' &&
+          e.supplier === supplierName &&
+          !e.voided &&
+          isPaymentInSelectedMonth(e.date, selectedMonth)
       )
       totalPaidToSupplier = supplierLedgerEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
 
       // Calculate total carting paid across all orders
       const totalCartingPaid = supplierOrders.reduce((sum, order) => {
-        const existingPayments = order.partialPayments || []
+        const existingPayments = (order.partialPayments || []).filter(payment =>
+          isPaymentInSelectedMonth(payment.date, selectedMonth)
+        )
         const directPayments = existingPayments.filter(p => !p.ledgerEntryId)
         const ledgerEntryIds = new Set(supplierLedgerEntries.map(p => p.id).filter(Boolean))
         const ledgerCartingPayments = existingPayments.filter(p => p.ledgerEntryId && !ledgerEntryIds.has(p.ledgerEntryId))
@@ -1465,7 +1475,9 @@ function OrdersPageContent() {
 
       // Check order payments for last payment
       supplierOrders.forEach(order => {
-        const partialPayments = order.partialPayments || []
+        const partialPayments = (order.partialPayments || []).filter(payment =>
+          isPaymentInSelectedMonth(payment.date, selectedMonth)
+        )
         partialPayments.forEach(payment => {
           const paymentDate = safeParseDate(payment.date)
           if (paymentDate) {
@@ -1480,6 +1492,7 @@ function OrdersPageContent() {
 
       // Check supplier ledger entries for last payment
       supplierLedgerEntries.forEach(entry => {
+        if (!isPaymentInSelectedMonth(entry.date, selectedMonth)) return
         const entryDate = safeParseDate(entry.date)
         if (entryDate) {
           const currentLastDate = safeParseDate(lastPaymentDate)
@@ -1520,7 +1533,7 @@ function OrdersPageContent() {
       const bLastDate = safeGetTime(b.lastPaymentDate)
       return bLastDate - aLastDate
     })
-  }, [filteredOrders, ledgerEntries])
+  }, [filteredOrders, ledgerEntries, selectedMonth])
 
   // Refresh selected supplier group when orders change (for direct payment updates)
   useEffect(() => {
@@ -1530,6 +1543,9 @@ function OrdersPageContent() {
       )
       if (updated) {
         setSelectedSupplierGroup(updated)
+      } else {
+        setShowSupplierDetailDrawer(false)
+        setSelectedSupplierGroup(null)
       }
     }
   }, [selectedSupplierGroup?.supplierName, showSupplierDetailDrawer, getSupplierGroups])
@@ -1651,8 +1667,8 @@ function OrdersPageContent() {
         </div>
       </FilterPopup>
 
-      {/* Month Selection Bar - Shared between By Party and All Orders views */}
-      {(viewMode === 'byParty' || viewMode === 'allOrders') && (
+      {/* Month Selection Bar - Shared across views */}
+      {(viewMode === 'byParty' || viewMode === 'allOrders' || viewMode === 'suppliers') && (
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
           <div className="px-4 py-3">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">

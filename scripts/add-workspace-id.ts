@@ -9,9 +9,11 @@ import { initializeApp } from 'firebase/app'
 import { getFirestore, collection, getDocs, doc, setDoc } from 'firebase/firestore'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as dotenv from 'dotenv'
 
 // Load env from .env.local if present
 const envPath = path.join(__dirname, '..', '.env.local')
+dotenv.config({ path: envPath })
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf-8')
   envContent.split('\n').forEach((line) => {
@@ -37,7 +39,24 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-const TARGET_COLLECTIONS = ['orders', 'invoices', 'ledgerEntries', 'investment', 'partyPayments']
+const TARGET_COLLECTIONS = [
+  // Core business data
+  'orders',
+  'suppliers',
+  'parties',
+  'invoices',
+  'ledgerEntries',
+  // Investments + related activity
+  'investment',
+  'investments',
+  'investmentActivity',
+  // Payments/parties
+  'partyPayments',
+  // Activity / timeline logs
+  'ledgerActivities',
+  'timelineLogs',
+  'ledgerLogs',
+]
 
 async function ensureWorkspaceId() {
   if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.appId) {

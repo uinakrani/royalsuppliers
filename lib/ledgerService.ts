@@ -12,6 +12,7 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import { getDb } from './firebase'
 import { ledgerActivityService } from './ledgerActivityService'
@@ -47,6 +48,7 @@ type AddEntryOptions = {
   skipActivityLog?: boolean
   fromSync?: boolean
   createdAtOverride?: string
+  workspaceIdOverride?: string
 }
 
 // Lazy load orderService to avoid circular dependencies
@@ -97,7 +99,10 @@ export const ledgerService = {
     const shouldPersistLocally = !options.skipLocalWrite
     const now = new Date().toISOString()
     const createdAtValue = options.createdAtOverride || now
-    const workspaceId = getActiveWorkspaceId()
+    const workspaceId = options.workspaceIdOverride || getActiveWorkspaceId()
+    if (!workspaceId) {
+      throw new Error('Active workspace is not set. Please select a workspace and try again.')
+    }
     // Use provided date or default to now
     // If date is provided, convert it to ISO string with time component
     let dateValue = date || now
@@ -261,21 +266,31 @@ export const ledgerService = {
   async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean }): Promise<LedgerEntry[]> {
     try {
       const activeWorkspaceId = getActiveWorkspaceId()
-      const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
+      if (!activeWorkspaceId) {
+        throw new Error('Active workspace is not set. Please select a workspace and try again.')
+      }
       const localItemsRaw = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
       const localItems = localItemsRaw
-        .map((entry) => (entry.workspaceId ? entry : { ...(entry as LedgerEntry), workspaceId: fallbackWorkspaceId }))
-        .filter(matchesActiveWorkspace)
+        .map((entry) =>
+          (entry as LedgerEntry).workspaceId
+            ? (entry as LedgerEntry)
+            : ({ ...(entry as LedgerEntry), workspaceId: activeWorkspaceId } as LedgerEntry)
+        )
+        .filter((entry) => entry.workspaceId === activeWorkspaceId)
 
       if (offlineStorage.isOnline()) {
         const db = getDb()
         if (db) {
           try {
-            const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
-            const snap = await getDocs(q)
             const firestoreItems: LedgerEntry[] = []
 
-            snap.forEach((d) => {
+            // Fetch entries tagged with the active workspace
+            const qWorkspace = query(
+              collection(db, LEDGER_COLLECTION),
+              where('workspaceId', '==', activeWorkspaceId)
+            )
+            const snapWorkspace = await getDocs(qWorkspace)
+            snapWorkspace.forEach((d) => {
               const data = d.data() as any
               const createdAt =
                 data.createdAt ??
@@ -301,27 +316,68 @@ export const ledgerService = {
                 voidedAt: data.voidedAt,
                 voidReason: data.voidReason,
                 replacedById: data.replacedById,
+                workspaceId: data.workspaceId || activeWorkspaceId,
                 ...(createdAt ? { createdAt } : {}),
               }
 
-              if (!item.workspaceId) {
-                item.workspaceId = fallbackWorkspaceId
-                try {
-                  const ref = doc(db, LEDGER_COLLECTION, d.id)
-                  updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
-                } catch {
-                  // ignore best-effort tag
-                }
-              }
-
-              if (!matchesActiveWorkspace(item)) {
+              if (item.workspaceId !== activeWorkspaceId) {
                 return
               }
 
               firestoreItems.push(item)
-              // Cache in local storage
               offlineStorage.put(STORES.LEDGER_ENTRIES, item)
             })
+
+            // Fetch legacy entries missing workspaceId and attribute them to the active workspace
+            try {
+              const qMissing = query(
+                collection(db, LEDGER_COLLECTION),
+                where('workspaceId', '==', null)
+              )
+              const snapMissing = await getDocs(qMissing)
+              snapMissing.forEach((d) => {
+                const data = d.data() as any
+                const createdAt =
+                  data.createdAt ??
+                  (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+                  undefined
+
+                let dateValue = data.date
+                if (dateValue && typeof dateValue.toDate === 'function') {
+                  dateValue = (dateValue as Timestamp).toDate().toISOString()
+                }
+
+                const item: LedgerEntry = {
+                  id: d.id,
+                  type: data.type,
+                  amount: data.amount,
+                  note: data.note,
+                  date: dateValue,
+                  source: data.source,
+                  supplier: data.supplier,
+                  partyName: data.partyName,
+                  voided: data.voided || false,
+                  voidedAt: data.voidedAt,
+                  voidReason: data.voidReason,
+                  replacedById: data.replacedById,
+                  workspaceId: activeWorkspaceId,
+                  ...(createdAt ? { createdAt } : {}),
+                }
+
+                firestoreItems.push(item)
+                offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+
+                // Best-effort tagging in Firestore
+                try {
+                  const ref = doc(db, LEDGER_COLLECTION, d.id)
+                  updateDoc(ref, { workspaceId: activeWorkspaceId }).catch(() => {})
+                } catch {
+                  // ignore best-effort failures
+                }
+              })
+            } catch (error) {
+              console.error('Failed to fetch legacy workspace-less ledger entries:', error)
+            }
 
             const sorted = sortLedgerEntries(firestoreItems)
             options?.onRemoteUpdate?.(sorted)
@@ -346,24 +402,31 @@ export const ledgerService = {
     const db = getDb()
     if (!db) return []
 
-    const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
-    const snap = await getDocs(q)
+    const activeWorkspaceId = getActiveWorkspaceId()
+    if (!activeWorkspaceId) {
+      throw new Error('Active workspace is not set. Please select a workspace and try again.')
+    }
     const firestoreItems: LedgerEntry[] = []
 
-    snap.forEach((d) => {
+    // Active workspace entries
+    const qWorkspace = query(
+      collection(db, LEDGER_COLLECTION),
+      where('workspaceId', '==', activeWorkspaceId)
+    )
+    const snapWorkspace = await getDocs(qWorkspace)
+    snapWorkspace.forEach((d) => {
       const data = d.data() as any
       const createdAt =
         data.createdAt ??
         (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
         undefined
 
-      // Convert date field from Timestamp to ISO string if needed
       let dateValue = data.date
       if (dateValue && typeof dateValue.toDate === 'function') {
         dateValue = (dateValue as Timestamp).toDate().toISOString()
       }
 
-      const item = {
+      const item: LedgerEntry = {
         id: d.id,
         type: data.type,
         amount: data.amount,
@@ -376,15 +439,65 @@ export const ledgerService = {
         voidedAt: data.voidedAt,
         voidReason: data.voidReason,
         replacedById: data.replacedById,
+        workspaceId: activeWorkspaceId,
         ...(createdAt ? { createdAt } : {}),
       }
 
       firestoreItems.push(item)
-      // Cache in local storage
       offlineStorage.put(STORES.LEDGER_ENTRIES, item)
     })
 
-    return firestoreItems
+    // Legacy entries without workspaceId: attribute to active workspace and tag best-effort
+    try {
+      const qMissing = query(
+        collection(db, LEDGER_COLLECTION),
+        where('workspaceId', '==', null)
+      )
+      const snapMissing = await getDocs(qMissing)
+      snapMissing.forEach((d) => {
+        const data = d.data() as any
+        const createdAt =
+          data.createdAt ??
+          (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+          undefined
+
+        let dateValue = data.date
+        if (dateValue && typeof dateValue.toDate === 'function') {
+          dateValue = (dateValue as Timestamp).toDate().toISOString()
+        }
+
+        const item: LedgerEntry = {
+          id: d.id,
+          type: data.type,
+          amount: data.amount,
+          note: data.note,
+          date: dateValue,
+          source: data.source,
+          supplier: data.supplier,
+          partyName: data.partyName,
+          voided: data.voided || false,
+          voidedAt: data.voidedAt,
+          voidReason: data.voidReason,
+          replacedById: data.replacedById,
+          workspaceId: activeWorkspaceId,
+          ...(createdAt ? { createdAt } : {}),
+        }
+
+        firestoreItems.push(item)
+        offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+
+        try {
+          const ref = doc(db, LEDGER_COLLECTION, d.id)
+          updateDoc(ref, { workspaceId: activeWorkspaceId }).catch(() => {})
+        } catch {
+          // ignore best-effort failures
+        }
+      })
+    } catch (error) {
+      console.error('Failed to fetch legacy workspace-less ledger entries (all):', error)
+    }
+
+    return sortLedgerEntries(firestoreItems)
   },
 
   // Background sync method that doesn't block UI
@@ -439,11 +552,19 @@ export const ledgerService = {
 
   subscribe(callback: (entries: LedgerEntry[]) => void): () => void {
     let isInitialLoad = true
+    const activeWorkspaceId = getActiveWorkspaceId()
+    if (!activeWorkspaceId) {
+      callback([])
+      return () => {}
+    }
 
     // Get local data immediately for instant loading
     offlineStorage.getAll(STORES.LEDGER_ENTRIES).then(localItems => {
-      if (localItems.length > 0) {
-        callback(sortLedgerEntries(localItems))
+      const filtered = (localItems as LedgerEntry[]).filter(
+        (e) => e.workspaceId === activeWorkspaceId
+      )
+      if (filtered.length > 0) {
+        callback(sortLedgerEntries(filtered))
       } else if (isInitialLoad) {
         // No local data - try to fetch from Firestore once if online
         if (offlineStorage.isOnline()) {
@@ -464,7 +585,10 @@ export const ledgerService = {
 
     // Listen for local store changes to push real-time updates to UI immediately
     const offlineUnsubscribe = offlineStorage.onStoreChange(STORES.LEDGER_ENTRIES, (items) => {
-      callback(sortLedgerEntries(items as LedgerEntry[]))
+      const filtered = (items as LedgerEntry[]).filter(
+        (e) => e.workspaceId === activeWorkspaceId
+      )
+      callback(sortLedgerEntries(filtered))
     })
 
     // Set up Firestore real-time listener for background updates
@@ -476,7 +600,11 @@ export const ledgerService = {
       const db = getDb()
       if (!db) return
 
-      const qRef = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
+      const activeWorkspaceId = getActiveWorkspaceId()
+      const qRef = query(
+        collection(db, LEDGER_COLLECTION),
+        where('workspaceId', '==', activeWorkspaceId)
+      )
       firestoreUnsubscribe = onSnapshot(qRef, (snap) => {
         const items: LedgerEntry[] = []
         snap.forEach((d) => {
@@ -508,6 +636,10 @@ export const ledgerService = {
             ...(createdAt ? { createdAt } : {}),
           }
 
+          if (!matchesActiveWorkspace(item)) {
+            return
+          }
+
           items.push(item)
           // Update local storage in background
           offlineStorage.put(STORES.LEDGER_ENTRIES, item)
@@ -522,6 +654,63 @@ export const ledgerService = {
         console.error('Firestore subscription error:', error)
         // Don't update UI on error - keep local data
       })
+
+      // One-time fetch legacy workspace-less entries, tag to active workspace
+      ;(async () => {
+        try {
+          const qMissing = query(
+            collection(db, LEDGER_COLLECTION),
+            where('workspaceId', '==', null)
+          )
+          const snapMissing = await getDocs(qMissing)
+          const legacyItems: LedgerEntry[] = []
+          snapMissing.forEach((d) => {
+            const data = d.data() as any
+            const createdAt =
+              data.createdAt ??
+              (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
+              undefined
+
+            let dateValue = data.date
+            if (dateValue && typeof dateValue.toDate === 'function') {
+              dateValue = (dateValue as Timestamp).toDate().toISOString()
+            }
+
+            const item: LedgerEntry = {
+              id: d.id,
+              type: data.type,
+              amount: data.amount,
+              note: data.note,
+              date: dateValue,
+              source: data.source,
+              supplier: data.supplier,
+              partyName: data.partyName,
+              voided: data.voided || false,
+              voidedAt: data.voidedAt,
+              voidReason: data.voidReason,
+              replacedById: data.replacedById,
+              workspaceId: activeWorkspaceId,
+              ...(createdAt ? { createdAt } : {}),
+            }
+
+            legacyItems.push(item)
+            offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+
+            try {
+              const ref = doc(db, LEDGER_COLLECTION, d.id)
+              updateDoc(ref, { workspaceId: activeWorkspaceId }).catch(() => {})
+            } catch {
+              // ignore best-effort
+            }
+          })
+
+          if (legacyItems.length > 0) {
+            callback(sortLedgerEntries(legacyItems))
+          }
+        } catch (err) {
+          console.error('Failed to tag legacy ledger entries during subscribe:', err)
+        }
+      })()
     }
 
     // Listen for online/offline changes
@@ -604,12 +793,10 @@ export const ledgerService = {
     // Keep the entry locally but mark it as voided
     await offlineStorage.put(STORES.LEDGER_ENTRIES, voidedEntry)
 
-    // Cleanup associated payments on orders (re-distribution logic)
-    // Only cleanup for direct payments (order-level payments without supplier/partyName)
-    // Supplier payments and party payments are now standalone ledger entries
-    if (!entry?.supplier && !entry?.partyName) {
+    // Cleanup associated order payments for any orderExpense ledger entry (including supplier-tagged)
+    if (entry?.source === 'orderExpense') {
       try {
-        console.log('Cleaning up payments for ledger entry:', id)
+        console.log('Cleaning up order payments for ledger entry:', id)
         const orderSvc = await getOrderService()
         await orderSvc.removePaymentsByLedgerEntryId(id)
       } catch (error) {
@@ -742,7 +929,11 @@ export const ledgerService = {
       newDate,
       newSupplier || undefined,
       newPartyName || undefined,
-      { rollbackOnFailure, skipActivityLog: true }
+      {
+        rollbackOnFailure,
+        skipActivityLog: true,
+        workspaceIdOverride: oldEntry.workspaceId,
+      }
     )
 
     // Step 2: soft-void the original entry so it remains visible but is excluded from calculations

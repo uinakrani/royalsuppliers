@@ -177,8 +177,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
   }
 
   const canSave = (): boolean => {
-    const partyOk = type === 'credit' ? !!formData.partyName.trim() : true
-    return formData.amount > 0 && !!formData.date && partyOk
+    return formData.amount > 0 && !!formData.date
   }
 
   // Allow editing dates for all expense entries (including carting and supplier payments)
@@ -195,7 +194,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       amount: 'Amount',
       date: 'Date',
       supplier: 'Supplier',
-      partyName: 'Party Name',
+      partyName: 'Party Name (Optional)',
       note: 'Note',
       review: 'Review', // Kept for type compatibility but not used
     }
@@ -223,7 +222,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       case 'supplier':
         return true // Supplier is optional for expense entries
       case 'partyName':
-        return type === 'credit' ? !!formData.partyName.trim() : true
+        return true // Party is optional for income entries
       case 'note':
         return true // Optional
       case 'review':
@@ -331,22 +330,27 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
 
       case 'partyName':
         return (
-          <SelectList
-            options={partyNames}
-            value={formData.partyName}
-            onChange={(val) => {
-              setFormData({ ...formData, partyName: val })
-              setTimeout(() => handleAfterEdit(), 100)
-            }}
-            onClose={() => {}}
-            label="Select Party Name"
-            allowCustom={true}
-            onCustomAdd={(val) => {
-              setPartyNames([...partyNames, val])
-            }}
-            inline={true}
-            autoFocusSearch={false}
-          />
+          <div className="w-full">
+            <SelectList
+              options={partyNames}
+              value={formData.partyName}
+              onChange={(val) => {
+                setFormData({ ...formData, partyName: val })
+                setTimeout(() => handleAfterEdit(), 100)
+              }}
+              onClose={() => {}}
+              label="Select Party Name (Optional)"
+              allowCustom={true}
+              onCustomAdd={(val) => {
+                setPartyNames([...partyNames, val])
+              }}
+              inline={true}
+              autoFocusSearch={false}
+            />
+            <div className="mt-2 text-xs text-gray-500 text-center">
+              Leave blank if this income is not from a party (e.g., refund)
+            </div>
+          </div>
         )
 
       case 'note':
@@ -405,10 +409,6 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
   const handleSubmit = async () => {
     if (formData.amount <= 0) {
       alert('Please enter a valid amount')
-      return
-    }
-    if (type === 'credit' && !formData.partyName.trim()) {
-      alert('Please select a party name')
       return
     }
 
