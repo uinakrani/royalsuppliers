@@ -23,7 +23,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Royal Suppliers - Order Management',
   description: 'Order and invoice management system',
-  manifest: '/manifest.json?v=2',
+  manifest: '/manifest.json?v=3',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default', // Use default to show theme color properly
@@ -54,10 +54,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/engineer.svg?v=2" />
-        <link rel="apple-touch-icon" href="/engineer.svg?v=2" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/engineer.svg?v=2" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/engineer.svg?v=2" />
+        <link rel="icon" href="/mixer-truck.png?v=3" />
+        <link rel="apple-touch-icon" href="/mixer-truck.png?v=3" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/mixer-truck.png?v=3" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/mixer-truck.png?v=3" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
