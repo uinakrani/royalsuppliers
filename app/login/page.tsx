@@ -458,13 +458,12 @@ Get login link
                     setLinkError('')
                     setAutoDetected(false)
 
-                    // Auto-submit when a valid link is pasted
+                    // Auto-submit immediately when a valid link is pasted
                     const trimmedLink = newValue.trim()
                     if (trimmedLink && trimmedLink.includes('auth/finish') && trimmedLink.startsWith('http')) {
                       console.log('🚀 Auto-submitting pasted link:', trimmedLink)
-                      setTimeout(() => {
-                        window.location.href = trimmedLink
-                      }, 500) // Brief delay to show the link was accepted
+                      // Immediate redirect without delay
+                      window.location.href = trimmedLink
                     }
                   }}
                   onFocus={() => {
@@ -474,7 +473,7 @@ Get login link
                       checkClipboardForMagicLink()
                     }
                   }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-colors"
+                  className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-colors text-center font-mono"
                   disabled={loading || signing}
                   autoFocus
                   inputMode="url"
@@ -483,12 +482,6 @@ Get login link
                   autoCorrect="off"
                   spellCheck="false"
                 />
-
-                {pastedLink && pastedLink.includes('auth/finish') && (
-                  <p className="text-green-600 text-sm text-center font-medium">
-                    ✅ Link detected - Signing you in...
-                  </p>
-                )}
 
                 {linkError && (
                   <p className="text-red-600 text-sm text-center font-medium">{linkError}</p>

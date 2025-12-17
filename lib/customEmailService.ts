@@ -25,7 +25,7 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
   try {
     const transporter = getTransporter()
 
-    // Create the email content with simple, clean link
+    // Create the email content with very simple, clean link
     const mailOptions = {
       from: `"Royal Suppliers" <${EMAIL_CONFIG.auth.user}>`,
       to: email,
@@ -38,9 +38,8 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Login Link - Royal Suppliers</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f9f9f9; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #ffffff; }
             .container { max-width: 500px; margin: 0 auto; background-color: white; padding: 20px; }
-            .link { font-family: monospace; font-size: 14px; word-break: break-all; background-color: #f5f5f5; padding: 15px; border: 1px solid #ddd; margin: 15px 0; }
           </style>
         </head>
         <body>
@@ -48,12 +47,10 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
             <h2>Royal Suppliers</h2>
             <p>Copy the link below to sign in:</p>
 
-            <div class="link">${magicLink}</div>
-
-            <p>Copy the link and paste it in your browser.</p>
+            <p>${magicLink}</p>
 
             <p style="color: #666; font-size: 12px; margin-top: 20px;">
-              This link expires in 1 hour. If you didn't request this, please ignore this email.
+              This link expires in 1 hour.
             </p>
           </div>
         </body>
@@ -66,10 +63,7 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
 
         ${magicLink}
 
-        Copy the link and paste it in your browser.
-
         This link expires in 1 hour.
-        If you didn't request this, please ignore this email.
       `
     }
 
