@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [pastedLink, setPastedLink] = useState('')
   const [linkError, setLinkError] = useState('')
   const [clipboardChecked, setClipboardChecked] = useState(false)
+  const [autoDetected, setAutoDetected] = useState(false)
   const [emailMethod, setEmailMethod] = useState<'custom' | 'firebase' | null>(null)
 
   useEffect(() => {
@@ -33,32 +34,70 @@ export default function LoginPage() {
     }
   }, [redirecting])
 
-  // Auto-check clipboard for magic link when email is sent
+  // Intelligent clipboard monitoring for magic links
   useEffect(() => {
-    if (emailSent && !clipboardChecked) {
-      const checkClipboard = async () => {
-        try {
-          const clipboardText = await navigator.clipboard.readText()
-          if (clipboardText && clipboardText.includes('auth/finish') && clipboardText.includes('apiKey=')) {
-            setPastedLink(clipboardText)
-            setClipboardChecked(true)
-            // Auto-submit after a short delay
-            setTimeout(() => {
-              if (clipboardText.includes('auth/finish')) {
-                window.location.href = clipboardText
-              }
-            }, 500)
-          }
-        } catch (err) {
-          // Clipboard access might be denied, that's okay
-          console.log('Clipboard access not available')
-        }
-        setClipboardChecked(true)
-      }
+    if (!emailSent || clipboardChecked) return
 
-      // Check clipboard after component mounts
-      const timer = setTimeout(checkClipboard, 1000)
-      return () => clearTimeout(timer)
+    let checkInterval: NodeJS.Timeout
+    let attempts = 0
+    const maxAttempts = 30 // Check for 30 seconds
+
+    const checkClipboard = async () => {
+      attempts++
+      try {
+        const clipboardText = await navigator.clipboard.readText()
+
+        // Smart validation for Firebase magic links
+        const isValidMagicLink = (
+          clipboardText &&
+          clipboardText.length > 50 && // Reasonable length
+          clipboardText.includes('auth/finish') &&
+          clipboardText.includes('apiKey=') &&
+          (clipboardText.includes('oobCode=') || clipboardText.includes('mode=signIn')) &&
+          (clipboardText.startsWith('http://') || clipboardText.startsWith('https://'))
+        )
+
+        if (isValidMagicLink) {
+          console.log('🎉 Smart clipboard detection: Valid magic link found!')
+          setPastedLink(clipboardText)
+          setAutoDetected(true)
+          setClipboardChecked(true)
+
+          // Auto-submit with visual feedback
+          setTimeout(() => {
+            try {
+              window.location.href = clipboardText
+            } catch (navError) {
+              console.error('Navigation failed:', navError)
+              setLinkError('Failed to navigate to magic link')
+            }
+          }, 800) // Slightly longer delay for user to see the magic
+
+          return // Stop checking
+        }
+
+        // Continue checking if we haven't found a link yet
+        if (attempts < maxAttempts && !clipboardChecked) {
+          checkInterval = setTimeout(checkClipboard, attempts < 5 ? 500 : 2000) // Faster checks initially
+        } else {
+          setClipboardChecked(true) // Stop checking after max attempts
+        }
+
+      } catch (err) {
+        // Clipboard access denied or other error
+        if (attempts < maxAttempts && !clipboardChecked) {
+          checkInterval = setTimeout(checkClipboard, 3000) // Slower fallback
+        } else {
+          setClipboardChecked(true)
+        }
+      }
+    }
+
+    // Start checking immediately
+    checkInterval = setTimeout(checkClipboard, 200)
+
+    return () => {
+      if (checkInterval) clearTimeout(checkInterval)
     }
   }, [emailSent, clipboardChecked])
 
@@ -131,20 +170,44 @@ export default function LoginPage() {
                   <p className="text-lg font-semibold text-gray-700 mb-2">
                     Copy link from email
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 mb-2">
                     Open your email and copy the sign-in link
                   </p>
+                  {!clipboardChecked && (
+                    <p className="text-xs text-blue-600 animate-pulse">
+                      🔍 Smart detection active - paste or copy link to auto-fill
+                    </p>
+                  )}
+                  {autoDetected && (
+                    <p className="text-xs text-green-600 font-medium">
+                      🎉 Magic link detected and ready to sign in!
+                    </p>
+                  )}
                 </div>
 
-                <input
-                  type="url"
-                  placeholder="Paste the magic link here..."
-                  value={pastedLink}
-                  onChange={(e) => setPastedLink(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-mono"
-                  disabled={loading || signing}
-                  autoFocus
-                />
+                <div className="relative">
+                  <input
+                    type="url"
+                    placeholder="Paste the magic link here..."
+                    value={pastedLink}
+                    onChange={(e) => {
+                      setPastedLink(e.target.value)
+                      setAutoDetected(false) // Reset auto-detection if user manually types
+                    }}
+                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-mono transition-all duration-300 ${
+                      autoDetected
+                        ? 'border-green-400 bg-green-50 shadow-md animate-pulse'
+                        : 'border-gray-300'
+                    }`}
+                    disabled={loading || signing}
+                    autoFocus
+                  />
+                  {autoDetected && (
+                    <div className="absolute right-3 top-3 text-green-600 text-sm font-semibold animate-bounce">
+                      ✨ Auto-filled!
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => {
@@ -167,13 +230,14 @@ export default function LoginPage() {
 
               <div className="mt-4 text-center">
                 <button
-                  onClick={() => {
-                    setEmailSent(false)
-                    setEmail('')
-                    setPastedLink('')
-                    setLinkError('')
-                    setClipboardChecked(false)
-                  }}
+                      onClick={() => {
+                        setEmailSent(false)
+                        setEmail('')
+                        setPastedLink('')
+                        setLinkError('')
+                        setClipboardChecked(false)
+                        setAutoDetected(false)
+                      }}
                   className="px-4 py-2 text-green-600 hover:text-green-800 underline font-medium"
                 >
                   Send to different email
