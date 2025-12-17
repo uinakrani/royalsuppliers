@@ -14,7 +14,13 @@ export default function LoginPage() {
     return localStorage.getItem('rs-auth-redirect') === '1'
   })
   const [error, setError] = useState<string | null>(null)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => {
+    // Pre-fill email from localStorage if available
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('rs-last-email') || ''
+    }
+    return ''
+  })
   const [emailSent, setEmailSent] = useState(false)
   const [pastedLink, setPastedLink] = useState('')
   const [linkError, setLinkError] = useState('')
@@ -24,6 +30,7 @@ export default function LoginPage() {
   const [clipboardAccessStatus, setClipboardAccessStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown')
   const [preEmailMagicLink, setPreEmailMagicLink] = useState<string | null>(null)
   const [userGestureTriggered, setUserGestureTriggered] = useState(false)
+  const [autoPasting, setAutoPasting] = useState(false)
 
   // PWA Environment Detection
   useEffect(() => {
@@ -346,48 +353,76 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <input
-                type="email"
-                placeholder="Enter your email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                disabled={loading || signing || pendingRedirect}
-              />
-                <button
-                  onClick={async () => {
-                    handleUserGesture() // Trigger clipboard check on user interaction
-
-                    if (!email.trim()) {
-                      setError('Please enter a valid email address')
-                      return
-                    }
-
-                    setSigning(true)
-                    setError(null)
-                    try {
-                      // Send the email
-                      const result = await loginWithEmail(email.trim())
-                      setEmailMethod(result.method === 'custom' ? 'custom' : 'firebase')
-                      setEmailSent(true)
-
-                      // Auto-submit pre-detected magic link immediately
-                      if (preEmailMagicLink) {
-                        console.log('🚀 Auto-submitting pre-detected magic link now that email is sent')
-                        setPastedLink(preEmailMagicLink)
-                        setClipboardChecked(true)
-                        setTimeout(() => {
-                          window.location.href = preEmailMagicLink
-                        }, 500) // Quick submit for pre-detected links
-                      }
-                    } catch (err: any) {
-                      setError(err?.message || 'Failed to send email link. Please try again.')
-                    } finally {
-                      setSigning(false)
-                    }
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!email.trim()) {
+                    setError('Please enter a valid email address')
+                    return
+                  }
+                  // Trigger the send button click
+                  const sendButton = document.querySelector('button[type="submit"]') as HTMLButtonElement
+                  if (sendButton) sendButton.click()
+                }}
+              >
+                <input
+                  type="email"
+                  placeholder="Enter your email address"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setError(null) // Clear error when user types
                   }}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={loading || signing || pendingRedirect}
+                  autoFocus
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                />
+              </form>
+              <button
+                onClick={async () => {
+                  handleUserGesture() // Trigger clipboard check on user interaction
+
+                  if (!email.trim()) {
+                    setError('Please enter a valid email address')
+                    return
+                  }
+
+                  setSigning(true)
+                  setError(null)
+                  try {
+                    // Send the email
+                    const result = await loginWithEmail(email.trim())
+                    setEmailMethod(result.method === 'custom' ? 'custom' : 'firebase')
+
+                    // Remember the email for future use
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('rs-last-email', email.trim())
+                    }
+
+                    setEmailSent(true)
+
+                    // Auto-submit pre-detected magic link immediately
+                    if (preEmailMagicLink) {
+                      console.log('🚀 Auto-submitting pre-detected magic link now that email is sent')
+                      setPastedLink(preEmailMagicLink)
+                      setClipboardChecked(true)
+                      setTimeout(() => {
+                        window.location.href = preEmailMagicLink
+                      }, 500) // Quick submit for pre-detected links
+                    }
+                  } catch (err: any) {
+                    setError(err?.message || 'Failed to send email link. Please try again.')
+                  } finally {
+                    setSigning(false)
+                  }
+                }}
                 disabled={loading || signing || pendingRedirect || !email.trim()}
-                className={`w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-lg text-white font-semibold shadow-sm hover:opacity-90 transition-colors disabled:opacity-60 ${
+                className={`w-full inline-flex items-center justify-center gap-3 px-4 py-3 rounded-lg text-white font-semibold shadow-sm hover:opacity-90 transition-colors disabled:opacity-60 ${
                   preEmailMagicLink
                     ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-blue-600 hover:bg-blue-700'
@@ -398,163 +433,68 @@ export default function LoginPage() {
               </button>
             </>
           ) : (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="text-center mb-3">
-                <CheckCircle size={20} className="text-green-600 mx-auto mb-1" />
-                <p className="text-green-800 font-medium text-sm">Email Sent</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <div className="text-center mb-4">
+                <CheckCircle size={24} className="text-green-600 mx-auto mb-2" />
+                <p className="text-green-800 font-medium">Email Sent</p>
+                <p className="text-sm text-green-700 mt-1">Check your email and paste the magic link below</p>
               </div>
 
               <div className="space-y-4">
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-gray-700 mb-2">
-                    Copy link from email
+                  <p className="text-lg font-semibold text-gray-700 mb-3">
+                    Sign in with Magic Link
                   </p>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Open your email and copy the sign-in link
+                  <p className="text-sm text-gray-600">
+                    Copy the link from your email and paste it below
                   </p>
-                  {!clipboardChecked && !preEmailMagicLink && (
-                    <p className="text-xs text-blue-600 animate-pulse">
-                      {typeof window !== 'undefined' &&
-                       /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-                       !(window as any).MSStream
-                        ? '🍎 iOS: Copy link from email, then grant clipboard permission when prompted'
-                        : isPWA
-                        ? '👆 Click buttons or focus input to check clipboard for magic link'
-                        : '🔍 Smart detection active - paste or copy link to auto-fill'
-                      }
-                    </p>
-                  )}
-                  {clipboardAccessStatus === 'denied' && isPWA && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      ⚠️ Clipboard access restricted in PWA - use &quot;Check Clipboard&quot; button
-                    </p>
-                  )}
-                  {preEmailMagicLink && !emailSent && (
-                    <p className="text-xs text-green-600 font-medium">
-                      🎉 Magic link ready! Send email to auto-sign in instantly
-                    </p>
-                  )}
-                  {autoDetected && emailSent && (
-                    <p className="text-xs text-green-600 font-medium">
-                      🎉 Magic link detected and ready to sign in!
-                    </p>
-                  )}
-                  {/* PWA-specific instructions with iOS focus */}
-                  {isPWA && (
-                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-xs text-blue-700 font-medium mb-2">
-                        📱 PWA Mode: Copy link from email for automatic sign-in
-                      </p>
-
-                      {/* iOS-specific messaging */}
-                      {typeof window !== 'undefined' &&
-                       /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-                       !(window as any).MSStream && (
-                        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                          <p className="text-xs text-yellow-800 font-medium">
-                            🍎 iOS: Grant clipboard permission for automatic sign-in
-                          </p>
-                          <p className="text-xs text-yellow-700 mt-1">
-                            When prompted, tap &quot;Allow&quot; to enable automatic link detection
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => {
-                            checkClipboardForMagicLink()
-                          }}
-                          disabled={clipboardChecked}
-                          className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium"
-                        >
-                          🔍 Check Clipboard
-                        </button>
-
-                        {clipboardAccessStatus === 'unknown' && (
-                          <button
-                            onClick={() => {
-                              // Trigger iOS permission dialog
-                              checkClipboardForMagicLink()
-                            }}
-                            className="px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium animate-pulse"
-                          >
-                            📋 Grant Permission
-                          </button>
-                        )}
-
-                        {clipboardAccessStatus === 'denied' && (
-                          <button
-                            onClick={() => {
-                              // Focus the input to trigger paste on mobile
-                              const input = document.querySelector('input[type="url"]') as HTMLInputElement
-                              if (input) {
-                                input.focus()
-                                input.click()
-                              }
-                            }}
-                            className="px-3 py-2 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors font-medium"
-                          >
-                            📝 Manual Paste
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Status messages */}
-                      {clipboardAccessStatus === 'granted' && (
-                        <p className="text-xs text-green-600 mt-2 font-medium">
-                          ✅ Clipboard access granted - automatic detection active!
-                        </p>
-                      )}
-
-                      {clipboardAccessStatus === 'denied' && (
-                        <p className="text-xs text-orange-600 mt-2">
-                          ⚠️ Clipboard access denied - use Manual Paste to enter link manually
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                <div className="relative">
-                  <input
-                    type="url"
-                    placeholder={
-                      isPWA
-                        ? "Click &quot;Check Clipboard&quot; after copying from email..."
-                        : "Paste the magic link here..."
-                    }
-                    value={pastedLink}
-                    onChange={(e) => {
-                      setPastedLink(e.target.value)
-                      setAutoDetected(false) // Reset auto-detection if user manually types
-                    }}
-                    onFocus={() => {
-                      // Trigger clipboard check when user focuses the input (PWA user gesture)
-                      if (isPWA && !userGestureTriggered && !clipboardChecked) {
-                        console.log('🔍 Input focused, checking clipboard...')
-                        checkClipboardForMagicLink()
-                      }
-                    }}
-                    className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-mono transition-all duration-300 ${
-                      autoDetected
-                        ? 'border-green-400 bg-green-50 shadow-md animate-pulse'
-                        : 'border-gray-300'
-                    }`}
-                    disabled={loading || signing}
-                    autoFocus
-                  />
-                  {autoDetected && (
-                    <div className="absolute right-3 top-3 text-green-600 text-sm font-semibold animate-bounce">
-                      ✨ Auto-filled!
-                    </div>
-                  )}
-                </div>
-
+                {/* Auto-paste button */}
                 <button
-                  onClick={() => {
-                    handleUserGesture() // Trigger clipboard check on user interaction
+                  onClick={async () => {
+                    setAutoPasting(true)
+                    setLinkError('')
+                    try {
+                      const success = await checkClipboardForMagicLink()
+                      if (!success) {
+                        setLinkError('No magic link found in clipboard. Try pasting manually below.')
+                      }
+                    } catch (err) {
+                      setLinkError('Could not access clipboard. Try pasting manually below.')
+                    } finally {
+                      setAutoPasting(false)
+                    }
+                  }}
+                  disabled={loading || signing || autoPasting}
+                  className="w-full py-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  {autoPasting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Checking clipboard...
+                    </>
+                  ) : (
+                    <>
+                      📋 Paste link and login
+                    </>
+                  )}
+                </button>
 
+                {/* Divider */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">or paste manually</span>
+                  </div>
+                </div>
+
+                {/* Manual paste input */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
                     const link = pastedLink.trim()
                     if (!link) return
                     if (!link.includes('auth/finish')) {
@@ -563,38 +503,60 @@ export default function LoginPage() {
                     }
                     window.location.href = link
                   }}
-                  disabled={loading || signing || !pastedLink.trim()}
-                  className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  className="space-y-3"
                 >
-                  Sign In
-                </button>
+                  <input
+                    type="url"
+                    placeholder="Paste your magic link here..."
+                    value={pastedLink}
+                    onChange={(e) => {
+                      setPastedLink(e.target.value)
+                      setLinkError('')
+                      setAutoDetected(false)
+                    }}
+                    onFocus={() => {
+                      // Trigger clipboard check when user focuses (for PWAs)
+                      if (isPWA && !userGestureTriggered && !clipboardChecked && clipboardAccessStatus !== 'denied') {
+                        console.log('🔍 Input focused, checking clipboard...')
+                        checkClipboardForMagicLink()
+                      }
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-colors"
+                    disabled={loading || signing}
+                    autoFocus
+                    inputMode="url"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={loading || signing || !pastedLink.trim()}
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    Login
+                  </button>
+                </form>
 
                 {linkError && (
-                  <div className="text-center">
-                    <p className="text-red-600 text-sm font-medium">{linkError}</p>
-                    {/* PWA-specific error guidance */}
-                    {typeof window !== 'undefined' &&
-                     (window.matchMedia('(display-mode: standalone)').matches ||
-                      (window.navigator as any).standalone) && (
-                      <p className="text-xs text-gray-600 mt-1">
-                        📱 In PWA mode: Try copying the link manually from your email app
-                      </p>
-                    )}
-                  </div>
+                  <p className="text-red-600 text-sm text-center font-medium">{linkError}</p>
                 )}
               </div>
 
-              <div className="mt-4 text-center">
+              <div className="mt-6 text-center border-t border-green-200 pt-4">
                 <button
-                      onClick={() => {
-                        setEmailSent(false)
-                        setEmail('')
-                        setPastedLink('')
-                        setLinkError('')
-                        setClipboardChecked(false)
-                        setAutoDetected(false)
-                        setPreEmailMagicLink(null) // Reset pre-detected link
-                      }}
+                  onClick={() => {
+                    setEmailSent(false)
+                    setPastedLink('')
+                    setLinkError('')
+                    setClipboardChecked(false)
+                    setAutoDetected(false)
+                    setPreEmailMagicLink(null)
+                    setUserGestureTriggered(false)
+                    setClipboardAccessStatus('unknown')
+                  }}
                   className="px-4 py-2 text-green-600 hover:text-green-800 underline font-medium"
                 >
                   Send to different email
