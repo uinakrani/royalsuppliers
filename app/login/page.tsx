@@ -104,7 +104,7 @@ export default function LoginPage() {
                     try {
                       // Send the email
                       const result = await loginWithEmail(email.trim())
-                      setEmailMethod(result.method || 'firebase')
+                      setEmailMethod(result.method === 'custom' ? 'custom' : 'firebase')
                       setEmailSent(true)
                     } catch (err: any) {
                       setError(err?.message || 'Failed to send email link. Please try again.')

@@ -19,7 +19,7 @@ type AuthContextType = {
   workspaces: Workspace[]
   activeWorkspaceId: string | null
   login: () => Promise<void>
-  loginWithEmail: (email: string) => Promise<void>
+  loginWithEmail: (email: string) => Promise<{ success: boolean; method: string }>
   logout: () => Promise<void>
   setWorkspace: (id: string) => void
   createWorkspace: (name: string) => Promise<string | null>
@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithEmail = useCallback(async (email: string) => {
     try {
-      await sendEmailLink(email)
+      return await sendEmailLink(email)
     } catch (err) {
       console.error('Email link send error:', err)
       throw err

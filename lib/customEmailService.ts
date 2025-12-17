@@ -1,3 +1,4 @@
+// This file is only used server-side in API routes
 import nodemailer from 'nodemailer'
 
 // Email configuration
@@ -15,7 +16,7 @@ let transporter: nodemailer.Transporter | null = null
 
 function getTransporter() {
   if (!transporter) {
-    transporter = nodemailer.createTransporter(EMAIL_CONFIG)
+    transporter = nodemailer.createTransport(EMAIL_CONFIG)
   }
   return transporter
 }
