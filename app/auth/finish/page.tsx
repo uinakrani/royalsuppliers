@@ -84,10 +84,10 @@ export default function AuthFinishPage() {
   // iOS PWA deep linking fallback
   const isIOS = typeof window !== 'undefined' &&
                 /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-                !window.MSStream;
+                !(window as any).MSStream;
 
   const isInStandaloneMode = typeof window !== 'undefined' &&
-                            (window.navigator.standalone === true ||
+                            ((window.navigator as any).standalone === true ||
                              window.matchMedia('(display-mode: standalone)').matches);
 
   const isIOSOutsidePWA = isIOS && !isInStandaloneMode;
@@ -135,7 +135,7 @@ export default function AuthFinishPage() {
               {isIOSOutsidePWA && (
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-blue-800 text-sm font-medium text-center">
-                    📱 Tap "Open" above to continue in your Royal Suppliers app
+                    📱 Tap &quot;Open&quot; above to continue in your Royal Suppliers app
                   </p>
                   <p className="text-blue-600 text-xs text-center mt-1">
                     This link should open automatically in your installed PWA
