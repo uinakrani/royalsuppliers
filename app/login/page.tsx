@@ -383,44 +383,42 @@ export default function LoginPage() {
                   spellCheck="false"
                 />
               </form>
-              <button
-                onClick={async () => {
-                  handleUserGesture() // Trigger clipboard check on user interaction
-
-                  if (!email.trim()) {
-                    setError('Please enter a valid email address')
-                    return
-                  }
-
-                  setSigning(true)
-                  setError(null)
-                  try {
-                    // Send the email
-                    const result = await loginWithEmail(email.trim())
-                    setEmailMethod(result.method === 'custom' ? 'custom' : 'firebase')
-
-                    // Remember the email for future use
-                    if (typeof window !== 'undefined') {
-                      localStorage.setItem('rs-last-email', email.trim())
+                <button
+                  onClick={async () => {
+                    if (!email.trim()) {
+                      setError('Please enter a valid email address')
+                      return
                     }
 
-                    setEmailSent(true)
+                    setSigning(true)
+                    setError(null)
+                    try {
+                      // Send the email
+                      const result = await loginWithEmail(email.trim())
+                      setEmailMethod(result.method === 'custom' ? 'custom' : 'firebase')
 
-                    // Auto-submit pre-detected magic link immediately
-                    if (preEmailMagicLink) {
-                      console.log('🚀 Auto-submitting pre-detected magic link now that email is sent')
-                      setPastedLink(preEmailMagicLink)
-                      setClipboardChecked(true)
-                      setTimeout(() => {
-                        window.location.href = preEmailMagicLink
-                      }, 500) // Quick submit for pre-detected links
+                      // Remember the email for future use
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('rs-last-email', email.trim())
+                      }
+
+                      setEmailSent(true)
+
+                      // Auto-submit pre-detected magic link immediately
+                      if (preEmailMagicLink) {
+                        console.log('🚀 Auto-submitting pre-detected magic link now that email is sent')
+                        setPastedLink(preEmailMagicLink)
+                        setClipboardChecked(true)
+                        setTimeout(() => {
+                          window.location.href = preEmailMagicLink
+                        }, 500) // Quick submit for pre-detected links
+                      }
+                    } catch (err: any) {
+                      setError(err?.message || 'Failed to send email link. Please try again.')
+                    } finally {
+                      setSigning(false)
                     }
-                  } catch (err: any) {
-                    setError(err?.message || 'Failed to send email link. Please try again.')
-                  } finally {
-                    setSigning(false)
-                  }
-                }}
+                  }}
                 disabled={loading || signing || pendingRedirect || !email.trim()}
                 className={`w-full inline-flex items-center justify-center gap-3 px-4 py-3 rounded-lg text-white font-semibold shadow-sm hover:opacity-90 transition-colors disabled:opacity-60 ${
                   preEmailMagicLink
@@ -429,7 +427,7 @@ export default function LoginPage() {
                 }`}
               >
                 <Send size={18} />
-Paste
+Get login link
               </button>
             </>
           ) : (

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const domain = `${protocol}://${host}`
 
     // Generate the magic link
-    const magicLink = generateMagicLinkUrl(email, domain)
+    const magicLink = await generateMagicLinkUrl(email, domain)
 
     // Send the email
     const result = await sendMagicLinkEmail(email, magicLink, domain)

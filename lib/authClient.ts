@@ -101,7 +101,7 @@ export async function sendEmailLink(email: string) {
     // Get domain for magic link generation
     const domain = typeof window !== 'undefined' ? window.location.origin : 'https://yoursite.com'
 
-    // Try custom email service via API route first
+    // Use ONLY custom email service - no Firebase fallback
     try {
       const response = await fetch('/api/send-magic-link', {
         method: 'POST',
@@ -119,13 +119,8 @@ export async function sendEmailLink(email: string) {
         throw new Error('API call failed')
       }
     } catch (customError) {
-      console.warn('Custom email service failed, falling back to Firebase:', customError)
-
-      // Fallback to Firebase Auth
-      const auth = getAuthInstance()
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings)
-      console.log('Firebase magic link email sent successfully')
-      return { success: true, method: 'firebase' }
+      console.error('Custom email service failed:', customError)
+      throw customError // Don't fall back to Firebase
     }
   } catch (error) {
     console.error('Error sending email link:', error)
