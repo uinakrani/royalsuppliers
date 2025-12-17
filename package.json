@@ -23,7 +23,8 @@
     "redistribute-party-payments": "ts-node --project tsconfig.scripts.json scripts/redistribute-party-payments.ts",
     "test-email-auth": "node scripts/test-email-auth.js",
     "test-pwa-deep-linking": "node scripts/test-pwa-deep-linking.js",
-    "debug-ios-pwa": "node scripts/debug-ios-pwa-deep-linking.js"
+    "debug-ios-pwa": "node scripts/debug-ios-pwa-deep-linking.js",
+    "fix-ios-pwa": "node scripts/fix-ios-pwa-deep-linking.js"
   },
   "dependencies": {
     "@netlify/plugin-nextjs": "^5.15.1",
