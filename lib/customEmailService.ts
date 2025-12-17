@@ -25,124 +25,51 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
   try {
     const transporter = getTransporter()
 
-    // Create the email content with visible link
+    // Create the email content with simple, clean link
     const mailOptions = {
       from: `"Royal Suppliers" <${EMAIL_CONFIG.auth.user}>`,
       to: email,
-      subject: 'Your Magic Link - Royal Suppliers',
+      subject: 'Your Login Link - Royal Suppliers',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Magic Link - Royal Suppliers</title>
+          <title>Login Link - Royal Suppliers</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
-            .container { max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .magic-link { background-color: #f0f8f0; border: 2px solid #4CAF50; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .link-container { position: relative; background-color: #e8f5e8; border: 2px solid #4CAF50; padding: 20px; border-radius: 8px; margin: 15px 0; }
-            .link-text { font-family: 'Courier New', monospace; font-size: 14px; word-break: break-all; color: #1b5e20; font-weight: bold; line-height: 1.5; text-align: center; }
-            .copy-hint { position: absolute; top: 10px; right: 10px; background-color: #4CAF50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
-            .instructions { margin: 20px 0; line-height: 1.6; }
-            .button { display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
-            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
-            .copy-instructions { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 15px 0; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f9f9f9; }
+            .container { max-width: 500px; margin: 0 auto; background-color: white; padding: 20px; }
+            .link { font-family: monospace; font-size: 14px; word-break: break-all; background-color: #f5f5f5; padding: 15px; border: 1px solid #ddd; margin: 15px 0; }
           </style>
         </head>
         <body>
           <div class="container">
-            <div class="header">
-              <h1>Royal Suppliers</h1>
-              <p>Your magic link is ready!</p>
-            </div>
+            <h2>Royal Suppliers</h2>
+            <p>Copy the link below to sign in:</p>
 
-            <div class="instructions">
-              <p>Hello!</p>
-              <p>Click the link below to sign in to your Royal Suppliers account:</p>
-            </div>
+            <div class="link">${magicLink}</div>
 
-            <div class="magic-link">
-              <p><strong>🔗 Your Magic Link:</strong></p>
+            <p>Copy the link and paste it in your browser.</p>
 
-              <!-- Link Text - Make it prominent and selectable -->
-              <div class="link-container" style="background-color: #e8f5e8; border: 2px solid #4CAF50; padding: 20px; border-radius: 8px; margin: 15px 0; position: relative;">
-                <div class="link-text" style="font-family: 'Courier New', monospace; font-size: 14px; word-break: break-all; color: #1b5e20; font-weight: bold; line-height: 1.5; text-align: center;">${magicLink}</div>
-                <div style="position: absolute; top: 10px; right: 10px; background-color: #4CAF50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">SELECT & COPY</div>
-              </div>
-
-              <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 15px 0;">
-                <p style="margin: 0; font-size: 14px; color: #856404;"><strong>📋 How to Copy:</strong></p>
-                <ol style="margin: 8px 0 0 20px; padding: 0; color: #856404;">
-                  <li><strong>Click and drag</strong> to select the entire green link above</li>
-                  <li><strong>Press Ctrl+C</strong> (Windows/Linux) or <strong>Cmd+C</strong> (Mac)</li>
-                  <li><strong>Paste</strong> into your browser address bar</li>
-                </ol>
-              </div>
-            </div>
-
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="${magicLink}" class="button">🔗 Open Magic Link</a>
-            </div>
-
-            <div class="copy-instructions">
-              <p><strong>📋 How to Copy the Link:</strong></p>
-              <ol>
-                <li><strong>Click and drag</strong> to select the entire link text above</li>
-                <li><strong>Press Ctrl+C</strong> (Windows/Linux) or <strong>Cmd+C</strong> (Mac) to copy</li>
-                <li><strong>Paste</strong> (Ctrl+V / Cmd+V) into your browser address bar</li>
-                <li>You'll be signed in automatically!</li>
-              </ol>
-              <p style="margin-top: 10px; color: #856404;"><strong>💡 Tip:</strong> The link is already selected when you open this email. Just press Ctrl+C / Cmd+C to copy it!</p>
-            </div>
-
-            <div class="instructions">
-              <p><strong>Alternative method:</strong></p>
-              <ol>
-                <li>Click the "🔗 Open Magic Link" button above</li>
-                <li>You'll be taken directly to sign in</li>
-              </ol>
-            </div>
-
-            <div class="footer">
-              <p>If you didn't request this link, you can safely ignore this email.</p>
-              <p>This link will expire in 1 hour for security reasons.</p>
-              <p>Royal Suppliers - Secure Access</p>
-            </div>
+            <p style="color: #666; font-size: 12px; margin-top: 20px;">
+              This link expires in 1 hour. If you didn't request this, please ignore this email.
+            </p>
           </div>
         </body>
         </html>
       `,
       text: `
-        ============================================
-        ROYAL SUPPLIERS - YOUR MAGIC LINK
-        ============================================
+        Royal Suppliers - Your Login Link
 
-        Hello!
-
-        📋 COPY THE LINK BELOW (select all, Ctrl+C / Cmd+C):
+        Copy the link below to sign in:
 
         ${magicLink}
 
-        ============================================
+        Copy the link and paste it in your browser.
 
-        HOW TO SIGN IN:
-        1. Copy the link above (select all text, press Ctrl+C / Cmd+C)
-        2. Paste it in your browser address bar (Ctrl+V / Cmd+V)
-        3. You'll be signed in automatically!
-
-        ALTERNATIVE: Click the "🔗 Open Magic Link" button in the HTML version.
-
-        ============================================
-
-        SECURITY NOTE:
-        - This link will expire in 1 hour
-        - If you didn't request this, please ignore
-        - Never share this link with anyone
-
-        Royal Suppliers - Secure Access
-        ============================================
+        This link expires in 1 hour.
+        If you didn't request this, please ignore this email.
       `
     }
 
