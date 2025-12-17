@@ -96,7 +96,7 @@ export default function LoginPage() {
     }
   }, [redirecting])
 
-  // PWA-Aware clipboard monitoring (triggered by user gestures)
+  // iOS-Optimized clipboard monitoring with permission requests
   const checkClipboardForMagicLink = async () => {
     if (clipboardChecked) return // Already processed a link
 
@@ -105,32 +105,72 @@ export default function LoginPage() {
                   !(window as any).MSStream
     const isIOSPWA = isIOS && isPWA
 
-    console.log('🔍 Manual clipboard check triggered:', { isPWA, isIOSPWA, emailSent })
+    console.log('🔍 Clipboard check triggered:', { isPWA, isIOS, isIOSPWA, emailSent })
+
+    // Enhanced validation for different PWA environments
+    const validateMagicLink = (text: string): boolean => {
+      if (!text || text.length < 50) return false
+
+      // Basic Firebase link validation
+      const hasAuthFinish = text.includes('auth/finish')
+      const hasApiKey = text.includes('apiKey=')
+      const hasAuthParams = text.includes('oobCode=') || text.includes('mode=signIn') || text.includes('mode=magic')
+      const isValidUrl = text.startsWith('http://') || text.startsWith('https://')
+
+      // For PWAs, also accept shorter custom magic links
+      const isCustomMagicLink = text.includes('/auth/finish?email=') && text.includes('&timestamp=') && text.includes('&session=')
+
+      return (hasAuthFinish && hasApiKey && hasAuthParams && isValidUrl) || isCustomMagicLink
+    }
+
+    // iOS-specific clipboard permission request and access
+    const requestIOSClipboardAccess = async () => {
+      if (!isIOS) return null
+
+      try {
+        console.log('📱 iOS: Requesting clipboard access...')
+
+        // For iOS, we need to show a permission prompt
+        // The first call to readText() will trigger the iOS permission dialog
+        const clipboardText = await navigator.clipboard.readText()
+
+        console.log('✅ iOS clipboard access granted')
+        setClipboardAccessStatus('granted')
+        return clipboardText
+      } catch (error: any) {
+        console.log('❌ iOS clipboard access denied or failed:', error.message)
+
+        // If it's a permission denied error, update status
+        if (error.name === 'NotAllowedError' || error.message.includes('permission')) {
+          setClipboardAccessStatus('denied')
+        }
+
+        return null
+      }
+    }
 
     try {
-      // Enhanced validation for different PWA environments
-      const validateMagicLink = (text: string): boolean => {
-        if (!text || text.length < 50) return false
+      let clipboardText: string | null = null
 
-        // Basic Firebase link validation
-        const hasAuthFinish = text.includes('auth/finish')
-        const hasApiKey = text.includes('apiKey=')
-        const hasAuthParams = text.includes('oobCode=') || text.includes('mode=signIn') || text.includes('mode=magic')
-        const isValidUrl = text.startsWith('http://') || text.startsWith('https://')
-
-        // For PWAs, also accept shorter custom magic links
-        const isCustomMagicLink = text.includes('/auth/finish?email=') && text.includes('&timestamp=') && text.includes('&session=')
-
-        return (hasAuthFinish && hasApiKey && hasAuthParams && isValidUrl) || isCustomMagicLink
+      // Special handling for iOS devices
+      if (isIOS) {
+        clipboardText = await requestIOSClipboardAccess()
+        if (!clipboardText) {
+          console.log('📱 iOS: Clipboard access failed, cannot proceed')
+          setClipboardAccessStatus('denied')
+          setUserGestureTriggered(true)
+          return false
+        }
+      } else {
+        // For non-iOS devices, direct clipboard access
+        clipboardText = await navigator.clipboard.readText()
+        setClipboardAccessStatus('granted')
       }
 
-      // Try to access clipboard (requires user gesture in PWAs)
-      const clipboardText = await navigator.clipboard.readText()
-      setClipboardAccessStatus('granted')
       setUserGestureTriggered(true)
 
       if (validateMagicLink(clipboardText)) {
-        console.log('🎉 PWA Smart clipboard detection: Valid magic link found!', { isPWA, isIOSPWA, emailSent })
+        console.log('🎉 Smart clipboard detection: Valid magic link found!', { isIOS, isPWA, emailSent })
 
         // Handle pre-email vs post-email detection differently
         if (!emailSent) {
@@ -144,10 +184,9 @@ export default function LoginPage() {
           setAutoDetected(true)
           setClipboardChecked(true)
 
-          // Auto-submit with PWA-optimized timing
+          // Auto-submit with iOS-optimized timing (fastest for iOS)
           setTimeout(() => {
             try {
-              // For iOS PWAs, ensure we're opening in the same PWA context
               if (isIOSPWA) {
                 console.log('📱 iOS PWA: Opening link in same context')
                 window.location.href = clipboardText
@@ -155,10 +194,10 @@ export default function LoginPage() {
                 window.location.href = clipboardText
               }
             } catch (navError) {
-              console.error('Navigation failed in PWA:', navError)
+              console.error('Navigation failed:', navError)
               setLinkError('Failed to navigate to magic link. Please try manually.')
             }
-          }, isPWA ? 600 : 800) // Faster auto-submit in PWAs
+          }, isIOS ? 500 : isPWA ? 600 : 800)
         }
 
         return true // Success
@@ -169,11 +208,101 @@ export default function LoginPage() {
 
     } catch (clipboardError: any) {
       console.log('📋 Clipboard access failed:', clipboardError.message)
-      setClipboardAccessStatus('denied')
+
+      // Update status based on error type
+      if (clipboardError.name === 'NotAllowedError' || clipboardError.message.includes('permission')) {
+        setClipboardAccessStatus('denied')
+      } else {
+        setClipboardAccessStatus('denied')
+      }
+
       setUserGestureTriggered(true)
       return false // Access failed
     }
   }
+
+  // iOS-specific automatic clipboard permission and monitoring
+  useEffect(() => {
+    if (clipboardChecked || userGestureTriggered) return
+
+    const isIOS = typeof window !== 'undefined' &&
+                  /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+                  !(window as any).MSStream
+
+    if (!isIOS) return // Only for iOS devices
+
+    console.log('📱 iOS detected, setting up automatic clipboard monitoring...')
+
+    let permissionInterval: NodeJS.Timeout
+    let attempts = 0
+    const maxAttempts = 20 // Check for permission multiple times
+
+    const checkIOSClipboardPermission = async () => {
+      attempts++
+      console.log(`📱 iOS clipboard permission check (attempt ${attempts})`)
+
+      try {
+        // Try to read clipboard - this will trigger iOS permission dialog
+        const clipboardText = await navigator.clipboard.readText()
+
+        console.log('✅ iOS clipboard permission granted automatically!')
+        setClipboardAccessStatus('granted')
+        setUserGestureTriggered(true)
+
+        // Now check if there's a magic link
+        const validateMagicLink = (text: string): boolean => {
+          if (!text || text.length < 50) return false
+          const hasAuthFinish = text.includes('auth/finish')
+          const hasApiKey = text.includes('apiKey=')
+          const hasAuthParams = text.includes('oobCode=') || text.includes('mode=signIn') || text.includes('mode=magic')
+          const isValidUrl = text.startsWith('http://') || text.startsWith('https://')
+          const isCustomMagicLink = text.includes('/auth/finish?email=') && text.includes('&timestamp=') && text.includes('&session=')
+          return (hasAuthFinish && hasApiKey && hasAuthParams && isValidUrl) || isCustomMagicLink
+        }
+
+        if (validateMagicLink(clipboardText)) {
+          console.log('🎉 iOS automatic clipboard detection: Magic link found!')
+
+          if (!emailSent) {
+            setPreEmailMagicLink(clipboardText)
+            setAutoDetected(true)
+            console.log('📋 iOS: Pre-email magic link auto-detected and stored')
+          } else {
+            setPastedLink(clipboardText)
+            setAutoDetected(true)
+            setClipboardChecked(true)
+
+            setTimeout(() => {
+              console.log('🚀 iOS: Auto-submitting magic link')
+              window.location.href = clipboardText
+            }, 500)
+          }
+
+          return // Stop checking
+        }
+
+      } catch (error: any) {
+        // Permission not granted yet, or access failed
+        console.log(`📱 iOS clipboard permission not granted (attempt ${attempts})`)
+
+        // Continue checking for a while
+        if (attempts < maxAttempts) {
+          permissionInterval = setTimeout(checkIOSClipboardPermission, 2000) // Check every 2 seconds
+        } else {
+          console.log('📱 iOS: Stopped checking for clipboard permission')
+          setClipboardAccessStatus('denied')
+          setUserGestureTriggered(true) // Mark as triggered so manual checks can work
+        }
+      }
+    }
+
+    // Start checking immediately for iOS
+    permissionInterval = setTimeout(checkIOSClipboardPermission, 500)
+
+    return () => {
+      if (permissionInterval) clearTimeout(permissionInterval)
+    }
+  }, [emailSent, clipboardChecked, userGestureTriggered])
 
   // Auto-check clipboard on user gestures (for PWAs)
   const handleUserGesture = () => {
@@ -285,7 +414,11 @@ export default function LoginPage() {
                   </p>
                   {!clipboardChecked && !preEmailMagicLink && (
                     <p className="text-xs text-blue-600 animate-pulse">
-                      {isPWA
+                      {typeof window !== 'undefined' &&
+                       /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+                       !(window as any).MSStream
+                        ? '🍎 iOS: Copy link from email, then grant clipboard permission when prompted'
+                        : isPWA
                         ? '👆 Click buttons or focus input to check clipboard for magic link'
                         : '🔍 Smart detection active - paste or copy link to auto-fill'
                       }
@@ -306,22 +439,50 @@ export default function LoginPage() {
                       🎉 Magic link detected and ready to sign in!
                     </p>
                   )}
-                  {/* PWA-specific instructions */}
+                  {/* PWA-specific instructions with iOS focus */}
                   {isPWA && (
-                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-xs text-blue-700 font-medium mb-1">
-                        📱 PWA Mode: Copy link from email, then check clipboard
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-700 font-medium mb-2">
+                        📱 PWA Mode: Copy link from email for automatic sign-in
                       </p>
-                      <div className="flex gap-2">
+
+                      {/* iOS-specific messaging */}
+                      {typeof window !== 'undefined' &&
+                       /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+                       !(window as any).MSStream && (
+                        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                          <p className="text-xs text-yellow-800 font-medium">
+                            🍎 iOS: Grant clipboard permission for automatic sign-in
+                          </p>
+                          <p className="text-xs text-yellow-700 mt-1">
+                            When prompted, tap &quot;Allow&quot; to enable automatic link detection
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => {
                             checkClipboardForMagicLink()
                           }}
                           disabled={clipboardChecked}
-                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                          className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors font-medium"
                         >
                           🔍 Check Clipboard
                         </button>
+
+                        {clipboardAccessStatus === 'unknown' && (
+                          <button
+                            onClick={() => {
+                              // Trigger iOS permission dialog
+                              checkClipboardForMagicLink()
+                            }}
+                            className="px-3 py-2 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium animate-pulse"
+                          >
+                            📋 Grant Permission
+                          </button>
+                        )}
+
                         {clipboardAccessStatus === 'denied' && (
                           <button
                             onClick={() => {
@@ -332,15 +493,23 @@ export default function LoginPage() {
                                 input.click()
                               }
                             }}
-                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                            className="px-3 py-2 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors font-medium"
                           >
                             📝 Manual Paste
                           </button>
                         )}
                       </div>
+
+                      {/* Status messages */}
+                      {clipboardAccessStatus === 'granted' && (
+                        <p className="text-xs text-green-600 mt-2 font-medium">
+                          ✅ Clipboard access granted - automatic detection active!
+                        </p>
+                      )}
+
                       {clipboardAccessStatus === 'denied' && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          If clipboard access fails, use Manual Paste to type the link
+                        <p className="text-xs text-orange-600 mt-2">
+                          ⚠️ Clipboard access denied - use Manual Paste to enter link manually
                         </p>
                       )}
                     </div>
