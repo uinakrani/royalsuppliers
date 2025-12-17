@@ -52,9 +52,17 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
           </style>
           <script>
             function copyToClipboard(text) {
+              var button = document.getElementById('copyBtn');
               try {
                 navigator.clipboard.writeText(text).then(function() {
-                  alert('Magic link copied to clipboard!');
+                  if (button) {
+                    button.innerHTML = '✅ Copied!';
+                    button.style.backgroundColor = '#2E7D32';
+                    setTimeout(function() {
+                      button.innerHTML = '📋 Copy Magic Link';
+                      button.style.backgroundColor = '#4CAF50';
+                    }, 2000);
+                  }
                 }).catch(function(err) {
                   // Fallback for older browsers
                   var textArea = document.createElement("textarea");
@@ -64,10 +72,24 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
                   textArea.select();
                   document.execCommand('copy');
                   document.body.removeChild(textArea);
-                  alert('Magic link copied to clipboard!');
+                  if (button) {
+                    button.innerHTML = '✅ Copied!';
+                    button.style.backgroundColor = '#2E7D32';
+                    setTimeout(function() {
+                      button.innerHTML = '📋 Copy Magic Link';
+                      button.style.backgroundColor = '#4CAF50';
+                    }, 2000);
+                  }
                 });
               } catch (err) {
-                alert('Please manually copy the link above');
+                if (button) {
+                  button.innerHTML = '❌ Copy Failed - Select Link Manually';
+                  button.style.backgroundColor = '#f44336';
+                  setTimeout(function() {
+                    button.innerHTML = '📋 Copy Magic Link';
+                    button.style.backgroundColor = '#4CAF50';
+                  }, 3000);
+                }
               }
             }
           </script>
@@ -85,13 +107,22 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
             </div>
 
             <div class="magic-link">
-              <p><strong>🔗 Your Magic Link (Click to Copy):</strong></p>
-              <div class="link-container" style="position: relative; background-color: #e8f5e8; border: 1px solid #4CAF50; padding: 15px; border-radius: 6px; margin: 10px 0;">
-                <div class="link-text" style="font-family: 'Courier New', monospace; font-size: 13px; word-break: break-all; color: #1b5e20; font-weight: bold; line-height: 1.4;">${magicLink}</div>
-                <button onclick="copyToClipboard('${magicLink.replace(/'/g, "\\'")}')" class="copy-button" style="position: absolute; top: 10px; right: 10px; background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋 Copy</button>
+              <p><strong>🔗 Your Magic Link:</strong></p>
+
+              <!-- Prominent Copy Button First -->
+              <div style="text-align: center; margin: 20px 0;">
+                <button onclick="copyToClipboard('${magicLink.replace(/'/g, "\\'")}')" id="copyBtn" class="copy-button" style="background-color: #4CAF50; color: white; border: none; padding: 15px 30px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);">
+                  📋 Copy Magic Link
+                </button>
               </div>
-              <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                <strong>How to copy:</strong> Select the link above and copy it (Ctrl+C / Cmd+C), or click the "📋 Copy" button if available in your email client.
+
+              <!-- Link Text Below -->
+              <div class="link-container" style="background-color: #f5f5f5; border: 1px solid #ddd; padding: 15px; border-radius: 6px; margin: 10px 0;">
+                <div class="link-text" style="font-family: 'Courier New', monospace; font-size: 13px; word-break: break-all; color: #333; font-weight: bold; line-height: 1.4;">${magicLink}</div>
+              </div>
+
+              <p style="margin-top: 15px; font-size: 12px; color: #666; text-align: center;">
+                <strong>Click the button above to copy</strong>, or select the link text below and copy it manually (Ctrl+C / Cmd+C)
               </p>
             </div>
 
@@ -134,18 +165,20 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
 
         Hello!
 
-        COPY THIS ENTIRE LINK AND PASTE IT IN YOUR BROWSER:
+        📋 CLICK THE GREEN "Copy Magic Link" BUTTON ABOVE (in HTML email)
+        or copy this link manually:
 
         ${magicLink}
 
         ============================================
 
         HOW TO SIGN IN:
-        1. Copy the link above (select all, Ctrl+C / Cmd+C)
-        2. Paste it in your browser (Ctrl+V / Cmd+V)
-        3. You'll be signed in automatically!
+        1. Click the "📋 Copy Magic Link" button (if you see it)
+        2. Or copy the link above (select all, Ctrl+C / Cmd+C)
+        3. Paste it in your browser (Ctrl+V / Cmd+V)
+        4. You'll be signed in automatically!
 
-        ALTERNATIVE: Click the "Open Magic Link" button in the HTML version of this email.
+        ALTERNATIVE: Click the "🔗 Open Magic Link" button in the HTML version.
 
         ============================================
 
