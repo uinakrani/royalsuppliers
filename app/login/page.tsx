@@ -20,6 +20,59 @@ export default function LoginPage() {
   const [linkError, setLinkError] = useState('')
   const [clipboardChecked, setClipboardChecked] = useState(false)
   const [autoDetected, setAutoDetected] = useState(false)
+  const [isPWA, setIsPWA] = useState(false)
+  const [clipboardAccessStatus, setClipboardAccessStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown')
+
+  // PWA Environment Detection
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const checkPWA = () => {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+      const isInStandaloneMode = (window.navigator as any).standalone === true ||
+                                window.matchMedia('(display-mode: standalone)').matches
+      const currentIsPWA = isInStandaloneMode || window.matchMedia('(display-mode: standalone)').matches
+
+      setIsPWA(currentIsPWA)
+      console.log('📱 PWA Status:', { isPWA: currentIsPWA, isIOS, isInStandaloneMode })
+    }
+
+    checkPWA()
+
+    // Listen for display mode changes (when PWA is installed/uninstalled)
+    const mediaQuery = window.matchMedia('(display-mode: standalone)')
+    const handleChange = () => checkPWA()
+    mediaQuery.addEventListener('change', handleChange)
+
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
+  // PWA Deep Link Detection - Check URL parameters for magic link
+  useEffect(() => {
+    if (typeof window === 'undefined' || !emailSent) return
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlFragment = window.location.hash.substring(1)
+
+    // Check for Firebase auth parameters in URL
+    const hasAuthParams = urlParams.has('apiKey') || urlParams.has('oobCode') || urlFragment.includes('apiKey=')
+    const hasAuthFinish = window.location.pathname.includes('auth/finish') || urlFragment.includes('auth/finish')
+
+    if (hasAuthParams && hasAuthFinish) {
+      const fullUrl = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`
+      console.log('🔗 PWA Deep Link: Magic link detected in URL parameters')
+
+      setPastedLink(fullUrl)
+      setAutoDetected(true)
+      setClipboardChecked(true)
+
+      // Auto-submit for deep-linked PWAs
+      setTimeout(() => {
+        console.log('🚀 PWA Deep Link: Auto-submitting magic link')
+        window.location.href = fullUrl
+      }, 1000)
+    }
+  }, [emailSent])
   const [emailMethod, setEmailMethod] = useState<'custom' | 'firebase' | null>(null)
 
   useEffect(() => {
@@ -34,72 +87,113 @@ export default function LoginPage() {
     }
   }, [redirecting])
 
-  // Intelligent clipboard monitoring for magic links
+  // PWA-Aware intelligent clipboard monitoring for magic links
   useEffect(() => {
     if (!emailSent || clipboardChecked) return
+
+    // PWA environment already detected above
+    const isIOS = typeof window !== 'undefined' &&
+                  /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+                  !(window as any).MSStream
+    const isIOSPWA = isIOS && isPWA
+
+    console.log('🔍 Clipboard monitoring started:', { isPWA, isIOSPWA })
 
     let checkInterval: NodeJS.Timeout
     let attempts = 0
     const maxAttempts = 30 // Check for 30 seconds
+    let clipboardAccessGranted = false
+
+    // Enhanced validation for different PWA environments
+    const validateMagicLink = (text: string): boolean => {
+      if (!text || text.length < 50) return false
+
+      // Basic Firebase link validation
+      const hasAuthFinish = text.includes('auth/finish')
+      const hasApiKey = text.includes('apiKey=')
+      const hasAuthParams = text.includes('oobCode=') || text.includes('mode=signIn') || text.includes('mode=magic')
+      const isValidUrl = text.startsWith('http://') || text.startsWith('https://')
+
+      // For PWAs, also accept shorter custom magic links
+      const isCustomMagicLink = text.includes('/auth/finish?email=') && text.includes('&timestamp=') && text.includes('&session=')
+
+      return (hasAuthFinish && hasApiKey && hasAuthParams && isValidUrl) || isCustomMagicLink
+    }
 
     const checkClipboard = async () => {
       attempts++
+
       try {
+        // PWA-specific clipboard access (may require user gesture)
         const clipboardText = await navigator.clipboard.readText()
+        clipboardAccessGranted = true
+        setClipboardAccessStatus('granted')
 
-        // Smart validation for Firebase magic links
-        const isValidMagicLink = (
-          clipboardText &&
-          clipboardText.length > 50 && // Reasonable length
-          clipboardText.includes('auth/finish') &&
-          clipboardText.includes('apiKey=') &&
-          (clipboardText.includes('oobCode=') || clipboardText.includes('mode=signIn')) &&
-          (clipboardText.startsWith('http://') || clipboardText.startsWith('https://'))
-        )
-
-        if (isValidMagicLink) {
-          console.log('🎉 Smart clipboard detection: Valid magic link found!')
+        if (validateMagicLink(clipboardText)) {
+          console.log('🎉 PWA Smart clipboard detection: Valid magic link found!', { isPWA, isIOSPWA })
           setPastedLink(clipboardText)
           setAutoDetected(true)
           setClipboardChecked(true)
 
-          // Auto-submit with visual feedback
+          // Auto-submit with PWA-optimized timing
           setTimeout(() => {
             try {
-              window.location.href = clipboardText
+              // For iOS PWAs, ensure we're opening in the same PWA context
+              if (isIOSPWA) {
+                console.log('📱 iOS PWA: Opening link in same context')
+                window.location.href = clipboardText
+              } else {
+                window.location.href = clipboardText
+              }
             } catch (navError) {
-              console.error('Navigation failed:', navError)
-              setLinkError('Failed to navigate to magic link')
+              console.error('Navigation failed in PWA:', navError)
+              setLinkError('Failed to navigate to magic link. Please try manually.')
             }
-          }, 800) // Slightly longer delay for user to see the magic
+          }, isPWA ? 600 : 800) // Faster auto-submit in PWAs
 
           return // Stop checking
         }
 
-        // Continue checking if we haven't found a link yet
-        if (attempts < maxAttempts && !clipboardChecked) {
-          checkInterval = setTimeout(checkClipboard, attempts < 5 ? 500 : 2000) // Faster checks initially
-        } else {
-          setClipboardChecked(true) // Stop checking after max attempts
+      } catch (clipboardError: any) {
+        // PWA clipboard access often requires user gesture
+        console.log(`📋 Clipboard access ${clipboardAccessGranted ? 'working' : 'needs permission'} (attempt ${attempts})`)
+
+        // Track clipboard access status for PWA feedback
+        if (!clipboardAccessGranted) {
+          setClipboardAccessStatus('denied')
         }
 
-      } catch (err) {
-        // Clipboard access denied or other error
-        if (attempts < maxAttempts && !clipboardChecked) {
-          checkInterval = setTimeout(checkClipboard, 3000) // Slower fallback
-        } else {
-          setClipboardChecked(true)
+        // In PWAs, clipboard access might be denied initially
+        if (!clipboardAccessGranted && attempts === 1) {
+          console.log('🔄 PWA clipboard access denied - will retry with user gesture fallback')
         }
+
+        // Continue checking for clipboard access
+        if (attempts < maxAttempts && !clipboardChecked) {
+          const nextDelay = attempts < 3 ? 1000 : attempts < 10 ? 2000 : 3000
+          checkInterval = setTimeout(checkClipboard, nextDelay)
+          return
+        }
+      }
+
+      // Continue normal checking if we haven't found a link yet
+      if (attempts < maxAttempts && !clipboardChecked) {
+        const delay = attempts < 5 ? 500 : attempts < 15 ? 1500 : 2000
+        checkInterval = setTimeout(checkClipboard, delay)
+      } else {
+        setClipboardChecked(true)
+        console.log('⏰ PWA clipboard monitoring completed', { attempts, clipboardAccessGranted })
       }
     }
 
-    // Start checking immediately
-    checkInterval = setTimeout(checkClipboard, 200)
+    // PWA-optimized start timing
+    const initialDelay = isPWA ? 100 : 200 // Faster start in PWAs
+    checkInterval = setTimeout(checkClipboard, initialDelay)
 
     return () => {
       if (checkInterval) clearTimeout(checkInterval)
     }
-  }, [emailSent, clipboardChecked])
+  }, [emailSent, clipboardChecked, isPWA])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center px-6">
@@ -175,7 +269,10 @@ export default function LoginPage() {
                   </p>
                   {!clipboardChecked && (
                     <p className="text-xs text-blue-600 animate-pulse">
-                      🔍 Smart detection active - paste or copy link to auto-fill
+                      {clipboardAccessStatus === 'denied' && isPWA
+                        ? '📋 PWA: Copy link from email, then tap to paste here'
+                        : '🔍 Smart detection active - paste or copy link to auto-fill'
+                      }
                     </p>
                   )}
                   {autoDetected && (
@@ -183,12 +280,41 @@ export default function LoginPage() {
                       🎉 Magic link detected and ready to sign in!
                     </p>
                   )}
+                  {/* PWA-specific instructions */}
+                  {isPWA && (
+                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-700 font-medium mb-1">
+                        📱 PWA Mode: Copy link from email, then paste below
+                      </p>
+                      {clipboardAccessStatus === 'denied' && (
+                        <button
+                          onClick={() => {
+                            // Focus the input to trigger paste on mobile
+                            const input = document.querySelector('input[type="url"]') as HTMLInputElement
+                            if (input) {
+                              input.focus()
+                              input.click()
+                            }
+                          }}
+                          className="mt-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        >
+                          Tap to Paste
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="relative">
                   <input
                     type="url"
-                    placeholder="Paste the magic link here..."
+                    placeholder={
+                      typeof window !== 'undefined' &&
+                      (window.matchMedia('(display-mode: standalone)').matches ||
+                       (window.navigator as any).standalone)
+                        ? "Long-press copy from email, then paste here..."
+                        : "Paste the magic link here..."
+                    }
                     value={pastedLink}
                     onChange={(e) => {
                       setPastedLink(e.target.value)
@@ -225,7 +351,19 @@ export default function LoginPage() {
                   Sign In
                 </button>
 
-                {linkError && <p className="text-red-600 text-sm text-center font-medium">{linkError}</p>}
+                {linkError && (
+                  <div className="text-center">
+                    <p className="text-red-600 text-sm font-medium">{linkError}</p>
+                    {/* PWA-specific error guidance */}
+                    {typeof window !== 'undefined' &&
+                     (window.matchMedia('(display-mode: standalone)').matches ||
+                      (window.navigator as any).standalone) && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        📱 In PWA mode: Try copying the link manually from your email app
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 text-center">
