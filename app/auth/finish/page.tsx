@@ -44,7 +44,14 @@ export default function AuthFinishPage() {
           console.log('📧 Email from storage:', email)
 
           if (!email) {
-            throw new Error('Email not found in localStorage. Please try the sign-in process again.')
+            // If no email in storage, try to extract it from URL or redirect to login
+            console.log('⚠️ No email found in storage, redirecting to login')
+            setStatus('error')
+            setError('Please start the sign-in process again from the login page.')
+            setTimeout(() => {
+              router.replace('/login?error=no-email')
+            }, 3000)
+            return
           }
 
           // Sign in with the email link
@@ -67,8 +74,18 @@ export default function AuthFinishPage() {
           }, 2000)
 
         } else {
-          console.log('❌ Not a valid email link')
-          throw new Error('Invalid email link')
+          console.log('❌ Not a valid Firebase email link')
+
+          // Check if it's a manual entry that looks like our auth URL
+          if (url.includes('/auth/finish') && url.includes('apiKey=')) {
+            setStatus('error')
+            setError('This appears to be a Firebase link but is not valid. Please try copying the complete link from your email.')
+            return
+          }
+
+          // For non-Firebase links, show different error
+          setStatus('error')
+          setError('This doesn\'t appear to be a valid magic link. Please check that you copied the complete link from your email.')
         }
 
       } catch (err: any) {
@@ -179,12 +196,17 @@ export default function AuthFinishPage() {
                 <p>• URL: {typeof window !== 'undefined' ? window.location.href : 'N/A'}</p>
               </div>
 
-              <button
-                onClick={() => router.push('/login')}
-                className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                Return to Login
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => router.push('/login')}
+                  className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Try Again / Send New Link
+                </button>
+                <p className="text-xs text-gray-500 text-center">
+                  Make sure to copy the complete link from your email
+                </p>
+              </div>
             </>
           )}
         </div>
