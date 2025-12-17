@@ -115,8 +115,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const customUserData = localStorage.getItem('rs-auth-user')
         const authMethod = localStorage.getItem('rs-auth-method')
 
+        console.log('🔍 AuthContext init - checking for magic link:', {
+          hasCustomUserData: !!customUserData,
+          authMethod,
+          currentUser: !!user
+        })
+
         if (customUserData && authMethod === 'magic-link') {
-          console.log('🔗 Found custom magic link authentication')
+          console.log('🔗 Found custom magic link authentication, setting user')
           try {
             const customUser = JSON.parse(customUserData)
             // Create a mock Firebase user object for compatibility
@@ -127,6 +133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             setUser(mockFirebaseUser as User)
             setLoading(false)
+
+            // Don't set up Firebase listener for magic link users to prevent override
+            console.log('✅ Magic link user set, skipping Firebase auth listener')
             return
           } catch (parseError) {
             console.warn('Failed to parse custom user data:', parseError)

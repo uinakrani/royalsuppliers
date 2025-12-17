@@ -431,64 +431,50 @@ Get login link
             </>
           ) : (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-              <div className="text-center mb-4">
+              <div className="text-center mb-6">
                 <CheckCircle size={24} className="text-green-600 mx-auto mb-2" />
                 <p className="text-green-800 font-medium">Email Sent</p>
-                <p className="text-sm text-green-700 mt-1">Check your email and paste the magic link below</p>
+                <p className="text-sm text-green-700">Paste your magic link below</p>
               </div>
 
-              <div className="space-y-4">
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-gray-700 mb-3">
-                    Sign in with Magic Link
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Copy the link from your email and paste it below
-                  </p>
-                </div>
+              <input
+                type="url"
+                placeholder="Paste magic link here..."
+                value={pastedLink}
+                onChange={(e) => {
+                  const newValue = e.target.value
+                  setPastedLink(newValue)
+                  setLinkError('')
 
-                {/* Auto-submit input */}
-                <input
-                  type="url"
-                  placeholder="Paste your magic link here..."
-                  value={pastedLink}
-                  onChange={(e) => {
-                    const newValue = e.target.value
-                    setPastedLink(newValue)
-                    setLinkError('')
-                    setAutoDetected(false)
+                  // Auto-submit immediately when a valid link is pasted
+                  const trimmedLink = newValue.trim()
+                  if (trimmedLink && trimmedLink.includes('auth/finish') && trimmedLink.startsWith('http')) {
+                    console.log('🚀 Auto-submitting pasted link:', trimmedLink)
+                    window.location.href = trimmedLink
+                  }
+                }}
+                onFocus={() => {
+                  // Trigger clipboard check when user focuses (for PWAs)
+                  if (isPWA && !userGestureTriggered && !clipboardChecked && clipboardAccessStatus !== 'denied') {
+                    console.log('🔍 Input focused, checking clipboard...')
+                    checkClipboardForMagicLink()
+                  }
+                }}
+                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center font-mono"
+                disabled={loading || signing}
+                autoFocus
+                inputMode="url"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
+              />
 
-                    // Auto-submit immediately when a valid link is pasted
-                    const trimmedLink = newValue.trim()
-                    if (trimmedLink && trimmedLink.includes('auth/finish') && trimmedLink.startsWith('http')) {
-                      console.log('🚀 Auto-submitting pasted link:', trimmedLink)
-                      // Immediate redirect without delay
-                      window.location.href = trimmedLink
-                    }
-                  }}
-                  onFocus={() => {
-                    // Trigger clipboard check when user focuses (for PWAs)
-                    if (isPWA && !userGestureTriggered && !clipboardChecked && clipboardAccessStatus !== 'denied') {
-                      console.log('🔍 Input focused, checking clipboard...')
-                      checkClipboardForMagicLink()
-                    }
-                  }}
-                  className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-colors text-center font-mono"
-                  disabled={loading || signing}
-                  autoFocus
-                  inputMode="url"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
+              {linkError && (
+                <p className="text-red-600 text-sm text-center font-medium mt-2">{linkError}</p>
+              )}
 
-                {linkError && (
-                  <p className="text-red-600 text-sm text-center font-medium">{linkError}</p>
-                )}
-              </div>
-
-              <div className="mt-6 text-center border-t border-green-200 pt-4">
+              <div className="text-center mt-4">
                 <button
                   onClick={() => {
                     setEmailSent(false)
@@ -502,7 +488,7 @@ Get login link
                   }}
                   className="px-4 py-2 text-green-600 hover:text-green-800 underline font-medium"
                 >
-                  Send to different email
+                  Use different email
                 </button>
               </div>
             </div>

@@ -129,6 +129,17 @@ export default function AuthFinishPage() {
             }
 
             console.log('✅ Custom magic link authentication successful')
+            console.log('🔍 Saving user data:', { uid: userUid, email: manualEmail })
+
+            // Verify data is saved
+            const savedUserData = localStorage.getItem('rs-auth-user')
+            const savedAuthMethod = localStorage.getItem('rs-auth-method')
+            console.log('💾 Verification - saved data:', {
+              hasUserData: !!savedUserData,
+              authMethod: savedAuthMethod,
+              userEmail: savedUserData ? JSON.parse(savedUserData).email : null
+            })
+
             setStatus('success')
 
             // Redirect after success
