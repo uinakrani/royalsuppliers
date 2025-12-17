@@ -10,8 +10,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
+    console.log('🔐 AuthGate check:', {
+      loading,
+      hasUser: !!user,
+      userEmail: user?.email,
+      currentPath: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+    })
+
     if (!loading && !user) {
+      console.log('🚫 AuthGate: No user found, redirecting to login')
       router.replace('/login')
+    } else if (!loading && user) {
+      console.log('✅ AuthGate: User authenticated, allowing access')
     }
   }, [loading, user, router])
 

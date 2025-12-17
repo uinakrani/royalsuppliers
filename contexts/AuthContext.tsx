@@ -114,17 +114,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         const customUserData = localStorage.getItem('rs-auth-user')
         const authMethod = localStorage.getItem('rs-auth-method')
+        const currentPath = window.location.pathname
 
         console.log('🔍 AuthContext init - checking for magic link:', {
           hasCustomUserData: !!customUserData,
           authMethod,
-          currentUser: !!user
+          currentPath,
+          currentUser: !!user,
+          timestamp: new Date().toISOString()
         })
 
         if (customUserData && authMethod === 'magic-link') {
           console.log('🔗 Found custom magic link authentication, setting user')
           try {
             const customUser = JSON.parse(customUserData)
+            console.log('👤 Parsed user data:', {
+              uid: customUser.uid,
+              email: customUser.email,
+              displayName: customUser.displayName
+            })
+
             // Create a mock Firebase user object for compatibility
             const mockFirebaseUser = {
               ...customUser,
@@ -132,21 +141,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               getIdTokenResult: () => Promise.resolve({ claims: {} }),
             }
             setUser(mockFirebaseUser as User)
-            setLoading(false)
+            console.log('✅ Magic link user set successfully')
 
             // Don't set up Firebase listener for magic link users to prevent override
-            console.log('✅ Magic link user set, skipping Firebase auth listener')
+            console.log('🚫 Skipping Firebase auth listener for magic link user')
+            setLoading(false)
             return
           } catch (parseError) {
-            console.warn('Failed to parse custom user data:', parseError)
+            console.warn('❌ Failed to parse custom user data:', parseError)
             // Clean up invalid data
             localStorage.removeItem('rs-auth-user')
             localStorage.removeItem('rs-auth-method')
           }
+        } else if (authMethod === 'magic-link' && !customUserData) {
+          console.warn('⚠️ Magic link auth method set but no user data found')
+          localStorage.removeItem('rs-auth-method')
         }
       }
 
+      // If no magic link user was found, set up Firebase listener
+      console.log('🔄 Setting up Firebase auth listener (no magic link user found)')
+
+      // Fallback: Re-check for magic link data after a short delay
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const fallbackUserData = localStorage.getItem('rs-auth-user')
+          const fallbackAuthMethod = localStorage.getItem('rs-auth-method')
+
+          if (fallbackUserData && fallbackAuthMethod === 'magic-link' && !user) {
+            console.log('🔗 Fallback: Found magic link data, setting user')
+            try {
+              const fallbackUser = JSON.parse(fallbackUserData)
+              const mockFirebaseUser = {
+                ...fallbackUser,
+                getIdToken: () => Promise.resolve('magic-link-token'),
+                getIdTokenResult: () => Promise.resolve({ claims: {} }),
+              }
+              setUser(mockFirebaseUser as User)
+              setLoading(false)
+              console.log('✅ Fallback: Magic link user set successfully')
+            } catch (error) {
+              console.warn('❌ Fallback: Failed to parse magic link data:', error)
+            }
+          }
+        }
+      }, 1000)
+
       unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+        console.log('🔥 Firebase auth state changed:', {
+          hasFirebaseUser: !!firebaseUser,
+          firebaseUserEmail: firebaseUser?.email,
+          currentUser: !!user
+        })
+
         setLoading(true)
         try {
           if (firebaseUser) {

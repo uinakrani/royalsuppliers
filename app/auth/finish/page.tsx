@@ -126,27 +126,27 @@ export default function AuthFinishPage() {
             if (typeof window !== 'undefined') {
               localStorage.setItem('rs-auth-user', JSON.stringify(customUser))
               localStorage.setItem('rs-auth-method', 'magic-link')
+
+              console.log('✅ Custom magic link authentication successful')
+              console.log('🔍 Saving user data:', { uid: userUid, email: manualEmail })
+
+              // Verify data is saved immediately
+              const savedUserData = localStorage.getItem('rs-auth-user')
+              const savedAuthMethod = localStorage.getItem('rs-auth-method')
+              console.log('💾 Verification - saved data:', {
+                hasUserData: !!savedUserData,
+                authMethod: savedAuthMethod,
+                userEmail: savedUserData ? JSON.parse(savedUserData).email : null
+              })
             }
-
-            console.log('✅ Custom magic link authentication successful')
-            console.log('🔍 Saving user data:', { uid: userUid, email: manualEmail })
-
-            // Verify data is saved
-            const savedUserData = localStorage.getItem('rs-auth-user')
-            const savedAuthMethod = localStorage.getItem('rs-auth-method')
-            console.log('💾 Verification - saved data:', {
-              hasUserData: !!savedUserData,
-              authMethod: savedAuthMethod,
-              userEmail: savedUserData ? JSON.parse(savedUserData).email : null
-            })
 
             setStatus('success')
 
-            // Redirect after success
+            // Redirect after success - give AuthContext time to initialize
             setTimeout(() => {
               console.log('🚀 Redirecting to account page...')
               router.replace('/account')
-            }, 2000)
+            }, 1000) // Reduced from 2000ms to 1000ms
 
             return
           } catch (authError) {
