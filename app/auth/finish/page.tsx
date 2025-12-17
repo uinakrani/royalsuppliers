@@ -67,6 +67,35 @@ export default function AuthFinishPage() {
               localStorage.setItem('emailForSignIn', manualEmail)
             }
 
+            // Try to find existing Firebase user with same email to maintain UID consistency
+            let userUid = null
+            try {
+              const db = await import('@/lib/firebase').then(m => m.getDb())
+              if (db) {
+                // Query for existing user by email
+                const usersRef = await import('firebase/firestore').then(m => m.collection(db, 'users'))
+                const q = await import('firebase/firestore').then(m =>
+                  m.query(usersRef, m.where('email', '==', manualEmail))
+                )
+                const querySnapshot = await import('firebase/firestore').then(m => m.getDocs(q))
+
+                if (!querySnapshot.empty) {
+                  // Found existing user, use their UID
+                  const existingUserDoc = querySnapshot.docs[0]
+                  userUid = existingUserDoc.id
+                  console.log('🔗 Found existing user with same email, using UID:', userUid)
+                }
+              }
+            } catch (dbError) {
+              console.warn('Could not check for existing user:', dbError)
+            }
+
+            // If no existing user found, create consistent UID based on email
+            if (!userUid) {
+              userUid = `user-${btoa(manualEmail).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20)}`
+              console.log('🔗 Creating new consistent UID for email:', userUid)
+            }
+
             // Create a custom user object for magic link authentication
             const customUser = {
               email: manualEmail,
@@ -86,7 +115,7 @@ export default function AuthFinishPage() {
               }],
               refreshToken: `magic-link-${Date.now()}`,
               tenantId: null,
-              uid: `magic-${btoa(manualEmail)}-${Date.now()}`,
+              uid: userUid, // Use existing UID or consistent new one
               displayName: manualEmail.split('@')[0],
               photoURL: null,
               phoneNumber: null,
