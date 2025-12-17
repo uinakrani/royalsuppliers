@@ -45,6 +45,20 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // Ensure AASA file is served with correct content type
+        source: '/.well-known/apple-app-site-association',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/json',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
     ]
   },
   webpack: (config, { isServer }) => {

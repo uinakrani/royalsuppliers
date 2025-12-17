@@ -81,9 +81,40 @@ export default function AuthFinishPage() {
     handleEmailLink()
   }, [router])
 
+  // iOS PWA deep linking fallback
+  const isIOS = typeof window !== 'undefined' &&
+                /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+                !window.MSStream;
+
+  const isInStandaloneMode = typeof window !== 'undefined' &&
+                            (window.navigator.standalone === true ||
+                             window.matchMedia('(display-mode: standalone)').matches);
+
+  const isIOSOutsidePWA = isIOS && !isInStandaloneMode;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center px-6">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-6">
+      {isIOSOutsidePWA && !status.includes('success') && (
+        <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white p-4 text-center z-50">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 text-left">
+              <div className="font-semibold">Open in Royal Suppliers</div>
+              <div className="text-sm opacity-90">Tap to open this link in your installed app</div>
+            </div>
+            <button
+              onClick={() => {
+                // Try to open the PWA
+                window.location.href = `${window.location.origin}/?utm_source=email&utm_campaign=magic_link`;
+              }}
+              className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors"
+            >
+              Open
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-6 ${isIOSOutsidePWA ? 'mt-20' : ''}`}>
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-xl bg-primary-50 text-primary-600">
             <Mail size={28} />
@@ -101,6 +132,16 @@ export default function AuthFinishPage() {
               <p className="text-gray-600 text-center">
                 Verifying your email link...
               </p>
+              {isIOSOutsidePWA && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-blue-800 text-sm font-medium text-center">
+                    📱 Tap "Open" above to continue in your Royal Suppliers app
+                  </p>
+                  <p className="text-blue-600 text-xs text-center mt-1">
+                    This link should open automatically in your installed PWA
+                  </p>
+                </div>
+              )}
               <p className="text-gray-500 text-center text-xs mt-2">
                 Check browser console (F12) for debug logs
               </p>
