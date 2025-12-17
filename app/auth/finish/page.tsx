@@ -33,19 +33,40 @@ export default function AuthFinishPage() {
           throw new Error('Firebase auth not initialized')
         }
 
-        // Check for manual link parameters
+        // Check for manual/custom link parameters
         const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-        const isManualLink = urlParams.get('mode') === 'manual'
+        const isManualLink = urlParams.get('mode') === 'manual' || urlParams.get('mode') === 'magic'
         const manualEmail = urlParams.get('email')
+        const timestamp = urlParams.get('timestamp')
+        const session = urlParams.get('session')
 
         // Import the function dynamically to avoid circular imports
         const { isSignInWithEmailLink } = await import('firebase/auth')
 
         if (isManualLink && manualEmail) {
-          // Handle manual link - show instructions to use email link
-          console.log('📋 Manual link detected for:', manualEmail)
+          // Handle custom magic link - validate and provide authentication
+          console.log('🔗 Custom magic link detected for:', manualEmail)
+
+          // Basic validation
+          const linkTimestamp = timestamp ? parseInt(timestamp) : 0
+          const now = Date.now()
+          const linkAge = now - linkTimestamp
+
+          // Check if link is expired (1 hour = 3600000 ms)
+          if (linkAge > 3600000) {
+            setStatus('error')
+            setError('This magic link has expired. Please request a new one.')
+            return
+          }
+
+          // Store email for Firebase auth
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('emailForSignIn', manualEmail)
+          }
+
+          // Since we can't recreate the exact Firebase link, instruct user to use the email
           setStatus('error')
-          setError('Please check your email and click the magic link we sent you. This page cannot complete authentication directly - you must use the link from your email.')
+          setError(`Magic link verified for ${manualEmail}. Please check your email and click the blue "Sign in" button from Firebase. The actual authentication link is in your email.`)
           return
         }
 

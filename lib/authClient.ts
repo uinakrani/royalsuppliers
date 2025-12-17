@@ -92,16 +92,31 @@ export async function logoutUser() {
 
 // Email Link Authentication Functions
 export async function sendEmailLink(email: string) {
-  const auth = getAuthInstance()
-
   try {
     // Store email in localStorage for later use
     if (typeof window !== 'undefined') {
       localStorage.setItem('emailForSignIn', email)
     }
 
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings)
-    return { success: true }
+    // Get domain for magic link generation
+    const domain = typeof window !== 'undefined' ? window.location.origin : 'https://yoursite.com'
+
+    // Try custom email service first (shows actual link)
+    try {
+      const { sendMagicLinkEmail, generateMagicLinkUrl } = await import('./customEmailService')
+      const magicLink = generateMagicLinkUrl(email, domain)
+      await sendMagicLinkEmail(email, magicLink, domain)
+      console.log('Custom magic link email sent successfully')
+      return { success: true, method: 'custom' }
+    } catch (customError) {
+      console.warn('Custom email service failed, falling back to Firebase:', customError)
+
+      // Fallback to Firebase Auth
+      const auth = getAuthInstance()
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings)
+      console.log('Firebase magic link email sent successfully')
+      return { success: true, method: 'firebase' }
+    }
   } catch (error) {
     console.error('Error sending email link:', error)
     throw error

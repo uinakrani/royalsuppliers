@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [pastedLink, setPastedLink] = useState('')
   const [linkError, setLinkError] = useState('')
   const [clipboardChecked, setClipboardChecked] = useState(false)
+  const [emailMethod, setEmailMethod] = useState<'custom' | 'firebase' | null>(null)
 
   useEffect(() => {
     if (!loading && user) {
@@ -102,7 +103,8 @@ export default function LoginPage() {
                     setError(null)
                     try {
                       // Send the email
-                      await loginWithEmail(email.trim())
+                      const result = await loginWithEmail(email.trim())
+                      setEmailMethod(result.method || 'firebase')
                       setEmailSent(true)
                     } catch (err: any) {
                       setError(err?.message || 'Failed to send email link. Please try again.')
@@ -124,20 +126,22 @@ export default function LoginPage() {
                 <p className="text-green-800 font-medium text-sm">Email Sent</p>
               </div>
 
-              <div className="space-y-3">
-                <div className="text-xs text-gray-500 text-center">
-                  Copy link from email (looks like this):
-                  <div className="font-mono text-xs bg-gray-100 p-1 rounded mt-1 break-all">
-                    https://yoursite.com/auth/finish?apiKey=...&oobCode=...&mode=signIn
-                  </div>
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-gray-700 mb-2">
+                    Copy link from email
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Open your email and copy the sign-in link
+                  </p>
                 </div>
 
                 <input
                   type="url"
-                  placeholder="Paste link here..."
+                  placeholder="Paste the magic link here..."
                   value={pastedLink}
                   onChange={(e) => setPastedLink(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 text-sm"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-mono"
                   disabled={loading || signing}
                   autoFocus
                 />
@@ -153,21 +157,15 @@ export default function LoginPage() {
                     window.location.href = link
                   }}
                   disabled={loading || signing || !pastedLink.trim()}
-                  className="w-full py-2 bg-green-600 text-white font-medium rounded hover:bg-green-700 disabled:opacity-50 text-sm"
+                  className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
                   Sign In
                 </button>
 
-                {linkError && <p className="text-red-600 text-xs text-center">{linkError}</p>}
+                {linkError && <p className="text-red-600 text-sm text-center font-medium">{linkError}</p>}
               </div>
 
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => window.open('mailto:', '_blank')}
-                  className="flex-1 py-1 px-3 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
-                >
-                  Open Email
-                </button>
+              <div className="mt-4 text-center">
                 <button
                   onClick={() => {
                     setEmailSent(false)
@@ -176,9 +174,9 @@ export default function LoginPage() {
                     setLinkError('')
                     setClipboardChecked(false)
                   }}
-                  className="flex-1 py-1 px-3 text-green-600 hover:text-green-800 underline text-xs"
+                  className="px-4 py-2 text-green-600 hover:text-green-800 underline font-medium"
                 >
-                  Try Again
+                  Send to different email
                 </button>
               </div>
             </div>
