@@ -7,7 +7,7 @@
     "details": [
       {
         "appID": "com.example.royalsuppliers.pwa",
-        "paths": ["/auth/*"]
+        "paths": ["/auth/*", "/auth/finish"]
       }
     ]
   }
