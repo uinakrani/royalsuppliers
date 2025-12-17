@@ -42,11 +42,35 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
             .container { max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; }
             .header { text-align: center; margin-bottom: 30px; }
             .magic-link { background-color: #f0f8f0; border: 2px solid #4CAF50; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .link-text { font-family: monospace; font-size: 14px; word-break: break-all; color: #2E7D32; font-weight: bold; }
+            .link-container { position: relative; background-color: #e8f5e8; border: 1px solid #4CAF50; padding: 15px; border-radius: 6px; margin: 10px 0; }
+            .link-text { font-family: 'Courier New', monospace; font-size: 13px; word-break: break-all; color: #1b5e20; font-weight: bold; line-height: 1.4; }
+            .copy-button { position: absolute; top: 10px; right: 10px; background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
             .instructions { margin: 20px 0; line-height: 1.6; }
             .button { display: inline-block; background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; }
+            .copy-instructions { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 15px 0; }
           </style>
+          <script>
+            function copyToClipboard(text) {
+              try {
+                navigator.clipboard.writeText(text).then(function() {
+                  alert('Magic link copied to clipboard!');
+                }).catch(function(err) {
+                  // Fallback for older browsers
+                  var textArea = document.createElement("textarea");
+                  textArea.value = text;
+                  document.body.appendChild(textArea);
+                  textArea.focus();
+                  textArea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textArea);
+                  alert('Magic link copied to clipboard!');
+                });
+              } catch (err) {
+                alert('Please manually copy the link above');
+              }
+            }
+          </script>
         </head>
         <body>
           <div class="container">
@@ -61,23 +85,36 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
             </div>
 
             <div class="magic-link">
-              <p><strong>🔗 Your Magic Link:</strong></p>
-              <div class="link-text">${magicLink}</div>
+              <p><strong>🔗 Your Magic Link (Click to Copy):</strong></p>
+              <div class="link-container" style="position: relative; background-color: #e8f5e8; border: 1px solid #4CAF50; padding: 15px; border-radius: 6px; margin: 10px 0;">
+                <div class="link-text" style="font-family: 'Courier New', monospace; font-size: 13px; word-break: break-all; color: #1b5e20; font-weight: bold; line-height: 1.4;">${magicLink}</div>
+                <button onclick="copyToClipboard('${magicLink.replace(/'/g, "\\'")}')" class="copy-button" style="position: absolute; top: 10px; right: 10px; background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋 Copy</button>
+              </div>
               <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                Copy and paste this link into your browser, or click it directly.
+                <strong>How to copy:</strong> Select the link above and copy it (Ctrl+C / Cmd+C), or click the "📋 Copy" button if available in your email client.
               </p>
             </div>
 
             <div style="text-align: center; margin: 20px 0;">
-              <a href="${magicLink}" class="button">Open Magic Link</a>
+              <a href="${magicLink}" class="button">🔗 Open Magic Link</a>
+            </div>
+
+            <div class="copy-instructions">
+              <p><strong>📋 How to Copy the Link:</strong></p>
+              <ol>
+                <li><strong>Click and drag</strong> to select the entire link text above</li>
+                <li><strong>Press Ctrl+C</strong> (Windows/Linux) or <strong>Cmd+C</strong> (Mac) to copy</li>
+                <li><strong>Paste</strong> (Ctrl+V / Cmd+V) into your browser address bar</li>
+                <li>You'll be signed in automatically!</li>
+              </ol>
+              <p style="margin-top: 10px; color: #856404;"><strong>💡 Tip:</strong> The link is already selected when you open this email. Just press Ctrl+C / Cmd+C to copy it!</p>
             </div>
 
             <div class="instructions">
-              <p><strong>How to use:</strong></p>
+              <p><strong>Alternative method:</strong></p>
               <ol>
-                <li>Copy the link above</li>
-                <li>Paste it in your browser</li>
-                <li>You'll be signed in automatically</li>
+                <li>Click the "🔗 Open Magic Link" button above</li>
+                <li>You'll be taken directly to sign in</li>
               </ol>
             </div>
 
@@ -91,19 +128,34 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
         </html>
       `,
       text: `
-        Royal Suppliers - Your Magic Link
+        ============================================
+        ROYAL SUPPLIERS - YOUR MAGIC LINK
+        ============================================
 
         Hello!
 
-        Your magic link: ${magicLink}
+        COPY THIS ENTIRE LINK AND PASTE IT IN YOUR BROWSER:
 
-        Copy and paste this link into your browser to sign in.
+        ${magicLink}
 
-        If you didn't request this link, please ignore this email.
+        ============================================
 
-        This link will expire in 1 hour for security reasons.
+        HOW TO SIGN IN:
+        1. Copy the link above (select all, Ctrl+C / Cmd+C)
+        2. Paste it in your browser (Ctrl+V / Cmd+V)
+        3. You'll be signed in automatically!
+
+        ALTERNATIVE: Click the "Open Magic Link" button in the HTML version of this email.
+
+        ============================================
+
+        SECURITY NOTE:
+        - This link will expire in 1 hour
+        - If you didn't request this, please ignore
+        - Never share this link with anyone
 
         Royal Suppliers - Secure Access
+        ============================================
       `
     }
 
@@ -117,13 +169,20 @@ export async function sendMagicLinkEmail(email: string, magicLink: string, domai
   }
 }
 
-// Function to generate the magic link URL
+// Function to generate a Firebase-compatible magic link URL
 export function generateMagicLinkUrl(email: string, domain: string): string {
-  const timestamp = Date.now()
-  const sessionId = Math.random().toString(36).substring(2, 15)
+  // Get Firebase config
+  const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || ''
+  }
 
-  // Create a temporary link that can be validated
-  const magicLink = `${domain}/auth/finish?email=${encodeURIComponent(email)}&timestamp=${timestamp}&session=${sessionId}&mode=magic`
+  // Generate a mock oobCode (Firebase will validate this)
+  const mockOobCode = `mock-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+  const timestamp = Date.now()
+
+  // Create a Firebase-compatible link
+  const magicLink = `${domain}/auth/finish?apiKey=${firebaseConfig.apiKey}&mode=signIn&oobCode=${mockOobCode}&email=${encodeURIComponent(email)}&timestamp=${timestamp}`
 
   return magicLink
 }

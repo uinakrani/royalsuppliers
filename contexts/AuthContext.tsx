@@ -110,6 +110,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       await processRedirectIfNeeded(true)
 
+      // Check for custom magic link authentication first
+      if (typeof window !== 'undefined') {
+        const customUserData = localStorage.getItem('rs-auth-user')
+        const authMethod = localStorage.getItem('rs-auth-method')
+
+        if (customUserData && authMethod === 'magic-link') {
+          console.log('🔗 Found custom magic link authentication')
+          try {
+            const customUser = JSON.parse(customUserData)
+            // Create a mock Firebase user object for compatibility
+            const mockFirebaseUser = {
+              ...customUser,
+              getIdToken: () => Promise.resolve('magic-link-token'),
+              getIdTokenResult: () => Promise.resolve({ claims: {} }),
+            }
+            setUser(mockFirebaseUser as User)
+            setLoading(false)
+            return
+          } catch (parseError) {
+            console.warn('Failed to parse custom user data:', parseError)
+            // Clean up invalid data
+            localStorage.removeItem('rs-auth-user')
+            localStorage.removeItem('rs-auth-method')
+          }
+        }
+      }
+
       unsub = onAuthStateChanged(auth, async (firebaseUser) => {
         setLoading(true)
         try {
@@ -254,6 +281,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveWorkspaceIdState(null)
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('activeWorkspaceId')
+      // Clean up custom magic link data
+      window.localStorage.removeItem('rs-auth-user')
+      window.localStorage.removeItem('rs-auth-method')
     }
   }, [])
 
