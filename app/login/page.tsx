@@ -97,95 +97,69 @@ export default function LoginPage() {
               </button>
             </>
           ) : (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-              <div className="text-center mb-6">
-                <CheckCircle size={32} className="text-green-600 mx-auto mb-3" />
-                <p className="text-green-800 font-semibold text-lg">Magic Link Sent!</p>
-                <p className="text-green-700 text-sm mt-1">
-                  Check your email and paste the magic link below
-                </p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="text-center mb-4">
+                <CheckCircle size={24} className="text-green-600 mx-auto mb-2" />
+                <p className="text-green-800 font-medium">Magic Link Sent!</p>
+                <p className="text-gray-600 text-sm">Copy the link from your email</p>
               </div>
 
-              {/* Magic Link Input */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    🔗 Paste Your Magic Link
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="Paste the link from your email here..."
-                    value={pastedLink}
-                    onChange={(e) => setPastedLink(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
-                    disabled={loading || signing}
-                  />
+              {/* Compact Magic Link Input */}
+              <div className="space-y-3">
+                <div className="text-xs text-gray-500 text-center mb-2">
+                  Link looks like: https://yoursite.com/auth/finish?...
                 </div>
+                <input
+                  type="url"
+                  placeholder="Paste magic link from email..."
+                  value={pastedLink}
+                  onChange={(e) => setPastedLink(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                  disabled={loading || signing}
+                />
 
                 <button
                   onClick={async () => {
                     const link = pastedLink.trim()
                     if (!link) {
-                      setLinkError('Please paste your magic link')
+                      setLinkError('Paste your magic link')
                       return
                     }
 
-                    // Basic URL validation
                     try {
                       new URL(link)
                     } catch {
-                      setLinkError('Please enter a valid URL')
+                      setLinkError('Invalid URL')
                       return
                     }
 
-                    // Check if it looks like a Firebase auth link
-                    if (!link.includes('auth/finish') || !link.includes('apiKey=')) {
-                      setLinkError('This doesn\'t look like a Firebase magic link. Please copy the complete link from your email.')
+                    if (!link.includes('auth/finish')) {
+                      setLinkError('Not a valid magic link')
                       return
                     }
 
                     setSigning(true)
                     setLinkError('')
-                    try {
-                      // Navigate to auth finish with the link
-                      window.location.href = link
-                    } catch (err: any) {
-                      setLinkError(err?.message || 'Invalid magic link')
-                      setSigning(false)
-                    }
+                    window.location.href = link
                   }}
                   disabled={loading || signing || !pastedLink.trim()}
-                  className="w-full inline-flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-sm hover:bg-green-700 transition-colors disabled:opacity-60"
+                  className="w-full px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60"
                 >
-                  {signing ? '🔄 Signing In...' : '🚀 Sign In with Magic Link'}
+                  {signing ? 'Signing In...' : 'Sign In'}
                 </button>
 
                 {linkError && (
-                  <p className="text-red-600 text-sm text-center">{linkError}</p>
+                  <p className="text-red-600 text-xs text-center">{linkError}</p>
                 )}
               </div>
 
-              {/* Instructions */}
-              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-blue-800 font-medium mb-2 flex items-center gap-2">
-                  📋 <span>How to Copy the Link from Email</span>
-                </h4>
-                <div className="text-blue-700 text-sm space-y-1">
-                  <p>• Open the email from Firebase/Google</p>
-                  <p>• Find the blue &quot;Sign in&quot; button/link</p>
-                  <p>• <strong>Right-click</strong> (desktop) or <strong>long-press</strong> (mobile)</p>
-                  <p>• Choose &quot;Copy Link&quot; or &quot;Copy Link Address&quot;</p>
-                  <p>• Paste in the field above and click &quot;Sign In&quot;</p>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="mt-4 space-y-2">
+              {/* Minimal Actions */}
+              <div className="mt-3 flex gap-2">
                 <button
                   onClick={() => window.open('mailto:', '_blank')}
-                  className="w-full px-3 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  className="flex-1 px-3 py-2 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors text-sm"
                 >
-                  📧 Open Email App
+                  Open Email
                 </button>
 
                 <button
@@ -196,9 +170,9 @@ export default function LoginPage() {
                     setLinkError('')
                     setError(null)
                   }}
-                  className="w-full px-3 py-2 text-green-600 hover:text-green-800 underline text-sm"
+                  className="flex-1 px-3 py-2 text-green-600 hover:text-green-800 underline text-sm"
                 >
-                  Send to Different Email
+                  Try Again
                 </button>
               </div>
             </div>
