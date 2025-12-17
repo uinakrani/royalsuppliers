@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback, u
 import { onAuthStateChanged, updateProfile, User } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { getAuthInstance, loginWithGoogleSmart, logoutUser, handleRedirectResult } from '@/lib/authClient'
+import { getAuthInstance, loginWithGoogleSmart, logoutUser, handleRedirectResult, sendEmailLink, signInWithEmailLinkFromUrl } from '@/lib/authClient'
 import { getDb, getFirebaseApp } from '@/lib/firebase'
 import { workspaceService, Workspace } from '@/lib/workspaceService'
 import { getActiveWorkspaceId, setActiveWorkspaceId, WORKSPACE_DEFAULTS } from '@/lib/workspaceSession'
@@ -19,6 +19,7 @@ type AuthContextType = {
   workspaces: Workspace[]
   activeWorkspaceId: string | null
   login: () => Promise<void>
+  loginWithEmail: (email: string) => Promise<void>
   logout: () => Promise<void>
   setWorkspace: (id: string) => void
   createWorkspace: (name: string) => Promise<string | null>
@@ -236,6 +237,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [shouldUseRedirect])
 
+  const loginWithEmail = useCallback(async (email: string) => {
+    try {
+      await sendEmailLink(email)
+    } catch (err) {
+      console.error('Email link send error:', err)
+      throw err
+    }
+  }, [])
+
   const logout = useCallback(async () => {
     await logoutUser()
     setUser(null)
@@ -348,6 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       workspaces,
       activeWorkspaceId,
       login,
+      loginWithEmail,
       logout,
       setWorkspace,
       createWorkspace,
@@ -357,7 +368,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       removeMember,
       clearRedirectFlag,
     }),
-    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag]
+    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, loginWithEmail, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

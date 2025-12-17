@@ -1,6 +1,6 @@
 'use client'
 
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence, signInWithRedirect, getRedirectResult } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence, signInWithRedirect, getRedirectResult, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth'
 import { getFirebaseApp } from './firebase'
 
 let authInitialized = false
@@ -8,6 +8,15 @@ const provider = new GoogleAuthProvider()
 provider.setCustomParameters({
   prompt: 'select_account',
 })
+
+// Email link configuration
+const actionCodeSettings = {
+  // URL you want to redirect back to. The domain (www.example.com) for this
+  // URL must be in the authorized domains list in the Firebase Console.
+  url: typeof window !== 'undefined' ? `${window.location.origin}/auth/finish` : '',
+  // This must be true for PWA deep linking
+  handleCodeInApp: true
+}
 
 export function setLoginHint(email?: string | null) {
   const params: Record<string, string> = { prompt: 'select_account' }
@@ -79,6 +88,58 @@ export async function handleRedirectResult() {
 export async function logoutUser() {
   const auth = getAuthInstance()
   return signOut(auth)
+}
+
+// Email Link Authentication Functions
+export async function sendEmailLink(email: string) {
+  const auth = getAuthInstance()
+
+  try {
+    // Store email in localStorage for later use
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('emailForSignIn', email)
+    }
+
+    await sendSignInLinkToEmail(auth, email, actionCodeSettings)
+    return { success: true }
+  } catch (error) {
+    console.error('Error sending email link:', error)
+    throw error
+  }
+}
+
+export async function signInWithEmailLinkFromUrl(url: string) {
+  const auth = getAuthInstance()
+
+  try {
+    // Confirm the link is a sign-in with email link.
+    if (isSignInWithEmailLink(auth, url)) {
+      // Get the email from localStorage
+      let email = ''
+      if (typeof window !== 'undefined') {
+        email = localStorage.getItem('emailForSignIn') || ''
+      }
+
+      if (!email) {
+        throw new Error('Email not found in localStorage. Please try the sign-in process again.')
+      }
+
+      // The client SDK will parse the code from the link for you.
+      const result = await signInWithEmailLink(auth, email, url)
+
+      // Clear email from storage.
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('emailForSignIn')
+      }
+
+      return result
+    } else {
+      throw new Error('Invalid email link')
+    }
+  } catch (error) {
+    console.error('Error signing in with email link:', error)
+    throw error
+  }
 }
 
 export { getAuthInstance }
