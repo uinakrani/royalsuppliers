@@ -33,8 +33,21 @@ export default function AuthFinishPage() {
           throw new Error('Firebase auth not initialized')
         }
 
+        // Check for manual link parameters
+        const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+        const isManualLink = urlParams.get('mode') === 'manual'
+        const manualEmail = urlParams.get('email')
+
         // Import the function dynamically to avoid circular imports
         const { isSignInWithEmailLink } = await import('firebase/auth')
+
+        if (isManualLink && manualEmail) {
+          // Handle manual link - show instructions to use email link
+          console.log('📋 Manual link detected for:', manualEmail)
+          setStatus('error')
+          setError('Please check your email and click the magic link we sent you. This page cannot complete authentication directly - you must use the link from your email.')
+          return
+        }
 
         if (isSignInWithEmailLink(auth, url)) {
           console.log('✅ Valid email link detected')

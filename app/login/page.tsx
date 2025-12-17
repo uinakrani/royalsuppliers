@@ -16,8 +16,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [emailSent, setEmailSent] = useState(false)
-  const [magicLink, setMagicLink] = useState('')
-  const [manualLinkError, setManualLinkError] = useState('')
 
   useEffect(() => {
     if (!loading && user) {
@@ -70,24 +68,25 @@ export default function LoginPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 disabled={loading || signing || pendingRedirect}
               />
-              <button
-                onClick={async () => {
-                  if (!email.trim()) {
-                    setError('Please enter a valid email address')
-                    return
-                  }
+                <button
+                  onClick={async () => {
+                    if (!email.trim()) {
+                      setError('Please enter a valid email address')
+                      return
+                    }
 
-                  setSigning(true)
-                  setError(null)
-                  try {
-                    await loginWithEmail(email.trim())
-                    setEmailSent(true)
-                  } catch (err: any) {
-                    setError(err?.message || 'Failed to send email link. Please try again.')
-                  } finally {
-                    setSigning(false)
-                  }
-                }}
+                    setSigning(true)
+                    setError(null)
+                    try {
+                      // Send the email
+                      await loginWithEmail(email.trim())
+                      setEmailSent(true)
+                    } catch (err: any) {
+                      setError(err?.message || 'Failed to send email link. Please try again.')
+                    } finally {
+                      setSigning(false)
+                    }
+                  }}
                 disabled={loading || signing || pendingRedirect || !email.trim()}
                 className="w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-60"
               >
@@ -96,90 +95,75 @@ export default function LoginPage() {
               </button>
             </>
           ) : (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="text-center mb-4">
-                <CheckCircle size={24} className="text-blue-600 mx-auto mb-2" />
-                <p className="text-blue-800 font-medium">Magic link sent!</p>
-                <p className="text-blue-700 text-sm">
-                  Check your email and copy the magic link, then paste it below.
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <div className="text-center mb-6">
+                <CheckCircle size={32} className="text-green-600 mx-auto mb-3" />
+                <p className="text-green-800 font-semibold text-lg">Email Sent Successfully!</p>
+                <p className="text-green-700 text-sm mt-1">
+                  You can sign in using either method below:
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <input
-                  type="url"
-                  placeholder="Paste your magic link here..."
-                  value={magicLink}
-                  onChange={(e) => setMagicLink(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  disabled={loading || signing}
-                />
+              {/* Magic Link Instructions */}
+              <div className="mb-6">
+                <h3 className="text-green-800 font-medium mb-3 text-center">
+                  📧 Check Your Email
+                </h3>
 
-                <button
-                  onClick={async () => {
-                    const link = magicLink.trim()
-                    if (!link) {
-                      setManualLinkError('Please paste your magic link')
-                      return
-                    }
+                <div className="bg-white border border-green-200 rounded-lg p-4">
+                  <div className="text-center mb-4">
+                    <div className="text-4xl mb-2">📬</div>
+                    <p className="text-gray-700 font-medium">Magic Link Sent!</p>
+                    <p className="text-gray-600 text-sm">to <strong>{email}</strong></p>
+                  </div>
 
-                    // Basic URL validation
-                    try {
-                      new URL(link)
-                    } catch {
-                      setManualLinkError('Please enter a valid URL')
-                      return
-                    }
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                    <p className="text-yellow-800 text-sm font-medium mb-2">💡 Pro Tip:</p>
+                    <p className="text-yellow-700 text-sm">
+                      In your email, look for the blue &quot;Sign in&quot; button. Long-press it and choose &quot;Copy Link&quot; to easily copy the magic link.
+                    </p>
+                  </div>
 
-                    // Check if it looks like a Firebase auth link
-                    if (!link.includes('auth/finish') || !link.includes('apiKey=')) {
-                      setManualLinkError('This doesn\'t look like a Firebase magic link. Please copy the complete link from your email.')
-                      return
-                    }
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => window.open('mailto:', '_blank')}
+                      className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      📧 Open Email App
+                    </button>
 
-                    setSigning(true)
-                    setManualLinkError('')
-                    try {
-                      // Navigate to auth finish with the link
-                      window.location.href = link
-                    } catch (err: any) {
-                      setManualLinkError(err?.message || 'Invalid magic link')
-                      setSigning(false)
-                    }
-                  }}
-                  disabled={loading || signing || !magicLink.trim()}
-                  className="w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-60"
-                >
-                  {signing ? 'Processing...' : 'Continue with Magic Link'}
-                </button>
-
-                {manualLinkError && (
-                  <p className="text-red-600 text-sm text-center">{manualLinkError}</p>
-                )}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-blue-200">
-                <div className="text-blue-700 text-xs text-center mb-2 bg-blue-100 p-3 rounded-lg">
-                  <p className="mb-2 font-medium"><strong>How to copy the magic link:</strong></p>
-                  <div className="space-y-1 text-left max-w-xs mx-auto">
-                    <p>1. Open the email from Firebase</p>
-                    <p>2. Find the blue &quot;Sign in&quot; button/link</p>
-                    <p>3. <strong>Desktop:</strong> Right-click → &quot;Copy Link&quot;</p>
-                    <p>3. <strong>Mobile:</strong> Long-press → &quot;Copy Link&quot;</p>
-                    <p>4. Paste the URL in the field above</p>
+                    <button
+                      onClick={() => {
+                        setEmailSent(false)
+                        setEmail('')
+                        setError(null)
+                      }}
+                      className="w-full px-4 py-2 text-green-600 hover:text-green-800 underline text-sm"
+                    >
+                      Send to a different email
+                    </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Alternative Method */}
+              <div className="border-t border-green-200 pt-4">
+                <h3 className="text-green-800 font-medium mb-2 text-center">
+                  📧 Or Check Your Email
+                </h3>
+                <p className="text-green-700 text-sm text-center mb-3">
+                  We also sent a magic link to <strong>{email}</strong>
+                </p>
+
                 <button
-                  onClick={() => {
-                    setEmailSent(false)
-                    setEmail('')
-                    setMagicLink('')
-                    setError(null)
-                    setManualLinkError('')
-                  }}
-                  className="w-full text-sm text-blue-600 hover:text-blue-800 underline"
+                      onClick={() => {
+                        setEmailSent(false)
+                        setEmail('')
+                        setError(null)
+                      }}
+                  className="w-full text-sm text-green-600 hover:text-green-800 underline"
                 >
-                  Send another link
+                  Send to a different email
                 </button>
               </div>
             </div>
