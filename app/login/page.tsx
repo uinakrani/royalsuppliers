@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [autoDetected, setAutoDetected] = useState(false)
   const [isPWA, setIsPWA] = useState(false)
   const [clipboardAccessStatus, setClipboardAccessStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown')
+  const [preEmailMagicLink, setPreEmailMagicLink] = useState<string | null>(null)
 
   // PWA Environment Detection
   useEffect(() => {
@@ -47,9 +48,9 @@ export default function LoginPage() {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
 
-  // PWA Deep Link Detection - Check URL parameters for magic link
+  // PWA Deep Link Detection - Check URL parameters for magic link (works immediately)
   useEffect(() => {
-    if (typeof window === 'undefined' || !emailSent) return
+    if (typeof window === 'undefined') return
 
     const urlParams = new URLSearchParams(window.location.search)
     const urlFragment = window.location.hash.substring(1)
@@ -62,17 +63,24 @@ export default function LoginPage() {
       const fullUrl = `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`
       console.log('🔗 PWA Deep Link: Magic link detected in URL parameters')
 
-      setPastedLink(fullUrl)
-      setAutoDetected(true)
-      setClipboardChecked(true)
+      // If email hasn't been sent yet, store for later
+      if (!emailSent) {
+        setPreEmailMagicLink(fullUrl)
+        setAutoDetected(true)
+        console.log('📋 Pre-email magic link stored for auto-submit when email is sent')
+      } else {
+        // Email already sent, auto-submit immediately
+        setPastedLink(fullUrl)
+        setAutoDetected(true)
+        setClipboardChecked(true)
 
-      // Auto-submit for deep-linked PWAs
-      setTimeout(() => {
-        console.log('🚀 PWA Deep Link: Auto-submitting magic link')
-        window.location.href = fullUrl
-      }, 1000)
+        setTimeout(() => {
+          console.log('🚀 PWA Deep Link: Auto-submitting magic link')
+          window.location.href = fullUrl
+        }, 1000)
+      }
     }
-  }, [emailSent])
+  }, [emailSent]) // Re-run when emailSent changes
   const [emailMethod, setEmailMethod] = useState<'custom' | 'firebase' | null>(null)
 
   useEffect(() => {
@@ -87,9 +95,9 @@ export default function LoginPage() {
     }
   }, [redirecting])
 
-  // PWA-Aware intelligent clipboard monitoring for magic links
+  // PWA-Aware intelligent clipboard monitoring for magic links (starts immediately)
   useEffect(() => {
-    if (!emailSent || clipboardChecked) return
+    if (clipboardChecked) return // Only skip if we've already found and processed a link
 
     // PWA environment already detected above
     const isIOS = typeof window !== 'undefined' &&
@@ -130,26 +138,36 @@ export default function LoginPage() {
         setClipboardAccessStatus('granted')
 
         if (validateMagicLink(clipboardText)) {
-          console.log('🎉 PWA Smart clipboard detection: Valid magic link found!', { isPWA, isIOSPWA })
-          setPastedLink(clipboardText)
-          setAutoDetected(true)
-          setClipboardChecked(true)
+          console.log('🎉 PWA Smart clipboard detection: Valid magic link found!', { isPWA, isIOSPWA, emailSent })
 
-          // Auto-submit with PWA-optimized timing
-          setTimeout(() => {
-            try {
-              // For iOS PWAs, ensure we're opening in the same PWA context
-              if (isIOSPWA) {
-                console.log('📱 iOS PWA: Opening link in same context')
-                window.location.href = clipboardText
-              } else {
-                window.location.href = clipboardText
+          // Handle pre-email vs post-email detection differently
+          if (!emailSent) {
+            // Store for later auto-submit when email is sent
+            setPreEmailMagicLink(clipboardText)
+            setAutoDetected(true)
+            console.log('📋 Pre-email magic link detected and stored - will auto-submit when email is sent')
+          } else {
+            // Email sent, auto-submit immediately
+            setPastedLink(clipboardText)
+            setAutoDetected(true)
+            setClipboardChecked(true)
+
+            // Auto-submit with PWA-optimized timing
+            setTimeout(() => {
+              try {
+                // For iOS PWAs, ensure we're opening in the same PWA context
+                if (isIOSPWA) {
+                  console.log('📱 iOS PWA: Opening link in same context')
+                  window.location.href = clipboardText
+                } else {
+                  window.location.href = clipboardText
+                }
+              } catch (navError) {
+                console.error('Navigation failed in PWA:', navError)
+                setLinkError('Failed to navigate to magic link. Please try manually.')
               }
-            } catch (navError) {
-              console.error('Navigation failed in PWA:', navError)
-              setLinkError('Failed to navigate to magic link. Please try manually.')
-            }
-          }, isPWA ? 600 : 800) // Faster auto-submit in PWAs
+            }, isPWA ? 600 : 800) // Faster auto-submit in PWAs
+          }
 
           return // Stop checking
         }
@@ -217,6 +235,18 @@ export default function LoginPage() {
 
           {!emailSent ? (
             <>
+              {/* Pre-email magic link indicator */}
+              {preEmailMagicLink && (
+                <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle size={16} className="text-green-600" />
+                    <p className="text-sm text-green-800 font-medium">
+                      ✨ Magic link detected! Send email to auto-sign in
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <input
                 type="email"
                 placeholder="Enter your email address"
@@ -239,6 +269,16 @@ export default function LoginPage() {
                       const result = await loginWithEmail(email.trim())
                       setEmailMethod(result.method === 'custom' ? 'custom' : 'firebase')
                       setEmailSent(true)
+
+                      // Auto-submit pre-detected magic link immediately
+                      if (preEmailMagicLink) {
+                        console.log('🚀 Auto-submitting pre-detected magic link now that email is sent')
+                        setPastedLink(preEmailMagicLink)
+                        setClipboardChecked(true)
+                        setTimeout(() => {
+                          window.location.href = preEmailMagicLink
+                        }, 500) // Quick submit for pre-detected links
+                      }
                     } catch (err: any) {
                       setError(err?.message || 'Failed to send email link. Please try again.')
                     } finally {
@@ -246,10 +286,14 @@ export default function LoginPage() {
                     }
                   }}
                 disabled={loading || signing || pendingRedirect || !email.trim()}
-                className="w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-60"
+                className={`w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-lg text-white font-semibold shadow-sm hover:opacity-90 transition-colors disabled:opacity-60 ${
+                  preEmailMagicLink
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 <Send size={18} />
-                Send Magic Link
+                {preEmailMagicLink ? 'Send Email & Auto Sign In' : 'Send Magic Link'}
               </button>
             </>
           ) : (
@@ -267,7 +311,7 @@ export default function LoginPage() {
                   <p className="text-sm text-gray-600 mb-2">
                     Open your email and copy the sign-in link
                   </p>
-                  {!clipboardChecked && (
+                  {!clipboardChecked && !preEmailMagicLink && (
                     <p className="text-xs text-blue-600 animate-pulse">
                       {clipboardAccessStatus === 'denied' && isPWA
                         ? '📋 PWA: Copy link from email, then tap to paste here'
@@ -275,7 +319,12 @@ export default function LoginPage() {
                       }
                     </p>
                   )}
-                  {autoDetected && (
+                  {preEmailMagicLink && !emailSent && (
+                    <p className="text-xs text-green-600 font-medium">
+                      🎉 Magic link ready! Send email to auto-sign in instantly
+                    </p>
+                  )}
+                  {autoDetected && emailSent && (
                     <p className="text-xs text-green-600 font-medium">
                       🎉 Magic link detected and ready to sign in!
                     </p>
@@ -375,6 +424,7 @@ export default function LoginPage() {
                         setLinkError('')
                         setClipboardChecked(false)
                         setAutoDetected(false)
+                        setPreEmailMagicLink(null) // Reset pre-detected link
                       }}
                   className="px-4 py-2 text-green-600 hover:text-green-800 underline font-medium"
                 >
