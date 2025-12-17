@@ -74,15 +74,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-indigo-900">
-          <div className="font-semibold">What to expect after login</div>
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Choose your company workspace</li>
-            <li>Stay signed in until you log out</li>
-            <li>Manage your profile image and invitations</li>
-          </ul>
-        </div>
-
         {/* Email Link Sign-in */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
