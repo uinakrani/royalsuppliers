@@ -104,66 +104,55 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              {/* Magic Link Instructions */}
-              <div className="mb-6">
-                <h3 className="text-green-800 font-medium mb-3 text-center">
-                  📧 Check Your Email
-                </h3>
+              {/* Copy-able Magic Link Box */}
+              <div className="bg-white border-2 border-dashed border-green-300 rounded-lg p-6 cursor-pointer hover:bg-green-50 transition-colors"
+                   onClick={() => {
+                     const reminderText = `Check your email (${email}) for the magic link to sign in to Royal Suppliers.`;
+                     navigator.clipboard.writeText(reminderText).catch(() => {
+                       // Fallback for older browsers
+                       const textArea = document.createElement('textarea');
+                       textArea.value = reminderText;
+                       document.body.appendChild(textArea);
+                       textArea.select();
+                       document.execCommand('copy');
+                       document.body.removeChild(textArea);
+                     });
+                   }}
+                   title="Click to copy reminder • Long press to select text">
+                <div className="text-center mb-4">
+                  <div className="text-4xl mb-2">🔗</div>
+                  <p className="text-gray-700 font-medium">Magic Link Sent!</p>
+                  <p className="text-gray-600 text-sm">Check <strong>{email}</strong></p>
+                </div>
 
-                <div className="bg-white border border-green-200 rounded-lg p-4">
-                  <div className="text-center mb-4">
-                    <div className="text-4xl mb-2">📬</div>
-                    <p className="text-gray-700 font-medium">Magic Link Sent!</p>
-                    <p className="text-gray-600 text-sm">to <strong>{email}</strong></p>
-                  </div>
-
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                    <p className="text-yellow-800 text-sm font-medium mb-2">💡 Pro Tip:</p>
-                    <p className="text-yellow-700 text-sm">
-                      In your email, look for the blue &quot;Sign in&quot; button. Long-press it and choose &quot;Copy Link&quot; to easily copy the magic link.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => window.open('mailto:', '_blank')}
-                      className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      📧 Open Email App
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setEmailSent(false)
-                        setEmail('')
-                        setError(null)
-                      }}
-                      className="w-full px-4 py-2 text-green-600 hover:text-green-800 underline text-sm"
-                    >
-                      Send to a different email
-                    </button>
-                  </div>
+                <div className="bg-gray-50 rounded-lg p-4 text-center">
+                  <p className="text-gray-700 font-medium mb-2">📧 Your Email</p>
+                  <p className="text-gray-600 text-sm break-all select-all">
+                    {email}
+                  </p>
+                  <p className="text-gray-500 text-xs mt-3">
+                    Click here to copy • Long press to select all
+                  </p>
                 </div>
               </div>
 
-              {/* Alternative Method */}
-              <div className="border-t border-green-200 pt-4">
-                <h3 className="text-green-800 font-medium mb-2 text-center">
-                  📧 Or Check Your Email
-                </h3>
-                <p className="text-green-700 text-sm text-center mb-3">
-                  We also sent a magic link to <strong>{email}</strong>
-                </p>
+              <div className="mt-4 space-y-2">
+                <button
+                  onClick={() => window.open('mailto:', '_blank')}
+                  className="w-full px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors text-sm"
+                >
+                  📧 Open Email
+                </button>
 
                 <button
-                      onClick={() => {
-                        setEmailSent(false)
-                        setEmail('')
-                        setError(null)
-                      }}
-                  className="w-full text-sm text-green-600 hover:text-green-800 underline"
+                  onClick={() => {
+                    setEmailSent(false)
+                    setEmail('')
+                    setError(null)
+                  }}
+                  className="w-full px-3 py-2 text-green-600 hover:text-green-800 underline text-sm"
                 >
-                  Send to a different email
+                  Send to Different Email
                 </button>
               </div>
             </div>
