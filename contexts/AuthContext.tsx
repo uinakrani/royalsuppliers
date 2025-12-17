@@ -143,6 +143,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(mockFirebaseUser as User)
             console.log('✅ Magic link user set successfully')
 
+            // Load workspaces for magic link user
+            console.log('🏢 Loading workspaces for magic link user...')
+            try {
+              let userWorkspaces = await workspaceService.listForUser({
+                uid: mockFirebaseUser.uid,
+                email: mockFirebaseUser.email,
+              })
+
+              console.log('📋 Found workspaces for magic link user:', userWorkspaces.length)
+
+              if (userWorkspaces.length === 0) {
+                const fallbackName = `${mockFirebaseUser.displayName || 'My'} Workspace`
+                console.log('📝 Creating fallback workspace for magic link user:', fallbackName)
+                const createdId = await workspaceService.createWorkspace(fallbackName, {
+                  uid: mockFirebaseUser.uid,
+                  email: mockFirebaseUser.email
+                })
+                if (createdId) {
+                  userWorkspaces = await workspaceService.listForUser({
+                    uid: mockFirebaseUser.uid,
+                    email: mockFirebaseUser.email
+                  })
+                  console.log('✅ Fallback workspace created for magic link user')
+                }
+              }
+
+              setWorkspaces(userWorkspaces)
+              bootstrapWorkspace(userWorkspaces)
+              console.log('🏢 Workspaces loaded and set for magic link user')
+            } catch (workspaceError) {
+              console.error('❌ Failed to load workspaces for magic link user:', workspaceError)
+              // Set empty workspaces as fallback
+              setWorkspaces([])
+            }
+
             // Don't set up Firebase listener for magic link users to prevent override
             console.log('🚫 Skipping Firebase auth listener for magic link user')
             setLoading(false)
@@ -163,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🔄 Setting up Firebase auth listener (no magic link user found)')
 
       // Fallback: Re-check for magic link data after a short delay
-      setTimeout(() => {
+      setTimeout(async () => {
         if (typeof window !== 'undefined') {
           const fallbackUserData = localStorage.getItem('rs-auth-user')
           const fallbackAuthMethod = localStorage.getItem('rs-auth-method')
@@ -178,6 +213,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 getIdTokenResult: () => Promise.resolve({ claims: {} }),
               }
               setUser(mockFirebaseUser as User)
+
+              // Load workspaces for fallback magic link user
+              console.log('🏢 Loading workspaces for fallback magic link user...')
+              try {
+                let userWorkspaces = await workspaceService.listForUser({
+                  uid: mockFirebaseUser.uid,
+                  email: mockFirebaseUser.email,
+                })
+
+                console.log('📋 Found workspaces for fallback magic link user:', userWorkspaces.length)
+
+                if (userWorkspaces.length === 0) {
+                  const fallbackName = `${mockFirebaseUser.displayName || 'My'} Workspace`
+                  console.log('📝 Creating fallback workspace for fallback magic link user:', fallbackName)
+                  const createdId = await workspaceService.createWorkspace(fallbackName, {
+                    uid: mockFirebaseUser.uid,
+                    email: mockFirebaseUser.email
+                  })
+                  if (createdId) {
+                    userWorkspaces = await workspaceService.listForUser({
+                      uid: mockFirebaseUser.uid,
+                      email: mockFirebaseUser.email
+                    })
+                    console.log('✅ Fallback workspace created for magic link user')
+                  }
+                }
+
+                setWorkspaces(userWorkspaces)
+                bootstrapWorkspace(userWorkspaces)
+                console.log('🏢 Workspaces loaded and set for fallback magic link user')
+              } catch (workspaceError) {
+                console.error('❌ Failed to load workspaces for fallback magic link user:', workspaceError)
+                // Set empty workspaces as fallback
+                setWorkspaces([])
+              }
+
               setLoading(false)
               console.log('✅ Fallback: Magic link user set successfully')
             } catch (error) {
