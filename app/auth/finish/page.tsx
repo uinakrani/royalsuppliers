@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signInWithEmailLinkFromUrl } from '@/lib/authClient'
+import { isSignInWithEmailLink } from 'firebase/auth'
 import { Mail, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 export default function AuthFinishPage() {
@@ -33,16 +34,14 @@ export default function AuthFinishPage() {
           throw new Error('Firebase auth not initialized')
         }
 
-        // Check for manual/custom link parameters
+        // Check for manual/custom link parameters FIRST (before Firebase detection)
         const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
         const isManualLink = urlParams.get('mode') === 'manual' || urlParams.get('mode') === 'magic'
         const manualEmail = urlParams.get('email')
         const timestamp = urlParams.get('timestamp')
         const session = urlParams.get('session')
 
-        // Import the function dynamically to avoid circular imports
-        const { isSignInWithEmailLink } = await import('firebase/auth')
-
+        // PRIORITIZE: Check for custom magic links first
         if (isManualLink && manualEmail) {
           // Handle custom magic link - validate and provide authentication
           console.log('🔗 Custom magic link detected for:', manualEmail)
@@ -118,7 +117,11 @@ export default function AuthFinishPage() {
           }
         }
 
-        if (isSignInWithEmailLink(auth, url)) {
+        // Only check for Firebase links if it's not a custom magic link
+        // (Custom links have mode=magic but with mock oobCodes that Firebase rejects)
+        const isFirebaseLink = !isManualLink && isSignInWithEmailLink(auth, url)
+
+        if (isFirebaseLink) {
           console.log('✅ Valid email link detected')
 
           // Get email from localStorage
