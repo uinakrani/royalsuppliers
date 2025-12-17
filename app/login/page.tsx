@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [emailSent, setEmailSent] = useState(false)
   const [pastedLink, setPastedLink] = useState('')
   const [linkError, setLinkError] = useState('')
+  const [clipboardChecked, setClipboardChecked] = useState(false)
 
   useEffect(() => {
     if (!loading && user) {
@@ -30,6 +31,35 @@ export default function LoginPage() {
       setPendingRedirect(false)
     }
   }, [redirecting])
+
+  // Auto-check clipboard for magic link when email is sent
+  useEffect(() => {
+    if (emailSent && !clipboardChecked) {
+      const checkClipboard = async () => {
+        try {
+          const clipboardText = await navigator.clipboard.readText()
+          if (clipboardText && clipboardText.includes('auth/finish') && clipboardText.includes('apiKey=')) {
+            setPastedLink(clipboardText)
+            setClipboardChecked(true)
+            // Auto-submit after a short delay
+            setTimeout(() => {
+              if (clipboardText.includes('auth/finish')) {
+                window.location.href = clipboardText
+              }
+            }, 500)
+          }
+        } catch (err) {
+          // Clipboard access might be denied, that's okay
+          console.log('Clipboard access not available')
+        }
+        setClipboardChecked(true)
+      }
+
+      // Check clipboard after component mounts
+      const timer = setTimeout(checkClipboard, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [emailSent, clipboardChecked])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center px-6">
@@ -98,79 +128,64 @@ export default function LoginPage() {
             </>
           ) : (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="text-center mb-4">
-                <CheckCircle size={24} className="text-green-600 mx-auto mb-2" />
-                <p className="text-green-800 font-medium">Magic Link Sent!</p>
-                <p className="text-gray-600 text-sm">Copy the link from your email</p>
+              <div className="text-center mb-3">
+                <CheckCircle size={20} className="text-green-600 mx-auto mb-1" />
+                <p className="text-green-800 font-medium text-sm">Email Sent</p>
               </div>
 
-              {/* Compact Magic Link Input */}
               <div className="space-y-3">
-                <div className="text-xs text-gray-500 text-center mb-2">
-                  Link looks like: https://yoursite.com/auth/finish?...
+                <div className="text-xs text-gray-500 text-center">
+                  Copy link from email (looks like this):
+                  <div className="font-mono text-xs bg-gray-100 p-1 rounded mt-1 break-all">
+                    https://yoursite.com/auth/finish?apiKey=...&oobCode=...&mode=signIn
+                  </div>
                 </div>
+
                 <input
                   type="url"
-                  placeholder="Paste magic link from email..."
+                  placeholder="Paste link here..."
                   value={pastedLink}
                   onChange={(e) => setPastedLink(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 text-sm"
                   disabled={loading || signing}
+                  autoFocus
                 />
 
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     const link = pastedLink.trim()
-                    if (!link) {
-                      setLinkError('Paste your magic link')
-                      return
-                    }
-
-                    try {
-                      new URL(link)
-                    } catch {
-                      setLinkError('Invalid URL')
-                      return
-                    }
-
+                    if (!link) return
                     if (!link.includes('auth/finish')) {
-                      setLinkError('Not a valid magic link')
+                      setLinkError('Invalid link')
                       return
                     }
-
-                    setSigning(true)
-                    setLinkError('')
                     window.location.href = link
                   }}
                   disabled={loading || signing || !pastedLink.trim()}
-                  className="w-full px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60"
+                  className="w-full py-2 bg-green-600 text-white font-medium rounded hover:bg-green-700 disabled:opacity-50 text-sm"
                 >
-                  {signing ? 'Signing In...' : 'Sign In'}
+                  Sign In
                 </button>
 
-                {linkError && (
-                  <p className="text-red-600 text-xs text-center">{linkError}</p>
-                )}
+                {linkError && <p className="text-red-600 text-xs text-center">{linkError}</p>}
               </div>
 
-              {/* Minimal Actions */}
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={() => window.open('mailto:', '_blank')}
-                  className="flex-1 px-3 py-2 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                  className="flex-1 py-1 px-3 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
                 >
                   Open Email
                 </button>
-
                 <button
                   onClick={() => {
                     setEmailSent(false)
                     setEmail('')
                     setPastedLink('')
                     setLinkError('')
-                    setError(null)
+                    setClipboardChecked(false)
                   }}
-                  className="flex-1 px-3 py-2 text-green-600 hover:text-green-800 underline text-sm"
+                  className="flex-1 py-1 px-3 text-green-600 hover:text-green-800 underline text-xs"
                 >
                   Try Again
                 </button>
