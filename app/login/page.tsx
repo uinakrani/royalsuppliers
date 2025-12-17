@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [isPWA, setIsPWA] = useState(false)
   const [clipboardAccessStatus, setClipboardAccessStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown')
   const [preEmailMagicLink, setPreEmailMagicLink] = useState<string | null>(null)
+  const [userGestureTriggered, setUserGestureTriggered] = useState(false)
 
   // PWA Environment Detection
   useEffect(() => {
@@ -95,123 +96,92 @@ export default function LoginPage() {
     }
   }, [redirecting])
 
-  // PWA-Aware intelligent clipboard monitoring for magic links (starts immediately)
-  useEffect(() => {
-    if (clipboardChecked) return // Only skip if we've already found and processed a link
+  // PWA-Aware clipboard monitoring (triggered by user gestures)
+  const checkClipboardForMagicLink = async () => {
+    if (clipboardChecked) return // Already processed a link
 
-    // PWA environment already detected above
     const isIOS = typeof window !== 'undefined' &&
                   /iPad|iPhone|iPod/.test(navigator.userAgent) &&
                   !(window as any).MSStream
     const isIOSPWA = isIOS && isPWA
 
-    console.log('🔍 Clipboard monitoring started:', { isPWA, isIOSPWA })
+    console.log('🔍 Manual clipboard check triggered:', { isPWA, isIOSPWA, emailSent })
 
-    let checkInterval: NodeJS.Timeout
-    let attempts = 0
-    const maxAttempts = 30 // Check for 30 seconds
-    let clipboardAccessGranted = false
+    try {
+      // Enhanced validation for different PWA environments
+      const validateMagicLink = (text: string): boolean => {
+        if (!text || text.length < 50) return false
 
-    // Enhanced validation for different PWA environments
-    const validateMagicLink = (text: string): boolean => {
-      if (!text || text.length < 50) return false
+        // Basic Firebase link validation
+        const hasAuthFinish = text.includes('auth/finish')
+        const hasApiKey = text.includes('apiKey=')
+        const hasAuthParams = text.includes('oobCode=') || text.includes('mode=signIn') || text.includes('mode=magic')
+        const isValidUrl = text.startsWith('http://') || text.startsWith('https://')
 
-      // Basic Firebase link validation
-      const hasAuthFinish = text.includes('auth/finish')
-      const hasApiKey = text.includes('apiKey=')
-      const hasAuthParams = text.includes('oobCode=') || text.includes('mode=signIn') || text.includes('mode=magic')
-      const isValidUrl = text.startsWith('http://') || text.startsWith('https://')
+        // For PWAs, also accept shorter custom magic links
+        const isCustomMagicLink = text.includes('/auth/finish?email=') && text.includes('&timestamp=') && text.includes('&session=')
 
-      // For PWAs, also accept shorter custom magic links
-      const isCustomMagicLink = text.includes('/auth/finish?email=') && text.includes('&timestamp=') && text.includes('&session=')
+        return (hasAuthFinish && hasApiKey && hasAuthParams && isValidUrl) || isCustomMagicLink
+      }
 
-      return (hasAuthFinish && hasApiKey && hasAuthParams && isValidUrl) || isCustomMagicLink
-    }
+      // Try to access clipboard (requires user gesture in PWAs)
+      const clipboardText = await navigator.clipboard.readText()
+      setClipboardAccessStatus('granted')
+      setUserGestureTriggered(true)
 
-    const checkClipboard = async () => {
-      attempts++
+      if (validateMagicLink(clipboardText)) {
+        console.log('🎉 PWA Smart clipboard detection: Valid magic link found!', { isPWA, isIOSPWA, emailSent })
 
-      try {
-        // PWA-specific clipboard access (may require user gesture)
-        const clipboardText = await navigator.clipboard.readText()
-        clipboardAccessGranted = true
-        setClipboardAccessStatus('granted')
+        // Handle pre-email vs post-email detection differently
+        if (!emailSent) {
+          // Store for later auto-submit when email is sent
+          setPreEmailMagicLink(clipboardText)
+          setAutoDetected(true)
+          console.log('📋 Pre-email magic link detected and stored - will auto-submit when email is sent')
+        } else {
+          // Email sent, auto-submit immediately
+          setPastedLink(clipboardText)
+          setAutoDetected(true)
+          setClipboardChecked(true)
 
-        if (validateMagicLink(clipboardText)) {
-          console.log('🎉 PWA Smart clipboard detection: Valid magic link found!', { isPWA, isIOSPWA, emailSent })
-
-          // Handle pre-email vs post-email detection differently
-          if (!emailSent) {
-            // Store for later auto-submit when email is sent
-            setPreEmailMagicLink(clipboardText)
-            setAutoDetected(true)
-            console.log('📋 Pre-email magic link detected and stored - will auto-submit when email is sent')
-          } else {
-            // Email sent, auto-submit immediately
-            setPastedLink(clipboardText)
-            setAutoDetected(true)
-            setClipboardChecked(true)
-
-            // Auto-submit with PWA-optimized timing
-            setTimeout(() => {
-              try {
-                // For iOS PWAs, ensure we're opening in the same PWA context
-                if (isIOSPWA) {
-                  console.log('📱 iOS PWA: Opening link in same context')
-                  window.location.href = clipboardText
-                } else {
-                  window.location.href = clipboardText
-                }
-              } catch (navError) {
-                console.error('Navigation failed in PWA:', navError)
-                setLinkError('Failed to navigate to magic link. Please try manually.')
+          // Auto-submit with PWA-optimized timing
+          setTimeout(() => {
+            try {
+              // For iOS PWAs, ensure we're opening in the same PWA context
+              if (isIOSPWA) {
+                console.log('📱 iOS PWA: Opening link in same context')
+                window.location.href = clipboardText
+              } else {
+                window.location.href = clipboardText
               }
-            }, isPWA ? 600 : 800) // Faster auto-submit in PWAs
-          }
-
-          return // Stop checking
+            } catch (navError) {
+              console.error('Navigation failed in PWA:', navError)
+              setLinkError('Failed to navigate to magic link. Please try manually.')
+            }
+          }, isPWA ? 600 : 800) // Faster auto-submit in PWAs
         }
 
-      } catch (clipboardError: any) {
-        // PWA clipboard access often requires user gesture
-        console.log(`📋 Clipboard access ${clipboardAccessGranted ? 'working' : 'needs permission'} (attempt ${attempts})`)
-
-        // Track clipboard access status for PWA feedback
-        if (!clipboardAccessGranted) {
-          setClipboardAccessStatus('denied')
-        }
-
-        // In PWAs, clipboard access might be denied initially
-        if (!clipboardAccessGranted && attempts === 1) {
-          console.log('🔄 PWA clipboard access denied - will retry with user gesture fallback')
-        }
-
-        // Continue checking for clipboard access
-        if (attempts < maxAttempts && !clipboardChecked) {
-          const nextDelay = attempts < 3 ? 1000 : attempts < 10 ? 2000 : 3000
-          checkInterval = setTimeout(checkClipboard, nextDelay)
-          return
-        }
-      }
-
-      // Continue normal checking if we haven't found a link yet
-      if (attempts < maxAttempts && !clipboardChecked) {
-        const delay = attempts < 5 ? 500 : attempts < 15 ? 1500 : 2000
-        checkInterval = setTimeout(checkClipboard, delay)
+        return true // Success
       } else {
-        setClipboardChecked(true)
-        console.log('⏰ PWA clipboard monitoring completed', { attempts, clipboardAccessGranted })
+        console.log('📋 Clipboard checked but no valid magic link found')
+        return false // No magic link found
       }
-    }
 
-    // PWA-optimized start timing
-    const initialDelay = isPWA ? 100 : 200 // Faster start in PWAs
-    checkInterval = setTimeout(checkClipboard, initialDelay)
-
-    return () => {
-      if (checkInterval) clearTimeout(checkInterval)
+    } catch (clipboardError: any) {
+      console.log('📋 Clipboard access failed:', clipboardError.message)
+      setClipboardAccessStatus('denied')
+      setUserGestureTriggered(true)
+      return false // Access failed
     }
-  }, [emailSent, clipboardChecked, isPWA])
+  }
+
+  // Auto-check clipboard on user gestures (for PWAs)
+  const handleUserGesture = () => {
+    if (isPWA && !userGestureTriggered && !clipboardChecked) {
+      console.log('👆 User gesture detected, checking clipboard...')
+      checkClipboardForMagicLink()
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex items-center justify-center px-6">
@@ -257,6 +227,8 @@ export default function LoginPage() {
               />
                 <button
                   onClick={async () => {
+                    handleUserGesture() // Trigger clipboard check on user interaction
+
                     if (!email.trim()) {
                       setError('Please enter a valid email address')
                       return
@@ -313,10 +285,15 @@ export default function LoginPage() {
                   </p>
                   {!clipboardChecked && !preEmailMagicLink && (
                     <p className="text-xs text-blue-600 animate-pulse">
-                      {clipboardAccessStatus === 'denied' && isPWA
-                        ? '📋 PWA: Copy link from email, then tap to paste here'
+                      {isPWA
+                        ? '👆 Click buttons or focus input to check clipboard for magic link'
                         : '🔍 Smart detection active - paste or copy link to auto-fill'
                       }
+                    </p>
+                  )}
+                  {clipboardAccessStatus === 'denied' && isPWA && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ Clipboard access restricted in PWA - use &quot;Check Clipboard&quot; button
                     </p>
                   )}
                   {preEmailMagicLink && !emailSent && (
@@ -333,22 +310,38 @@ export default function LoginPage() {
                   {isPWA && (
                     <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
                       <p className="text-xs text-blue-700 font-medium mb-1">
-                        📱 PWA Mode: Copy link from email, then paste below
+                        📱 PWA Mode: Copy link from email, then check clipboard
                       </p>
-                      {clipboardAccessStatus === 'denied' && (
+                      <div className="flex gap-2">
                         <button
                           onClick={() => {
-                            // Focus the input to trigger paste on mobile
-                            const input = document.querySelector('input[type="url"]') as HTMLInputElement
-                            if (input) {
-                              input.focus()
-                              input.click()
-                            }
+                            checkClipboardForMagicLink()
                           }}
-                          className="mt-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          disabled={clipboardChecked}
+                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
                         >
-                          Tap to Paste
+                          🔍 Check Clipboard
                         </button>
+                        {clipboardAccessStatus === 'denied' && (
+                          <button
+                            onClick={() => {
+                              // Focus the input to trigger paste on mobile
+                              const input = document.querySelector('input[type="url"]') as HTMLInputElement
+                              if (input) {
+                                input.focus()
+                                input.click()
+                              }
+                            }}
+                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                          >
+                            📝 Manual Paste
+                          </button>
+                        )}
+                      </div>
+                      {clipboardAccessStatus === 'denied' && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          If clipboard access fails, use Manual Paste to type the link
+                        </p>
                       )}
                     </div>
                   )}
@@ -358,16 +351,21 @@ export default function LoginPage() {
                   <input
                     type="url"
                     placeholder={
-                      typeof window !== 'undefined' &&
-                      (window.matchMedia('(display-mode: standalone)').matches ||
-                       (window.navigator as any).standalone)
-                        ? "Long-press copy from email, then paste here..."
+                      isPWA
+                        ? "Click &quot;Check Clipboard&quot; after copying from email..."
                         : "Paste the magic link here..."
                     }
                     value={pastedLink}
                     onChange={(e) => {
                       setPastedLink(e.target.value)
                       setAutoDetected(false) // Reset auto-detection if user manually types
+                    }}
+                    onFocus={() => {
+                      // Trigger clipboard check when user focuses the input (PWA user gesture)
+                      if (isPWA && !userGestureTriggered && !clipboardChecked) {
+                        console.log('🔍 Input focused, checking clipboard...')
+                        checkClipboardForMagicLink()
+                      }
                     }}
                     className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm font-mono transition-all duration-300 ${
                       autoDetected
@@ -386,6 +384,8 @@ export default function LoginPage() {
 
                 <button
                   onClick={() => {
+                    handleUserGesture() // Trigger clipboard check on user interaction
+
                     const link = pastedLink.trim()
                     if (!link) return
                     if (!link.includes('auth/finish')) {
