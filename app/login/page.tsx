@@ -429,7 +429,7 @@ export default function LoginPage() {
                 }`}
               >
                 <Send size={18} />
-                {preEmailMagicLink ? 'Send Email & Auto Sign In' : 'Send Magic Link'}
+Paste
               </button>
             </>
           ) : (
