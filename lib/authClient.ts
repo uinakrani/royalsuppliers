@@ -39,6 +39,22 @@ function getAuthInstance() {
     setPersistence(auth, browserLocalPersistence).catch((err) => {
       console.warn('Failed to set auth persistence:', err)
     })
+
+    // Additional PWA-specific handling
+    if (typeof window !== 'undefined') {
+      const isPWA = (window.navigator as any).standalone === true ||
+                    window.matchMedia('(display-mode: standalone)').matches
+
+      if (isPWA) {
+        console.log('📱 PWA detected, ensuring auth persistence')
+        // Force a reload of auth state on PWA startup to ensure consistency
+        setTimeout(() => {
+          auth.currentUser?.reload().catch(err => {
+            console.warn('Failed to reload user in PWA:', err)
+          })
+        }, 100)
+      }
+    }
   }
 
   return auth

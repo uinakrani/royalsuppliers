@@ -91,10 +91,12 @@ export default function LoginPage() {
   const [emailMethod, setEmailMethod] = useState<'custom' | 'firebase' | null>(null)
 
   useEffect(() => {
-    if (!loading && user) {
+    // Only redirect if user just logged in and we're not already redirecting
+    if (!loading && user && !redirecting) {
+      console.log('🎯 Login successful, redirecting to account page')
       router.replace('/account')
     }
-  }, [loading, user, router])
+  }, [loading, user, router, redirecting])
 
   useEffect(() => {
     if (!redirecting) {
