@@ -15,25 +15,25 @@
   "lang": "en",
   "icons": [
     {
-      "src": "/mixer-truck.png?v=3",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/mixer-truck.png?v=3",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/mixer-truck.png?v=3",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/mixer-truck.png?v=3",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -46,14 +46,14 @@
       "short_name": "Orders",
       "description": "View all orders",
       "url": "/orders",
-      "icons": [{ "src": "/mixer-truck.png?v=3", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Invoices",
       "short_name": "Invoices",
       "description": "View all invoices",
       "url": "/invoices",
-      "icons": [{ "src": "/mixer-truck.png?v=3", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

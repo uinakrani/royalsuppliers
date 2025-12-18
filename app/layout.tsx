@@ -54,10 +54,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/mixer-truck.png?v=3" />
-        <link rel="apple-touch-icon" href="/mixer-truck.png?v=3" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/mixer-truck.png?v=3" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/mixer-truck.png?v=3" />
+        <link rel="icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
