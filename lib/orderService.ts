@@ -2071,5 +2071,55 @@ export const orderService = {
       console.error('Γ¥î Error redistributing ledger entry:', error)
       throw error
     }
+  },
+
+  // Diagnostic function to find orders marked as invoiced but without corresponding invoices
+  async findOrphanedInvoicedOrders(): Promise<{orderId: string, invoiceId?: string, partyName: string, date: string}[]> {
+    try {
+      const allOrders = await this.getAllOrders()
+      const { invoiceService } = await import('./invoiceService')
+
+      const orphanedOrders: {orderId: string, invoiceId?: string, partyName: string, date: string}[] = []
+
+      for (const order of allOrders) {
+        if (order.invoiced && order.invoiceId) {
+          // Check if the invoice actually exists
+          const invoice = await invoiceService.getInvoiceById(order.invoiceId)
+          if (!invoice) {
+            orphanedOrders.push({
+              orderId: order.id!,
+              invoiceId: order.invoiceId,
+              partyName: order.partyName,
+              date: order.date
+            })
+          }
+        }
+      }
+
+      return orphanedOrders
+    } catch (error) {
+      console.error('Error finding orphaned invoiced orders:', error)
+      return []
+    }
+  },
+
+  // Fix orphaned orders by resetting their invoiced status
+  async fixOrphanedInvoicedOrders(orderIds: string[]): Promise<void> {
+    try {
+      console.log(`Fixing ${orderIds.length} orphaned invoiced orders...`)
+
+      for (const orderId of orderIds) {
+        await this.updateOrder(orderId, {
+          invoiced: false,
+          invoiceId: undefined
+        } as any)
+        console.log(`  Γ£à Reset invoiced status for order ${orderId}`)
+      }
+
+      console.log('Γ£à Successfully fixed orphaned invoiced orders')
+    } catch (error) {
+      console.error('Error fixing orphaned invoiced orders:', error)
+      throw error
+    }
   }
 }

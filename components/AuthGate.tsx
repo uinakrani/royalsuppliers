@@ -10,20 +10,22 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [authCheckComplete, setAuthCheckComplete] = useState(false)
-
-  // Check if we're in PWA standalone mode
-  const isPWA = typeof window !== 'undefined' &&
-    (window.navigator as any).standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches
+  const [isPWA, setIsPWA] = useState(false)
 
   useEffect(() => {
+    // Check if we're in PWA standalone mode
+    const pwaCheck = typeof window !== 'undefined' &&
+      ((window.navigator as any).standalone === true ||
+       window.matchMedia('(display-mode: standalone)').matches)
+    setIsPWA(pwaCheck)
+
     console.log('🔐 AuthGate check:', {
       loading,
       hasUser: !!user,
       userEmail: user?.email,
       currentPath: pathname,
       authCheckComplete,
-      isPWA
+      isPWA: pwaCheck
     })
 
     // Only redirect if we're not currently on the login page and auth check is complete

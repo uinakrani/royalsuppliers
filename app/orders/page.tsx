@@ -368,8 +368,8 @@ function OrdersPageContent() {
       }
     }
 
-    // Sort by createdAt (desc), fallback to updatedAt, then date
-    const getTime = (o: Order) => safeGetTime(o.createdAt || o.updatedAt || o.date)
+    // Sort by date (desc), fallback to createdAt, then updatedAt
+    const getTime = (o: Order) => safeGetTime(o.date || o.createdAt || o.updatedAt)
     filtered.sort((a, b) => getTime(b) - getTime(a))
 
     return filtered
@@ -1140,39 +1140,12 @@ function OrdersPageContent() {
   const handleBulkCreateInvoice = async () => {
     if (selectedOrders.size === 0) return
 
-    // Filter out orders that already have invoices
     const orderIds = Array.from(selectedOrders)
-    const ordersToInvoice = filteredOrders.filter(o => orderIds.includes(o.id!) && !o.invoiced)
-
-    if (ordersToInvoice.length === 0) {
-      showToast('All selected orders already have invoices', 'info')
-      return
-    }
-
-    if (ordersToInvoice.length < orderIds.length) {
-      const alreadyInvoiced = orderIds.length - ordersToInvoice.length
-      try {
-        const confirmed = await sweetAlert.confirm({
-          title: 'Some Orders Already Invoiced',
-          message: `${alreadyInvoiced} order(s) already have invoices. Create invoice for ${ordersToInvoice.length} order(s) only?`,
-          icon: 'info',
-          confirmText: 'Create Invoice',
-          cancelText: 'Cancel'
-        })
-        if (!confirmed) return
-      } catch (error: any) {
-        if (error?.message && !error.message.includes('SweetAlert')) {
-          return
-        }
-        return
-      }
-    }
 
     try {
-      const invoiceOrderIds = ordersToInvoice.map(o => o.id!)
       showToast('Creating invoice...', 'info')
-      await invoiceService.createInvoice(invoiceOrderIds)
-      showToast(`Invoice created successfully for ${ordersToInvoice.length} order(s)!`, 'success')
+      await invoiceService.createInvoice(orderIds)
+      showToast(`Invoice created successfully for ${orderIds.length} order(s)!`, 'success')
       setSelectedOrders(new Set())
       await loadOrders()
       await loadInvoices()
@@ -1336,8 +1309,8 @@ function OrdersPageContent() {
         lastPaymentDate,
         lastPaymentAmount,
         orders: partyOrders.sort((a, b) => {
-          const ta = safeGetTime(a.createdAt || a.updatedAt || a.date)
-          const tb = safeGetTime(b.createdAt || b.updatedAt || b.date)
+          const ta = safeGetTime(a.date || a.createdAt || a.updatedAt)
+          const tb = safeGetTime(b.date || b.createdAt || b.updatedAt)
           return tb - ta
         }),
         payments: allPayments
@@ -1517,8 +1490,8 @@ function OrdersPageContent() {
         lastPaymentDate,
         lastPaymentAmount,
         orders: supplierOrders.sort((a, b) => {
-          const ta = safeGetTime(a.createdAt || a.updatedAt || a.date)
-          const tb = safeGetTime(b.createdAt || b.updatedAt || b.date)
+          const ta = safeGetTime(a.date || a.createdAt || a.updatedAt)
+          const tb = safeGetTime(b.date || b.createdAt || b.updatedAt)
           return tb - ta
         }),
         ledgerPayments: sortedLedgerPayments,
@@ -1646,23 +1619,59 @@ function OrdersPageContent() {
 
           <div className="flex gap-2 pt-2 border-t border-gray-200 sticky bottom-0 bg-white pb-2">
             <button
-              onClick={() => {
-                applyFilterForm()
-                setShowFilters(false)
+              onClick={async () => {
+                try {
+                  const orphanedOrders = await orderService.findOrphanedInvoicedOrders()
+                  if (orphanedOrders.length === 0) {
+                    await sweetAlert.info('No Issues Found', 'All orders with invoice references have corresponding invoices.')
+                  } else {
+                    const orderIds = orphanedOrders.map(o => o.orderId)
+                    const orderList = orphanedOrders.map(o =>
+                      `• ${o.partyName} - ${o.date}`
+                    ).join('\n')
+
+                    const confirmed = await sweetAlert.confirm({
+                      title: 'Orphaned Orders Found',
+                      message: `Found ${orphanedOrders.length} orders marked as invoiced but without corresponding invoices:\n\n${orderList}\n\nReset their invoiced status?`,
+                      icon: 'warning',
+                      confirmText: 'Fix Orders',
+                      cancelText: 'Cancel'
+                    })
+
+                    if (confirmed) {
+                      await orderService.fixOrphanedInvoicedOrders(orderIds)
+                      showToast(`Fixed ${orderIds.length} orphaned orders`, 'success')
+                      await loadOrders() // Refresh the orders list
+                    }
+                  }
+                } catch (error: any) {
+                  showToast(`Error checking orders: ${error?.message || 'Unknown error'}`, 'error')
+                }
               }}
-              className="flex-1 bg-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors"
+              className="flex-1 bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors"
             >
-              Apply
+              Check Invoiced Orders
             </button>
-            <button
-              onClick={() => {
-                resetFilters()
-                setShowFilters(false)
-              }}
-              className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
-            >
-              Reset
-            </button>
+            <div className="flex gap-1 flex-1">
+              <button
+                onClick={() => {
+                  applyFilterForm()
+                  setShowFilters(false)
+                }}
+                className="flex-1 bg-primary-600 text-white px-2 py-2 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors"
+              >
+                Apply
+              </button>
+              <button
+                onClick={() => {
+                  resetFilters()
+                  setShowFilters(false)
+                }}
+                className="flex-1 bg-gray-200 text-gray-700 px-2 py-2 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+              >
+                Reset
+              </button>
+            </div>
           </div>
         </div>
       </FilterPopup>

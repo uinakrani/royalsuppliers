@@ -37,6 +37,8 @@ export const invoiceService = {
     const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week from now
     const workspaceId = getActiveWorkspaceId()
 
+    console.log('Creating invoice for orderIds:', orderIds, 'in workspace:', workspaceId)
+
     try {
       // Fetch all orders
       const orders: Order[] = []
@@ -46,23 +48,34 @@ export const invoiceService = {
           orders.push(order)
         }
       }
-      
+
       if (orders.length === 0) {
         throw new Error('No valid orders found')
       }
-      
+
+      // Note: Allow creating multiple invoices for the same orders
+      // Business logic allows splitting orders across different invoices
+
+      // Sort orders by date (oldest first) and get sorted orderIds
+      const sortedOrders = orders.sort((a, b) => {
+        const aDate = new Date(a.date).getTime()
+        const bDate = new Date(b.date).getTime()
+        return aDate - bDate
+      })
+      const sortedOrderIds = sortedOrders.map(order => order.id!)
+
       // Calculate total amount
       const totalAmount = orders.reduce((sum, order) => sum + order.total, 0)
-      
+
       // Get party name and site name from first order
       const partyName = orders[0].partyName
       const siteName = orders[0].siteName
-      
-      // Create invoice payload
+
+      // Create invoice payload with sorted orderIds
       const invoiceData: Invoice = {
         id: localId,
         invoiceNumber: generateInvoiceNumber(),
-        orderIds,
+        orderIds: sortedOrderIds,
         totalAmount,
         paidAmount: 0,
         partialPayments: [],
@@ -75,15 +88,16 @@ export const invoiceService = {
         archived: false,
         workspaceId,
       }
-      
+
+      console.log('Invoice data:', invoiceData)
+
       const canWriteRemote = offlineStorage.isOnline() && db
 
       if (canWriteRemote) {
         try {
-          const docRef = await addDoc(collection(db, INVOICES_COLLECTION), {
-            ...invoiceData,
-            id: undefined, // Firestore will set id separately
-          })
+          // Omit id field for Firestore - it will be set automatically
+          const { id: _, ...invoiceDataForFirestore } = invoiceData
+          const docRef = await addDoc(collection(db, INVOICES_COLLECTION), invoiceDataForFirestore)
 
           const remoteInvoice: Invoice = { ...invoiceData, id: docRef.id }
           await offlineStorage.put(STORES.INVOICES, remoteInvoice)
@@ -92,9 +106,9 @@ export const invoiceService = {
           for (const orderId of orderIds) {
             const order = await orderService.getOrderById(orderId)
             if (order) {
-              await orderService.updateOrder(orderId, { 
+              await orderService.updateOrder(orderId, {
                 invoiced: true,
-                invoiceId: docRef.id 
+                invoiceId: docRef.id
               } as any, { skipQueue: true })
             }
           }
@@ -107,14 +121,15 @@ export const invoiceService = {
       }
 
       // Offline or remote failure - cache locally and queue for sync
+      console.log('Storing invoice offline with localId:', localId)
       await offlineStorage.put(STORES.INVOICES, invoiceData)
 
       for (const orderId of orderIds) {
         const order = await orderService.getOrderById(orderId)
         if (order) {
-          await orderService.updateOrder(orderId, { 
+          await orderService.updateOrder(orderId, {
             invoiced: true,
-            invoiceId: localId 
+            invoiceId: localId
           } as any)
         }
       }
@@ -130,6 +145,7 @@ export const invoiceService = {
         })
       }
 
+      console.log('✅ Invoice created offline with ID:', localId)
       return localId
     } catch (error: any) {
       console.error('❌ Firestore error creating invoice:', error)

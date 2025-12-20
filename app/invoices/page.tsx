@@ -9,11 +9,12 @@ import { Invoice, InvoiceFilters, InvoicePayment } from '@/types/invoice'
 import { Order } from '@/types/order'
 import NavBar from '@/components/NavBar'
 import { format } from 'date-fns'
-import { FileText, Plus, Trash2, Filter, X, AlertCircle, CheckCircle, Download, Package } from 'lucide-react'
+import { FileText, Plus, Trash2, Filter, X, AlertCircle, CheckCircle, Download, Package, RefreshCw } from 'lucide-react'
 import { showToast } from '@/components/Toast'
 import { sweetAlert } from '@/lib/sweetalert'
 import FilterPopup from '@/components/FilterPopup'
 import TruckLoading from '@/components/TruckLoading'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { createRipple } from '@/lib/rippleEffect'
@@ -29,6 +30,7 @@ export default function InvoicesPage() {
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null)
   const [invoiceOrders, setInvoiceOrders] = useState<Record<string, Order[]>>({})
   const [showForm, setShowForm] = useState(false)
+  const [generatingPDF, setGeneratingPDF] = useState<string | null>(null)
   const router = useRouter()
 
   // Filter form state
@@ -38,15 +40,14 @@ export default function InvoicesPage() {
   const [filterPaid, setFilterPaid] = useState<string>('')
   const [filterOverdue, setFilterOverdue] = useState<string>('')
 
-  const loadInvoices = useCallback(async () => {
-    // Don't set loading true for initial load - data comes from local storage instantly
-    // Only show loading if we're forcing a refresh from server
-    const isRefresh = loading // If already loading, this is a refresh
-    if (isRefresh) setLoading(true)
+  const loadInvoices = useCallback(async (forceRefresh = false) => {
+    // Set loading true for manual refresh or if we're forcing a refresh from server
+    if (forceRefresh || loading) setLoading(true)
     try {
       const allInvoices = await invoiceService.getAllInvoices()
+      console.log('Loaded invoices:', allInvoices.length, allInvoices.map(inv => ({ id: inv.id, number: inv.invoiceNumber, workspaceId: inv.workspaceId })))
       setInvoices(allInvoices)
-      
+
       // Load orders for each invoice
       const ordersMap: Record<string, Order[]> = {}
       for (const invoice of allInvoices) {
@@ -57,6 +58,12 @@ export default function InvoicesPage() {
             orders.push(order)
           }
         }
+        // Sort orders by date (oldest first) to ensure consistent display
+        orders.sort((a, b) => {
+          const aDate = new Date(a.date).getTime()
+          const bDate = new Date(b.date).getTime()
+          return aDate - bDate
+        })
         ordersMap[invoice.id!] = orders
       }
       setInvoiceOrders(ordersMap)
@@ -81,6 +88,18 @@ export default function InvoicesPage() {
     loadInvoices()
     loadPartyNames()
   }, [loadInvoices, loadPartyNames])
+
+  // Refresh invoices when page becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadInvoices(true)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   useEffect(() => {
     applyFilters()
@@ -133,56 +152,6 @@ export default function InvoicesPage() {
   }
 
 
-  const handleAddPayment = async (invoiceId: string) => {
-    const invoice = invoices.find(inv => inv.id === invoiceId)
-    if (!invoice) return
-
-    const remaining = invoice.totalAmount - (invoice.paidAmount || 0)
-    
-    try {
-      const amountStr = await sweetAlert.prompt({
-        title: 'Add Payment',
-        message: `Remaining balance: ${formatIndianCurrency(remaining)}`,
-        inputLabel: 'Payment Amount',
-        inputPlaceholder: 'Enter amount',
-        inputType: 'text',
-        formatCurrencyInr: true,
-        confirmText: 'Add Payment',
-        cancelText: 'Cancel'
-      })
-      
-      if (!amountStr) return
-
-      const amount = parseFloat(amountStr)
-      if (isNaN(amount) || amount <= 0) {
-        showToast('Invalid amount', 'error')
-        return
-      }
-
-      if (amount > remaining) {
-        showToast(`Amount cannot exceed remaining balance of ${formatIndianCurrency(remaining)}`, 'error')
-        return
-      }
-
-      const note = await sweetAlert.prompt({
-        title: 'Payment Note (optional)',
-        inputLabel: 'Note',
-        inputPlaceholder: 'Add a note (optional)',
-        inputType: 'text',
-        required: false,
-        confirmText: 'Save',
-        cancelText: 'Skip',
-      })
-
-      await invoiceService.addPayment(invoiceId, amount, note || undefined)
-      showToast('Payment added successfully!', 'success')
-      await loadInvoices()
-    } catch (error: any) {
-      if (error?.message && !error.message.includes('SweetAlert')) {
-        showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-      }
-    }
-  }
 
   const handleRemovePayment = async (invoiceId: string, paymentId: string) => {
     try {
@@ -229,7 +198,10 @@ export default function InvoicesPage() {
   }
 
   const handleDownloadInvoice = async (invoice: Invoice) => {
+    if (generatingPDF) return // Prevent multiple simultaneous downloads
+
     try {
+      setGeneratingPDF(invoice.id!)
       const orders = invoiceOrders[invoice.id!] || []
       if (orders.length === 0) {
         showToast('No orders found for this invoice', 'error')
@@ -244,6 +216,8 @@ export default function InvoicesPage() {
       showToast('Invoice PDF downloaded!', 'success')
     } catch (error: any) {
       showToast(`Failed to download invoice: ${error?.message || 'Unknown error'}`, 'error')
+    } finally {
+      setGeneratingPDF(null)
     }
   }
 
@@ -325,17 +299,31 @@ export default function InvoicesPage() {
               {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'}
             </p>
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
-            style={{
-              WebkitTapHighlightColor: 'transparent',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
-          >
-            <Filter size={20} />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => loadInvoices(true)}
+              className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
+              title="Refresh Invoices"
+              style={{
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <RefreshCw size={20} />
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
+              style={{
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <Filter size={20} />
+            </button>
+          </div>
         </div>
       </div>
       
@@ -479,33 +467,21 @@ export default function InvoicesPage() {
                             createRipple(e)
                             handleDownloadInvoice(invoice)
                           }}
-                          className="p-2.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 flex items-center justify-center shadow-sm shadow-primary-500/30 active:scale-95 transition-all duration-150"
-                          title="Download Invoice"
+                          disabled={generatingPDF === invoice.id}
+                          className="p-2.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 flex items-center justify-center shadow-sm shadow-primary-500/30 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={generatingPDF === invoice.id ? "Generating PDF..." : "Download Invoice"}
                           style={{
                             WebkitTapHighlightColor: 'transparent',
                             position: 'relative',
                             overflow: 'hidden'
                           }}
                         >
-                          <Download size={16} />
+                          {generatingPDF === invoice.id ? (
+                            <LoadingSpinner size={16} />
+                          ) : (
+                            <Download size={16} />
+                          )}
                         </button>
-                        {!invoice.paid && (
-                          <button
-                            onClick={(e) => {
-                              createRipple(e)
-                              handleAddPayment(invoice.id!)
-                            }}
-                            className="p-2.5 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 flex items-center justify-center shadow-sm shadow-green-500/30 active:scale-95 transition-all duration-150"
-                            title="Add Payment"
-                            style={{
-                              WebkitTapHighlightColor: 'transparent',
-                              position: 'relative',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <Plus size={16} />
-                          </button>
-                        )}
                       </div>
                     </div>
 
