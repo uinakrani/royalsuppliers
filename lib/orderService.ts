@@ -17,6 +17,7 @@ import { getDb } from './firebase'
 import { Order, OrderFilters, PaymentRecord } from '@/types/order'
 // LedgerService import removed to avoid circular dependency
 import { offlineStorage, STORES } from './offlineStorage'
+import { localStorageCache, CACHE_KEYS } from './localStorageCache'
 import { syncService } from './syncService'
 import { matchesActiveWorkspace, getActiveWorkspaceId, WORKSPACE_DEFAULTS } from './workspaceSession'
 
@@ -358,6 +359,10 @@ export const orderService = {
 
           // Cache the authoritative remote order for offline usage
           await offlineStorage.put(STORES.ORDERS, remoteOrder)
+          // Also update localStorage cache
+          const cachedOrders = localStorageCache.get<Order[]>(CACHE_KEYS.ORDERS) || []
+          const updatedCache = cachedOrders.filter(o => o.id !== remoteOrder.id).concat(remoteOrder)
+          localStorageCache.set(CACHE_KEYS.ORDERS, updatedCache)
 
           // Clean up the temporary local id if it differs
           if (remoteOrder.id !== localId) {
@@ -461,6 +466,10 @@ export const orderService = {
         await updateDoc(orderRef, updateData)
         console.log('Γ£à Order updated online:', id)
         await offlineStorage.put(STORES.ORDERS, mergedOrder)
+        // Also update localStorage cache
+        const cachedOrders = localStorageCache.get<Order[]>(CACHE_KEYS.ORDERS) || []
+        const updatedCache = cachedOrders.filter(o => o.id !== mergedOrder.id).concat(mergedOrder)
+        localStorageCache.set(CACHE_KEYS.ORDERS, updatedCache)
         return
       } catch (error: any) {
         console.error('Firestore error updating order, falling back to offline queue:', error)
@@ -495,6 +504,10 @@ export const orderService = {
         await deleteDoc(doc(db, ORDERS_COLLECTION, id))
         console.log('Order deleted online:', id)
         await offlineStorage.delete(STORES.ORDERS, id)
+        // Also update localStorage cache
+        const cachedOrders = localStorageCache.get<Order[]>(CACHE_KEYS.ORDERS) || []
+        const updatedCache = cachedOrders.filter(o => o.id !== id)
+        localStorageCache.set(CACHE_KEYS.ORDERS, updatedCache)
         return
       } catch (error: any) {
         console.error('Firestore error deleting order, falling back to offline queue:', error)
@@ -522,35 +535,54 @@ export const orderService = {
     }
   },
 
-  // Get all orders - online first with offline fallback
+  // Get all orders - cache first with background refresh
   async getAllOrders(
     filters?: OrderFilters,
-    options?: { onRemoteUpdate?: (orders: Order[], source: 'remote' | 'local') => void, preferRemote?: boolean }
+    options?: { onRemoteUpdate?: (orders: Order[], source: 'remote' | 'local') => void, preferRemote?: boolean, skipCache?: boolean }
   ): Promise<Order[]> {
     try {
-      const localOrders = await offlineStorage.getAll(STORES.ORDERS)
-      const localOrdersWithWorkspace = localOrders.map((order) =>
-        order.workspaceId ? order : { ...(order as Order), workspaceId: WORKSPACE_DEFAULTS.id }
-      )
-      const localOrdersWithCodes = await this.ensureOrderCodesForOrders(localOrdersWithWorkspace)
-      const filteredLocal = this.applyFilters(
-        localOrdersWithCodes.filter(matchesActiveWorkspace),
+      // Get cached orders immediately if available and not skipping cache
+      let cachedOrders: Order[] | null = null
+      if (!options?.skipCache) {
+        cachedOrders = localStorageCache.get<Order[]>(CACHE_KEYS.ORDERS)
+      }
+
+      let ordersToProcess: Order[]
+
+      if (cachedOrders && cachedOrders.length > 0) {
+        // Use cached data immediately
+        ordersToProcess = cachedOrders
+        options?.onRemoteUpdate?.(this.applyFilters(cachedOrders.filter(matchesActiveWorkspace), filters), 'local')
+      } else {
+        // No cache available, get from offline storage as fallback
+        const localOrders = await offlineStorage.getAll(STORES.ORDERS)
+        const localOrdersWithWorkspace = localOrders.map((order) =>
+          order.workspaceId ? order : { ...(order as Order), workspaceId: WORKSPACE_DEFAULTS.id }
+        )
+        ordersToProcess = await this.ensureOrderCodesForOrders(localOrdersWithWorkspace)
+      }
+
+      // Filter and return cached/local data immediately
+      const filteredOrders = this.applyFilters(
+        ordersToProcess.filter(matchesActiveWorkspace),
         filters
       )
 
+      // Fetch fresh data in background if online
       if (offlineStorage.isOnline()) {
-        try {
-          const remoteOrders = await this.fetchOrdersFromFirestore(filters)
-          options?.onRemoteUpdate?.(remoteOrders, 'remote')
-          return remoteOrders
-        } catch (error) {
-          console.error('Failed to fetch orders from Firestore, returning cached data:', error)
-        }
+        this.fetchOrdersFromFirestore(filters)
+          .then(async (remoteOrders) => {
+            // Cache the fresh data
+            localStorageCache.set(CACHE_KEYS.ORDERS, remoteOrders)
+            // Notify about remote update
+            options?.onRemoteUpdate?.(remoteOrders, 'remote')
+          })
+          .catch((error) => {
+            console.warn('Background fetch failed for orders:', error)
+          })
       }
 
-      // Fallback to cached data when offline or remote fetch fails
-      options?.onRemoteUpdate?.(filteredLocal, 'local')
-      return filteredLocal
+      return filteredOrders
 
     } catch (error) {
       console.error('Error in orderService.getAllOrders():', error)
@@ -711,6 +743,10 @@ export const orderService = {
 
       // Cache in local storage
       offlineStorage.put(STORES.ORDERS, order)
+      // Also cache in localStorage for faster access
+      const cachedOrders = localStorageCache.get<Order[]>(CACHE_KEYS.ORDERS) || []
+      const updatedCache = cachedOrders.filter(o => o.id !== order.id).concat(order)
+      localStorageCache.set(CACHE_KEYS.ORDERS, updatedCache)
     })
 
     // Apply filters and sorting

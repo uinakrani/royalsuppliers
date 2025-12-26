@@ -139,14 +139,32 @@ class OnlineOnlyStorage {
 
   // Always prefer online Firebase paths
   isOnline(): boolean {
+    if (typeof navigator !== 'undefined') {
+      return navigator.onLine
+    }
     return true
   }
 
-  // Online status listener kept for API compatibility
   onOnlineStatusChange(callback: (isOnline: boolean) => void): () => void {
-    // Immediately signal online; return no-op cleanup
-    callback(true)
-    return () => {}
+    if (typeof window === 'undefined') {
+      // If not in a browser environment, assume online and return a no-op cleanup
+      callback(true)
+      return () => {}
+    }
+
+    const onlineHandler = () => callback(true)
+    const offlineHandler = () => callback(false)
+
+    window.addEventListener('online', onlineHandler)
+    window.addEventListener('offline', offlineHandler)
+
+    // Initial status
+    callback(navigator.onLine)
+
+    return () => {
+      window.removeEventListener('online', onlineHandler)
+      window.removeEventListener('offline', offlineHandler)
+    }
   }
 
   // Subscribe to changes in a specific store; useful for UI updates.

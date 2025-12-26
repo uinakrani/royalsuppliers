@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { orderService, isOrderPaid, isCustomerPaid, PAYMENT_TOLERANCE } from '@/lib/orderService'
+import { useOrders, useInvoices } from '@/lib/useBackgroundData'
 import { invoiceService } from '@/lib/invoiceService'
 import { partyPaymentService } from '@/lib/partyPaymentService'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
@@ -115,10 +116,9 @@ const isPaymentInSelectedMonth = (paymentDate: string | null | undefined, select
 }
 
 function OrdersPageContent() {
-  const [orders, setOrders] = useState<Order[]>([])
+  const { orders, loading: ordersLoading, refresh: refreshOrders } = useOrders()
+  const { invoices, loading: invoicesLoading, refresh: refreshInvoices } = useInvoices()
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
@@ -169,19 +169,16 @@ function OrdersPageContent() {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        setLoading(true)
         // Load orders first (it manages its own loading state, but we'll override)
-        await loadOrders()
+        refreshOrders()
         // Load other data in parallel - these will be instant from local storage
         await Promise.allSettled([
-          loadInvoices(),
+          refreshInvoices(),
           loadPartyNames(),
           loadLedgerEntries()
         ])
-        setLoading(false)
       } catch (error) {
         console.error('Error initializing data:', error)
-        setLoading(false)
       }
     }
     initializeData()
@@ -194,7 +191,7 @@ function OrdersPageContent() {
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [refreshOrders, refreshInvoices])
 
   const loadLedgerEntries = async () => {
     try {
@@ -277,35 +274,7 @@ function OrdersPageContent() {
     }
   }
 
-  const loadOrders = async (): Promise<Order[]> => {
-    try {
-      setLoading(true)
-      const allOrders = await orderService.getAllOrders(undefined, {
-        onRemoteUpdate: (fresh) => {
-          setOrders(fresh)
-          setLoading(false)
-        }
-      })
-      setOrders(allOrders)
-      setLoading(false)
-      return allOrders
-    } catch (error) {
-      console.error('Error loading orders:', error)
-      setLoading(false)
-      throw error // Re-throw to let caller handle
-    }
-  }
 
-  const loadInvoices = async () => {
-    try {
-      const allInvoices = await invoiceService.getAllInvoices(undefined, {
-        onRemoteUpdate: (fresh) => setInvoices(fresh)
-      })
-      setInvoices(allInvoices)
-    } catch (error) {
-      console.error('Error loading invoices:', error)
-    }
-  }
 
 
   // Helper function to apply filters to orders
@@ -487,7 +456,7 @@ function OrdersPageContent() {
 
         showToast('Order created successfully!', 'success')
 
-        await loadOrders()
+        refreshOrders()
 
         setEditingOrder(null)
         setShowForm(false)
@@ -502,8 +471,8 @@ function OrdersPageContent() {
         return // Exit early to avoid duplicate reload
       }
 
-      await loadOrders()
-      await loadInvoices()
+      refreshOrders()
+      await refreshInvoices()
 
       setEditingOrder(null)
       setShowForm(false)
@@ -708,7 +677,7 @@ function OrdersPageContent() {
 
 
           // Reload orders
-          await loadOrders()
+          refreshOrders()
 
           // Update selected order if it's the same
           if (selectedOrderDetail?.id === order.id && order.id) {
@@ -776,7 +745,7 @@ function OrdersPageContent() {
       await orderService.addPaymentToOrder(order.id!, amount, note || undefined, markAsPaid, paymentDateIso)
 
       // Immediately reload orders and ledger entries for real-time updates
-      await Promise.all([loadOrders(), loadLedgerEntries()])
+      await Promise.all([refreshOrders(), loadLedgerEntries()])
       setSupplierGroupsRefreshKey(prev => prev + 1)
 
       // Force refresh supplier details if open and order has a supplier
@@ -851,7 +820,7 @@ function OrdersPageContent() {
       }
 
       // Reload orders
-      await loadOrders()
+      refreshOrders()
       setSupplierGroupsRefreshKey(prev => prev + 1)
 
       // Force refresh supplier details if open and order has a supplier
@@ -945,7 +914,7 @@ function OrdersPageContent() {
       }
 
       // Reload orders
-      await loadOrders()
+      refreshOrders()
       setSupplierGroupsRefreshKey(prev => prev + 1)
 
       // Force refresh supplier details if open and order has a supplier
@@ -995,8 +964,8 @@ function OrdersPageContent() {
       if (confirmed) {
         await orderService.deleteOrder(id)
         showToast('Order deleted successfully!', 'success')
-        await loadOrders()
-        await loadInvoices()
+        refreshOrders()
+        await refreshInvoices()
       }
     } catch (error: any) {
       console.error('Error deleting order:', error)
@@ -1125,8 +1094,8 @@ function OrdersPageContent() {
       if (successCount > 0) {
         showToast(`Successfully deleted ${successCount} order(s)${failCount > 0 ? `. ${failCount} failed.` : ''}`, 'success')
         setSelectedOrders(new Set())
-        await loadOrders()
-        await loadInvoices()
+        refreshOrders()
+        await refreshInvoices()
       } else {
         showToast(`Failed to delete orders.`, 'error')
       }
@@ -1147,8 +1116,8 @@ function OrdersPageContent() {
       await invoiceService.createInvoice(orderIds)
       showToast(`Invoice created successfully for ${orderIds.length} order(s)!`, 'success')
       setSelectedOrders(new Set())
-      await loadOrders()
-      await loadInvoices()
+      refreshOrders()
+      await refreshInvoices()
     } catch (error: any) {
       showToast(`Failed to create invoice: ${error?.message || 'Unknown error'}`, 'error')
     }
@@ -1319,6 +1288,7 @@ function OrdersPageContent() {
 
     // Sort groups by party name
     return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ledgerEntries, invoices, orders, selectedMonth, filteredOrders])
 
   const partyGroups = useMemo(
@@ -1641,7 +1611,7 @@ function OrdersPageContent() {
                     if (confirmed) {
                       await orderService.fixOrphanedInvoicedOrders(orderIds)
                       showToast(`Fixed ${orderIds.length} orphaned orders`, 'success')
-                      await loadOrders() // Refresh the orders list
+                      refreshOrders() // Refresh the orders list
                     }
                   }
                 } catch (error: any) {
@@ -1865,7 +1835,7 @@ function OrdersPageContent() {
         }}
       >
         {/* Orders List */}
-        {loading ? (
+        {ordersLoading ? (
           <div className="fixed inset-0 flex items-center justify-center z-30 bg-gray-50">
             <TruckLoading size={100} />
           </div>
@@ -1954,7 +1924,7 @@ function OrdersPageContent() {
 
                             await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
                             showToast('Payment added successfully!', 'success')
-                            await loadOrders()
+                            refreshOrders()
                           } catch (error: any) {
                             if (error?.message && !error.message.includes('SweetAlert')) {
                               showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
@@ -2508,7 +2478,7 @@ function OrdersPageContent() {
           onEditPayment={handleEditPayment}
           onRemovePayment={handleRemovePayment}
           onOrderUpdated={async () => {
-            await loadOrders()
+            refreshOrders()
             // Refresh the selected order detail
             if (selectedOrderDetail?.id) {
               const updated = await orderService.getOrderById(selectedOrderDetail.id)
@@ -2579,7 +2549,6 @@ function OrdersPageContent() {
               orderService.getAllOrders(),
               ledgerService.list()
             ])
-            setOrders(freshOrders)
             setLedgerEntries(freshLedgerEntries)
             setFilteredOrders(applyFiltersToOrders(freshOrders))
             setSupplierGroupsRefreshKey(prev => prev + 1)

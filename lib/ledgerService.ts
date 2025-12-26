@@ -16,6 +16,7 @@ import {
 import { getDb } from './firebase'
 import { ledgerActivityService } from './ledgerActivityService'
 import { offlineStorage, STORES } from './offlineStorage'
+import { localStorageCache, CACHE_KEYS } from './localStorageCache'
 import { getActiveWorkspaceId, matchesActiveWorkspace, WORKSPACE_DEFAULTS } from './workspaceSession'
 
 export type LedgerType = 'credit' | 'debit'
@@ -148,6 +149,10 @@ export const ledgerService = {
             payload.id = firebaseId
             if (shouldPersistLocally) {
               await offlineStorage.put(STORES.LEDGER_ENTRIES, payload)
+              // Also update localStorage cache
+              const cachedEntries = localStorageCache.get<LedgerEntry[]>(CACHE_KEYS.LEDGER_ENTRIES) || []
+              const updatedCache = cachedEntries.filter(e => e.id !== payload.id).concat(payload)
+              localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, updatedCache)
             }
           } else {
             const ref = await addDoc(collection(db, LEDGER_COLLECTION), {
@@ -258,82 +263,52 @@ export const ledgerService = {
     return finalId
   },
 
-  async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean }): Promise<LedgerEntry[]> {
+  async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean, skipCache?: boolean }): Promise<LedgerEntry[]> {
     try {
       const activeWorkspaceId = getActiveWorkspaceId()
       const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
-      const localItemsRaw = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
-      const localItems = localItemsRaw
-        .map((entry) => (entry.workspaceId ? entry : { ...(entry as LedgerEntry), workspaceId: fallbackWorkspaceId }))
-        .filter(matchesActiveWorkspace)
 
+      // Get cached entries immediately if available and not skipping cache
+      let cachedEntries: LedgerEntry[] | null = null
+      if (!options?.skipCache) {
+        cachedEntries = localStorageCache.get<LedgerEntry[]>(CACHE_KEYS.LEDGER_ENTRIES)
+      }
+
+      let entriesToProcess: LedgerEntry[]
+
+      if (cachedEntries && cachedEntries.length > 0) {
+        // Use cached data immediately
+        entriesToProcess = cachedEntries.filter(matchesActiveWorkspace)
+        options?.onRemoteUpdate?.(sortLedgerEntries(entriesToProcess))
+      } else {
+        // No cache available, get from offline storage as fallback
+        const localItemsRaw = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
+        entriesToProcess = localItemsRaw
+          .map((entry) => (entry.workspaceId ? entry : { ...(entry as LedgerEntry), workspaceId: fallbackWorkspaceId }))
+          .filter(matchesActiveWorkspace)
+      }
+
+      // Return cached/local data immediately
+      const sortedEntries = sortLedgerEntries(entriesToProcess)
+
+      // Fetch fresh data in background if online
       if (offlineStorage.isOnline()) {
         const db = getDb()
         if (db) {
-          try {
-            const q = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
-            const snap = await getDocs(q)
-            const firestoreItems: LedgerEntry[] = []
-
-            snap.forEach((d) => {
-              const data = d.data() as any
-              const createdAt =
-                data.createdAt ??
-                (data.createdAtTs && (data.createdAtTs as Timestamp).toDate().toISOString()) ??
-                undefined
-
-              // Convert date field from Timestamp to ISO string if needed
-              let dateValue = data.date
-              if (dateValue && typeof dateValue.toDate === 'function') {
-                dateValue = (dateValue as Timestamp).toDate().toISOString()
-              }
-
-              const item: LedgerEntry = {
-                id: d.id,
-                type: data.type,
-                amount: data.amount,
-                note: data.note,
-                date: dateValue,
-                source: data.source,
-                supplier: data.supplier,
-                partyName: data.partyName,
-                voided: data.voided || false,
-                voidedAt: data.voidedAt,
-                voidReason: data.voidReason,
-                replacedById: data.replacedById,
-                ...(createdAt ? { createdAt } : {}),
-              }
-
-              if (!item.workspaceId) {
-                item.workspaceId = fallbackWorkspaceId
-                try {
-                  const ref = doc(db, LEDGER_COLLECTION, d.id)
-                  updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
-                } catch {
-                  // ignore best-effort tag
-                }
-              }
-
-              if (!matchesActiveWorkspace(item)) {
-                return
-              }
-
-              firestoreItems.push(item)
-              // Cache in local storage
-              offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+          this.getAllFromFirestore()
+            .then(async (firestoreItems) => {
+              // Cache the fresh data
+              localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, firestoreItems)
+              // Notify about remote update
+              options?.onRemoteUpdate?.(firestoreItems)
             })
-
-            const sorted = sortLedgerEntries(firestoreItems)
-            options?.onRemoteUpdate?.(sorted)
-            return sorted
-          } catch (error) {
-            console.error('Failed to fetch from Firestore:', error)
-          }
+            .catch((error) => {
+              console.warn('Background fetch failed for ledger entries:', error)
+            })
         }
       }
 
-      // Fallback to local cache when offline or remote fails
-      return sortLedgerEntries(localItems)
+      return sortedEntries
 
     } catch (error) {
       console.error('Error in ledgerService.list():', error)
@@ -379,9 +354,13 @@ export const ledgerService = {
         ...(createdAt ? { createdAt } : {}),
       }
 
-      firestoreItems.push(item)
-      // Cache in local storage
-      offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+              firestoreItems.push(item)
+              // Cache in local storage
+              offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+              // Also cache in localStorage for faster access
+              const cachedEntries = localStorageCache.get<LedgerEntry[]>(CACHE_KEYS.LEDGER_ENTRIES) || []
+              const updatedCache = cachedEntries.filter(e => e.id !== item.id).concat(item)
+              localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, updatedCache)
     })
 
     return firestoreItems

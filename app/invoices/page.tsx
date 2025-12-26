@@ -19,11 +19,11 @@ import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { createRipple } from '@/lib/rippleEffect'
 import AuthGate from '@/components/AuthGate'
+import { useInvoices } from '@/lib/useBackgroundData' // Import the new hook
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const { invoices, loading: invoicesLoading, refresh: refreshInvoices } = useInvoices()
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<InvoiceFilters>({})
   const [partyNames, setPartyNames] = useState<string[]>([])
@@ -40,40 +40,6 @@ export default function InvoicesPage() {
   const [filterPaid, setFilterPaid] = useState<string>('')
   const [filterOverdue, setFilterOverdue] = useState<string>('')
 
-  const loadInvoices = useCallback(async (forceRefresh = false) => {
-    // Set loading true for manual refresh or if we're forcing a refresh from server
-    if (forceRefresh || loading) setLoading(true)
-    try {
-      const allInvoices = await invoiceService.getAllInvoices()
-      console.log('Loaded invoices:', allInvoices.length, allInvoices.map(inv => ({ id: inv.id, number: inv.invoiceNumber, workspaceId: inv.workspaceId })))
-      setInvoices(allInvoices)
-
-      // Load orders for each invoice
-      const ordersMap: Record<string, Order[]> = {}
-      for (const invoice of allInvoices) {
-        const orders: Order[] = []
-        for (const orderId of invoice.orderIds) {
-          const order = await orderService.getOrderById(orderId)
-          if (order) {
-            orders.push(order)
-          }
-        }
-        // Sort orders by date (oldest first) to ensure consistent display
-        orders.sort((a, b) => {
-          const aDate = new Date(a.date).getTime()
-          const bDate = new Date(b.date).getTime()
-          return aDate - bDate
-        })
-        ordersMap[invoice.id!] = orders
-      }
-      setInvoiceOrders(ordersMap)
-    } catch (error) {
-      console.error('Error loading invoices:', error)
-      showToast('Failed to load invoices', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [loading])
 
   const loadPartyNames = useCallback(async () => {
     try {
@@ -85,21 +51,9 @@ export default function InvoicesPage() {
   }, [])
 
   useEffect(() => {
-    loadInvoices()
     loadPartyNames()
-  }, [loadInvoices, loadPartyNames])
+  }, [loadPartyNames])
 
-  // Refresh invoices when page becomes visible (user navigates back)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadInvoices(true)
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [])
 
   useEffect(() => {
     applyFilters()
@@ -167,7 +121,7 @@ export default function InvoicesPage() {
 
       await invoiceService.removePayment(invoiceId, paymentId)
       showToast('Payment removed successfully!', 'success')
-      await loadInvoices()
+      await refreshInvoices()
     } catch (error: any) {
       if (error?.message && !error.message.includes('SweetAlert')) {
         showToast(`Failed to remove payment: ${error?.message || 'Unknown error'}`, 'error')
@@ -189,7 +143,7 @@ export default function InvoicesPage() {
 
       await invoiceService.deleteInvoice(invoiceId)
       showToast('Invoice deleted successfully!', 'success')
-      await loadInvoices()
+      await refreshInvoices()
     } catch (error: any) {
       if (error?.message && !error.message.includes('SweetAlert')) {
         showToast(`Failed to delete invoice: ${error?.message || 'Unknown error'}`, 'error')
@@ -249,7 +203,7 @@ export default function InvoicesPage() {
     )
   }
 
-  if (loading) {
+  if (invoicesLoading) {
     return (
       <AuthGate>
         <div className="min-h-screen bg-gray-50" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
@@ -301,7 +255,7 @@ export default function InvoicesPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => loadInvoices(true)}
+              onClick={() => refreshInvoices()}
               className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
               title="Refresh Invoices"
               style={{

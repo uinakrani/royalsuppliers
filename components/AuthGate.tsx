@@ -30,8 +30,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
     // Only redirect if we're not currently on the login page and auth check is complete
     if (!loading && !user && !authCheckComplete) {
-      // Give Firebase auth state more time to propagate in PWA mode
-      const timeoutDuration = isPWA ? 2000 : 1000 // 2 seconds for PWA, 1 second for web
+      // Give more time for magic link processing
+      const timeoutDuration = isPWA ? 3000 : 2000 // 3 seconds for PWA, 2 seconds for web
 
       const timeoutId = setTimeout(() => {
         console.log(`🚫 AuthGate: No user found after ${timeoutDuration}ms timeout, redirecting to login`)

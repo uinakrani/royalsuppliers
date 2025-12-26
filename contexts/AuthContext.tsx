@@ -110,14 +110,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       await processRedirectIfNeeded(true)
 
+      let isMagicLinkUser = false
+
       // Check for custom magic link authentication first
       if (typeof window !== 'undefined') {
+        console.log('🔍 Checking for magic link data on AuthContext init')
         const customUserData = localStorage.getItem('rs-auth-user')
         const authMethod = localStorage.getItem('rs-auth-method')
         const currentPath = window.location.pathname
 
         console.log('🔍 AuthContext init - checking for magic link:', {
           hasCustomUserData: !!customUserData,
+          customUserData: customUserData ? 'present' : 'null',
           authMethod,
           currentPath,
           currentUser: !!user,
@@ -126,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (customUserData && authMethod === 'magic-link') {
           console.log('🔗 Found custom magic link authentication, setting user')
+          console.log('📦 Raw customUserData:', customUserData.substring(0, 100) + '...')
           try {
             const customUser = JSON.parse(customUserData)
             console.log('👤 Parsed user data:', {
@@ -141,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               getIdTokenResult: () => Promise.resolve({ claims: {} }),
             }
             setUser(mockFirebaseUser as User)
+            isMagicLinkUser = true
             console.log('✅ Magic link user set successfully')
 
             // Load workspaces for magic link user
@@ -179,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             // Don't set up Firebase listener for magic link users to prevent override
-            console.log('🚫 Skipping Firebase auth listener for magic link user')
+            console.log('🚫 Skipping Firebase auth listener for magic link user - returning early')
             setLoading(false)
             return
           } catch (parseError) {
@@ -203,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const fallbackUserData = localStorage.getItem('rs-auth-user')
           const fallbackAuthMethod = localStorage.getItem('rs-auth-method')
 
-          if (fallbackUserData && fallbackAuthMethod === 'magic-link' && !user) {
+          if (fallbackUserData && fallbackAuthMethod === 'magic-link' && !user && !isMagicLinkUser) {
             console.log('🔗 Fallback: Found magic link data, setting user')
             try {
               const fallbackUser = JSON.parse(fallbackUserData)
@@ -213,6 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 getIdTokenResult: () => Promise.resolve({ claims: {} }),
               }
               setUser(mockFirebaseUser as User)
+              isMagicLinkUser = true
 
               // Load workspaces for fallback magic link user
               console.log('🏢 Loading workspaces for fallback magic link user...')
@@ -258,86 +265,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }, 1000)
 
-      unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-        console.log('🔥 Firebase auth state changed:', {
-          hasFirebaseUser: !!firebaseUser,
-          firebaseUserEmail: firebaseUser?.email,
-          currentUser: !!user
-        })
+      // Only set up Firebase listener if we're not using magic link authentication
+      if (!isMagicLinkUser) {
+        unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+          console.log('🔥 Firebase auth state changed:', {
+            hasFirebaseUser: !!firebaseUser,
+            firebaseUserEmail: firebaseUser?.email,
+            currentUser: !!user
+          })
 
-        setLoading(true)
-        try {
-          if (firebaseUser) {
-            setUser(firebaseUser)
-            let photoUrl = firebaseUser.photoURL || null
-            if (typeof window !== 'undefined' && firebaseUser.email) {
-              localStorage.setItem('rs-last-email', firebaseUser.email)
-            }
+          setLoading(true)
+          try {
+            if (firebaseUser) {
+              setUser(firebaseUser)
+              let photoUrl = firebaseUser.photoURL || null
+              if (typeof window !== 'undefined' && firebaseUser.email) {
+                localStorage.setItem('rs-last-email', firebaseUser.email)
+              }
 
-            const db = getDb()
-            if (db) {
-              const userDoc = doc(db, 'users', firebaseUser.uid)
-              const snap = await getDoc(userDoc)
-              const now = new Date().toISOString()
-              if (snap.exists()) {
-                const data = snap.data() as any
-                if (data.photoURL) {
-                  photoUrl = data.photoURL
-                }
-                await setDoc(
-                  userDoc,
-                  {
-                    lastLoginAt: now,
+              const db = getDb()
+              if (db) {
+                const userDoc = doc(db, 'users', firebaseUser.uid)
+                const snap = await getDoc(userDoc)
+                const now = new Date().toISOString()
+                if (snap.exists()) {
+                  const data = snap.data() as any
+                  if (data.photoURL) {
+                    photoUrl = data.photoURL
+                  }
+                  await setDoc(
+                    userDoc,
+                    {
+                      lastLoginAt: now,
+                      displayName: firebaseUser.displayName,
+                      email: firebaseUser.email,
+                      photoURL: photoUrl,
+                    },
+                    { merge: true }
+                  )
+                } else {
+                  await setDoc(userDoc, {
                     displayName: firebaseUser.displayName,
                     email: firebaseUser.email,
                     photoURL: photoUrl,
-                  },
-                  { merge: true }
-                )
-              } else {
-                await setDoc(userDoc, {
-                  displayName: firebaseUser.displayName,
-                  email: firebaseUser.email,
-                  photoURL: photoUrl,
-                  createdAt: now,
-                  lastLoginAt: now,
-                })
+                    createdAt: now,
+                    lastLoginAt: now,
+                  })
+                }
               }
-            }
 
-            // Ensure the default workspace exists for legacy data (owner only).
-            if (firebaseUser.email && firebaseUser.email.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
-              await workspaceService.ensureDefaultWorkspace(firebaseUser.uid, firebaseUser.email || null)
-            }
-
-            let userWorkspaces = await workspaceService.listForUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-            })
-            if (userWorkspaces.length === 0) {
-              const fallbackName = `${firebaseUser.displayName || 'My'} Workspace`
-              const createdId = await workspaceService.createWorkspace(fallbackName, { uid: firebaseUser.uid, email: firebaseUser.email })
-              if (createdId) {
-                userWorkspaces = await workspaceService.listForUser({ uid: firebaseUser.uid, email: firebaseUser.email })
+              // Ensure the default workspace exists for legacy data (owner only).
+              if (firebaseUser.email && firebaseUser.email.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
+                await workspaceService.ensureDefaultWorkspace(firebaseUser.uid, firebaseUser.email || null)
               }
+
+              let userWorkspaces = await workspaceService.listForUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+              })
+              if (userWorkspaces.length === 0) {
+                const fallbackName = `${firebaseUser.displayName || 'My'} Workspace`
+                const createdId = await workspaceService.createWorkspace(fallbackName, { uid: firebaseUser.uid, email: firebaseUser.email })
+                if (createdId) {
+                  userWorkspaces = await workspaceService.listForUser({ uid: firebaseUser.uid, email: firebaseUser.email })
+                }
+              }
+              setWorkspaces(userWorkspaces)
+              bootstrapWorkspace(userWorkspaces)
+              setProfilePhoto(photoUrl)
+            } else {
+              setUser(null)
+              setProfilePhoto(null)
+              setWorkspaces([])
+              setActiveWorkspaceIdState(null)
             }
-            setWorkspaces(userWorkspaces)
-            bootstrapWorkspace(userWorkspaces)
-            setProfilePhoto(photoUrl)
-          } else {
-            setUser(null)
-            setProfilePhoto(null)
-            setWorkspaces([])
-            setActiveWorkspaceIdState(null)
+          } finally {
+            setLoading(false)
+            setRedirecting(false)
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('rs-auth-redirect')
+            }
           }
-        } finally {
-          setLoading(false)
-          setRedirecting(false)
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('rs-auth-redirect')
-          }
-        }
-      })
+        })
+      } else {
+        console.log('🚫 Skipping Firebase auth listener setup for magic link user')
+        setLoading(false)
+        setRedirecting(false)
+      }
     })()
 
     return () => {

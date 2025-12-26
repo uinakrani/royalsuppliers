@@ -138,15 +138,17 @@ export default function AuthFinishPage() {
                 authMethod: savedAuthMethod,
                 userEmail: savedUserData ? JSON.parse(savedUserData).email : null
               })
+
+              // Also log all localStorage keys containing 'rs-'
+              const rsKeys = Object.keys(localStorage).filter(key => key.startsWith('rs-'))
+              console.log('🔑 All rs- localStorage keys:', rsKeys.map(key => ({ key, value: localStorage.getItem(key)?.substring(0, 50) + '...' })))
             }
 
             setStatus('success')
 
-            // Redirect after success - give AuthContext time to initialize
-            setTimeout(() => {
-              console.log('🚀 Redirecting to account page...')
-              router.replace('/account')
-            }, 1000) // Reduced from 2000ms to 1000ms
+            // Redirect immediately - AuthContext will detect magic link user
+            console.log('🚀 Redirecting immediately to account page from auth/finish...')
+            router.replace('/account')
 
             return
           } catch (authError) {

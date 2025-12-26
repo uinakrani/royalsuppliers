@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ledgerService, LedgerEntry } from '@/lib/ledgerService'
+import { LedgerEntry, ledgerService } from '@/lib/ledgerService'
+import { useLedgerEntries } from '@/lib/useBackgroundData'
 import { format } from 'date-fns'
 import { PlusCircle, MinusCircle, Wallet, Plus, History, Calendar, X, Edit2, List, Activity } from 'lucide-react'
 import { formatIndianCurrency } from '@/lib/currencyUtils'
@@ -25,10 +26,9 @@ import { Invoice } from '@/types/invoice'
 import AuthGate from '@/components/AuthGate'
 
 export default function LedgerPage() {
-  const [entries, setEntries] = useState<LedgerEntry[]>([])
+  const { entries, loading: entriesLoading, refresh: refreshLedgerEntries } = useLedgerEntries()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(false)
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'entries' | 'timeline' | 'activity' | 'investment'>('entries')
@@ -118,33 +118,19 @@ export default function LedgerPage() {
   const getErrorMessage = (error: any) =>
     error instanceof Error ? error.message : 'Something went wrong. Please try again.'
 
-  const refreshEntries = async () => {
-    const latest = await ledgerService.list()
-    setEntries(latest)
-  }
 
   const load = async () => {
     // Don't set loading true for initial load - data comes from local storage instantly
     // Only show loading if we're forcing a refresh from server
     try {
-      const [items, allInvoices, allOrders] = await Promise.all([
-      ledgerService.list({
-        preferRemote: true,
-        onRemoteUpdate: (fresh) => {
-          setEntries(fresh)
-        }
-      }),
+      const [allInvoices, allOrders] = await Promise.all([
         invoiceService.getAllInvoices(undefined, { onRemoteUpdate: (fresh) => setInvoices(fresh) }),
         orderService.getAllOrders(undefined, { onRemoteUpdate: (fresh) => setOrders(fresh) })
       ])
-      setEntries(items)
       setInvoices(allInvoices)
       setOrders(allOrders)
-      setLoading(false)
     } catch (error) {
       console.error('Failed to load ledger data:', error)
-      setEntries([])
-      setLoading(false)
     }
   }
 
@@ -176,13 +162,8 @@ export default function LedgerPage() {
   }
 
   useEffect(() => {
-    // initial fetch then subscribe
-    load()
+    // Load investment data (entries are handled by useLedgerEntries hook)
     loadInvestment()
-    const unsub = ledgerService.subscribe((items) => {
-      setEntries(items)
-    })
-    return () => unsub()
   }, [])
 
   // Load activities
@@ -291,21 +272,7 @@ export default function LedgerPage() {
           partyName: newPartyName,
         })
       } else {
-        // Optimistic UI add
-        const tempId = `temp-${Date.now()}`
-        const optimisticEntry: LedgerEntry = {
-          id: tempId,
-          type: drawerType,
-          amount: data.amount,
-          note: data.note,
-          source: 'manual',
-          date: data.date,
-          supplier: data.supplier,
-          partyName: data.partyName,
-          createdAt: new Date().toISOString(),
-        }
-        setEntries((prev) => [optimisticEntry, ...prev])
-
+        // Add entry - hook will update automatically when cache is updated
         await ledgerService.addEntry(
           drawerType,
           data.amount,
@@ -313,12 +280,11 @@ export default function LedgerPage() {
           'manual',
           data.date,
           data.supplier,
-          data.partyName,
-          { skipLocalWrite: true, useId: tempId }
+          data.partyName
         )
       }
 
-      await refreshEntries()
+      await refreshLedgerEntries()
     } catch (error: any) {
       showToast(getErrorMessage(error), 'error')
       throw error
@@ -741,7 +707,7 @@ export default function LedgerPage() {
       }
 
       await ledgerService.remove(entryToDelete)
-      await refreshEntries()
+      await refreshLedgerEntries()
       setDeleteSheetOpen(false)
       setEntryToDelete(null)
     } catch (error: any) {
@@ -1124,7 +1090,7 @@ export default function LedgerPage() {
             }
 
             await ledgerService.remove(entryId)
-            await refreshEntries()
+            await refreshLedgerEntries()
             // Close wizard after successful deletion
             setDrawerOpen(false)
             setEditingEntry(null)
@@ -1286,7 +1252,7 @@ export default function LedgerPage() {
         paddingBottom: activeTab === 'entries' ? '9.25rem' : '5rem' // Adjust padding: Large for entries (floating buttons), standard for others (NavBar)
       }}>
         {activeTab === 'entries' ? (
-          loading ? (
+          entriesLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <TruckLoading size={100} />
             </div>
@@ -1337,7 +1303,7 @@ export default function LedgerPage() {
           )
         ) : activeTab === 'timeline' ? (
           <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {loading ? (
+            {entriesLoading ? (
               <div className="flex-1 flex items-center justify-center py-12">
                 <TruckLoading size={100} />
               </div>

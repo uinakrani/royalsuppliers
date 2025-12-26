@@ -14,6 +14,7 @@ import { getDb } from './firebase'
 import { Invoice, InvoiceFilters, InvoicePayment } from '@/types/invoice'
 import { orderService } from './orderService'
 import { offlineStorage, STORES } from './offlineStorage'
+import { localStorageCache, CACHE_KEYS } from './localStorageCache'
 import { Order } from '@/types/order'
 import { format } from 'date-fns'
 import { matchesActiveWorkspace, getActiveWorkspaceId, WORKSPACE_DEFAULTS } from './workspaceSession'
@@ -101,6 +102,10 @@ export const invoiceService = {
 
           const remoteInvoice: Invoice = { ...invoiceData, id: docRef.id }
           await offlineStorage.put(STORES.INVOICES, remoteInvoice)
+          // Also update localStorage cache
+          const cachedInvoices = localStorageCache.get<Invoice[]>(CACHE_KEYS.INVOICES) || []
+          const updatedCache = cachedInvoices.filter(i => i.id !== remoteInvoice.id).concat(remoteInvoice)
+          localStorageCache.set(CACHE_KEYS.INVOICES, updatedCache)
 
           // Update orders with authoritative invoice id
           for (const orderId of orderIds) {
@@ -123,6 +128,10 @@ export const invoiceService = {
       // Offline or remote failure - cache locally and queue for sync
       console.log('Storing invoice offline with localId:', localId)
       await offlineStorage.put(STORES.INVOICES, invoiceData)
+      // Also update localStorage cache
+      const cachedInvoices = localStorageCache.get<Invoice[]>(CACHE_KEYS.INVOICES) || []
+      const updatedCache = cachedInvoices.filter(i => i.id !== invoiceData.id).concat(invoiceData)
+      localStorageCache.set(CACHE_KEYS.INVOICES, updatedCache)
 
       for (const orderId of orderIds) {
         const order = await orderService.getOrderById(orderId)
@@ -156,81 +165,133 @@ export const invoiceService = {
   // Get all invoices (online-first with offline fallback)
   async getAllInvoices(
     filters?: InvoiceFilters,
-    options?: { onRemoteUpdate?: (invoices: Invoice[]) => void, preferRemote?: boolean }
+    options?: { onRemoteUpdate?: (invoices: Invoice[], source: 'remote' | 'local') => void, preferRemote?: boolean, skipCache?: boolean }
   ): Promise<Invoice[]> {
     try {
       const activeWorkspaceId = getActiveWorkspaceId()
       const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
-      const localInvoices = await offlineStorage.getAll(STORES.INVOICES)
-      const scopedLocal = localInvoices.map((inv) =>
-        inv.workspaceId ? inv : { ...(inv as Invoice), workspaceId: fallbackWorkspaceId }
-      )
-      const processedLocal = scopedLocal.map(this.processInvoiceData)
-      const filteredLocal = this.applyInvoiceFilters(
-        processedLocal.filter(matchesActiveWorkspace),
-        filters
-      )
+      const isOnline = offlineStorage.isOnline()
+      let invoicesToProcess: Invoice[] = []
+      let fetchedFrom: 'remote' | 'local' | 'none' = 'none'
 
-      if (offlineStorage.isOnline()) {
+      if (isOnline && (options?.preferRemote !== false)) { // Prioritize remote if online and not explicitly told to prefer local
         try {
-          const db = getDb()
-          if (db) {
-            let q = query(collection(db, INVOICES_COLLECTION), orderBy('createdAt', 'desc'))
-
-            if (filters) {
-              if (filters.partyName) {
-                q = query(q, where('partyName', '==', filters.partyName))
-              }
-              if (filters.paid !== undefined) {
-                q = query(q, where('paid', '==', filters.paid))
-              }
-            }
-
-            const querySnapshot = await getDocs(q)
-            const invoices: Invoice[] = []
-
-            querySnapshot.forEach((docSnap) => {
-              const data = docSnap.data()
-              const invoiceData = this.processInvoiceData({
-                id: docSnap.id,
-                ...data,
-              } as Invoice)
-
-              if (!invoiceData.workspaceId) {
-                invoiceData.workspaceId = fallbackWorkspaceId
-                try {
-                  const ref = doc(db, INVOICES_COLLECTION, docSnap.id)
-                  updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
-                } catch {
-                  // ignore best-effort tag
-                }
-              }
-
-              if (!matchesActiveWorkspace(invoiceData)) {
-                return
-              }
-
-              invoices.push(invoiceData)
-
-              // Cache in local storage
-              offlineStorage.put(STORES.INVOICES, invoiceData)
-            })
-
-            const filteredRemote = this.applyInvoiceFilters(invoices.map(this.processInvoiceData), filters)
-            options?.onRemoteUpdate?.(filteredRemote)
-            return filteredRemote
-          }
+          const remoteInvoices = await this.fetchAllInvoicesFromFirestore()
+          invoicesToProcess = remoteInvoices.map(this.processInvoiceData).filter(matchesActiveWorkspace)
+          fetchedFrom = 'remote'
+          localStorageCache.set(CACHE_KEYS.INVOICES, remoteInvoices)
+          options?.onRemoteUpdate?.(this.applyInvoiceFilters(invoicesToProcess, filters), 'remote')
         } catch (error) {
-          console.error('Failed to fetch invoices from Firestore, using cached data:', error)
+          console.warn('Failed to fetch invoices from Firestore, falling back to cache:', error)
+          // Fallback to cache if remote fetch fails
+          const cachedInvoices = localStorageCache.get<Invoice[]>(CACHE_KEYS.INVOICES)
+          if (cachedInvoices && cachedInvoices.length > 0) {
+            invoicesToProcess = cachedInvoices.map(this.processInvoiceData).filter(matchesActiveWorkspace)
+            fetchedFrom = 'local'
+            options?.onRemoteUpdate?.(this.applyInvoiceFilters(invoicesToProcess, filters), 'local')
+          } else {
+            // No cache either, get from offline storage
+            const localInvoices = await offlineStorage.getAll(STORES.INVOICES)
+            const scopedLocal = localInvoices.map((inv) =>
+              inv.workspaceId ? inv : { ...(inv as Invoice), workspaceId: fallbackWorkspaceId }
+            )
+            invoicesToProcess = scopedLocal.map(this.processInvoiceData).filter(matchesActiveWorkspace)
+            fetchedFrom = 'local'
+            options?.onRemoteUpdate?.(this.applyInvoiceFilters(invoicesToProcess, filters), 'local')
+          }
+        }
+      } else {
+        // Offline or explicitly prefer local/skip remote - try cache first
+        let cachedInvoices: Invoice[] | null = null
+        if (!options?.skipCache) {
+          cachedInvoices = localStorageCache.get<Invoice[]>(CACHE_KEYS.INVOICES)
+        }
+
+        if (cachedInvoices && cachedInvoices.length > 0) {
+          invoicesToProcess = cachedInvoices.map(this.processInvoiceData).filter(matchesActiveWorkspace)
+          fetchedFrom = 'local'
+          options?.onRemoteUpdate?.(this.applyInvoiceFilters(invoicesToProcess, filters), 'local')
+        } else {
+          // No cache available, get from offline storage as fallback
+          const localInvoices = await offlineStorage.getAll(STORES.INVOICES)
+          const scopedLocal = localInvoices.map((inv) =>
+            inv.workspaceId ? inv : { ...(inv as Invoice), workspaceId: fallbackWorkspaceId }
+          )
+          invoicesToProcess = scopedLocal.map(this.processInvoiceData).filter(matchesActiveWorkspace)
+          fetchedFrom = 'local'
+          options?.onRemoteUpdate?.(this.applyInvoiceFilters(invoicesToProcess, filters), 'local')
+        }
+
+        // If offline and data came from local/cache, still attempt a background fetch if online status changes later
+        if (!isOnline && fetchedFrom === 'local') {
+          offlineStorage.onOnlineStatusChange((online) => {
+            if (online) {
+              this.fetchAllInvoicesFromFirestore()
+                .then(async (allInvoices) => {
+                  localStorageCache.set(CACHE_KEYS.INVOICES, allInvoices)
+                  const filteredRemote = this.applyInvoiceFilters(allInvoices.filter(matchesActiveWorkspace), filters)
+                  options?.onRemoteUpdate?.(filteredRemote, 'remote')
+                })
+                .catch((error) => {
+                  console.warn('Background fetch failed for invoices after online status change:', error)
+                })
+            }
+          })
         }
       }
 
-      return filteredLocal
+      // Filter and return the immediately available data
+      return this.applyInvoiceFilters(invoicesToProcess, filters)
 
     } catch (error) {
       console.error('Error in invoiceService.getAllInvoices():', error)
       return []
     }
+  },
+
+  // Fetch all invoices from Firestore (used for background refresh)
+  async fetchAllInvoicesFromFirestore(): Promise<Invoice[]> {
+    const db = getDb()
+    if (!db) return []
+
+    const activeWorkspaceId = getActiveWorkspaceId()
+    const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
+    const q = query(collection(db, INVOICES_COLLECTION), orderBy('createdAt', 'desc'))
+    const querySnapshot = await getDocs(q)
+    const invoices: Invoice[] = []
+
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data()
+      const invoiceData = this.processInvoiceData({
+        id: docSnap.id,
+        ...data,
+      } as Invoice)
+
+      if (!invoiceData.workspaceId) {
+        invoiceData.workspaceId = fallbackWorkspaceId
+        try {
+          const ref = doc(db, INVOICES_COLLECTION, docSnap.id)
+          updateDoc(ref, { workspaceId: fallbackWorkspaceId }).catch(() => {})
+        } catch {
+          // ignore best-effort tag
+        }
+      }
+
+      if (!matchesActiveWorkspace(invoiceData)) {
+        return
+      }
+
+      invoices.push(invoiceData)
+
+      // Cache in local storage
+      offlineStorage.put(STORES.INVOICES, invoiceData)
+      // Also cache in localStorage for faster access
+      const cachedInvoices = localStorageCache.get<Invoice[]>(CACHE_KEYS.INVOICES) || []
+      const updatedCache = cachedInvoices.filter(i => i.id !== invoiceData.id).concat(invoiceData)
+      localStorageCache.set(CACHE_KEYS.INVOICES, updatedCache)
+    })
+
+    return invoices
   },
 
   // Apply filters to invoice data (including overdue)
@@ -351,6 +412,10 @@ export const invoiceService = {
         })
         console.log('✅ Invoice updated online')
         await offlineStorage.put(STORES.INVOICES, merged)
+        // Also update localStorage cache
+        const cachedInvoices = localStorageCache.get<Invoice[]>(CACHE_KEYS.INVOICES) || []
+        const updatedCache = cachedInvoices.filter(i => i.id !== merged.id).concat(merged)
+        localStorageCache.set(CACHE_KEYS.INVOICES, updatedCache)
         return
       } catch (error: any) {
         console.error('Error updating invoice online, falling back to offline queue:', error)
