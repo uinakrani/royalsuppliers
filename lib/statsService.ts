@@ -2,8 +2,43 @@ import { Order } from '@/types/order'
 import { DashboardStats } from '@/types/order'
 import { LedgerEntry } from '@/lib/ledgerService'
 import { startOfMonth, endOfMonth, subDays, subMonths, startOfYear } from 'date-fns'
-import { getAdjustedProfit } from '@/lib/orderCalculations'
+import { getAdjustedProfit, getEstimatedProfit } from '@/lib/orderCalculations'
 import { PAYMENT_TOLERANCE } from './orderService'
+
+export const calculatePartyEffectiveProfit = (orders: Order[], ledgerEntries: LedgerEntry[]): number => {
+  // 1. Group orders by party
+  const partyGroups = new Map<string, { totalSelling: number, totalProfit: number }>()
+
+  orders.forEach(order => {
+    const partyName = order.partyName
+    if (!partyName) return
+
+    if (!partyGroups.has(partyName)) {
+      partyGroups.set(partyName, { totalSelling: 0, totalProfit: 0 })
+    }
+    const group = partyGroups.get(partyName)!
+    group.totalSelling += order.total
+    group.totalProfit += getEstimatedProfit(order)
+  })
+
+  let totalEffectiveProfit = 0
+
+  // 2. Iterate groups and apply logic
+  partyGroups.forEach((group, partyName) => {
+    const partyPayments = ledgerEntries.filter(e => e.type === 'credit' && e.partyName === partyName)
+    const totalPaid = partyPayments.reduce((sum, p) => sum + p.amount, 0)
+
+    const outstandingAmount = Math.max(0, group.totalSelling - totalPaid)
+    const remainingProfit = group.totalProfit - outstandingAmount
+
+    const useAdjustedProfit = outstandingAmount <= PAYMENT_TOLERANCE // 250
+    const effectiveProfit = useAdjustedProfit ? remainingProfit : group.totalProfit
+
+    totalEffectiveProfit += effectiveProfit
+  })
+
+  return totalEffectiveProfit
+}
 
 export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], dateRangeStart?: Date, dateRangeEnd?: Date): DashboardStats => {
   const stats: DashboardStats = {
@@ -35,13 +70,13 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
     const adjustedProfit = getAdjustedProfit(order)
     stats.totalProfit += adjustedProfit
     stats.estimatedProfit += adjustedProfit // Estimated profit from filtered orders
-    
+
     // Raw material payments (payments MADE for raw materials - expenses)
     // Note: This is money going OUT, not money received
     const rawMaterialPayments = order.partialPayments || []
     const totalRawMaterialPaid = rawMaterialPayments.reduce((sum, p) => sum + p.amount, 0)
     stats.rawMaterialPaymentsReceived += totalRawMaterialPaid // This tracks payments made, not received
-    
+
     // Outstanding raw material payments (what's still owed for raw materials)
     const rawMaterialOutstanding = Math.max(0, order.originalTotal - totalRawMaterialPaid)
     stats.rawMaterialPaymentsOutstanding += rawMaterialOutstanding
@@ -67,10 +102,10 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
     let totalIncomeFromLedger = 0
     let totalIncomeWithPartyName = 0 // Money received from parties (credit entries with partyName)
     let totalExpensesFromLedger = 0
-    
+
     ledgerEntries.forEach((entry) => {
       const entryDate = new Date(entry.date)
-      
+
       // Check if entry is within date range
       let isInRange = true
       if (dateRangeStart && entryDate < dateRangeStart) {
@@ -79,7 +114,7 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
       if (dateRangeEnd && entryDate > dateRangeEnd) {
         isInRange = false
       }
-      
+
       if (isInRange) {
         if (entry.type === 'credit') {
           // All credit entries are income
@@ -94,14 +129,14 @@ export const calculateStats = (orders: Order[], ledgerEntries?: LedgerEntry[], d
         }
       }
     })
-    
+
     // Use ledger entries as the source of truth for money flow
     // Money Received = Credit entries with party name (customer payments)
     stats.customerPaymentsReceived = totalIncomeWithPartyName
-    
+
     // Money Out = All debit entries (expenses including raw materials, additional costs, etc.)
     stats.moneyOut = totalExpensesFromLedger
-    
+
     // Calculate balance from ledger: Income (with party) - Expenses
     stats.calculatedBalance = totalIncomeWithPartyName - totalExpensesFromLedger
   }

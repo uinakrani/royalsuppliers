@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useRef, useState, useMemo } from 'react'
+import { FormEvent, useRef, useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import AuthGate from '@/components/AuthGate'
@@ -8,14 +8,84 @@ import { LogOut, Plus, Send, Building2, Upload, CheckCircle, Trash2, AlertTriang
 import NavBar from '@/components/NavBar'
 import { showToast } from '@/components/Toast'
 
+
+import { partnerService } from '@/lib/partnerService'
+import { Partner } from '@/types/partner'
+
 export default function AccountPage() {
   const { user, profilePhoto, logout, workspaces, activeWorkspaceId, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember } = useAuth()
   const [inviteEmail, setInviteEmail] = useState('')
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
+  // Partner State
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [showPartnerModal, setShowPartnerModal] = useState(false)
+  const [partnerName, setPartnerName] = useState('')
+  const [partnerPercentage, setPartnerPercentage] = useState('')
+
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const activeWorkspace = useMemo(() => workspaces.find((ws) => ws.id === activeWorkspaceId), [workspaces, activeWorkspaceId])
+
+  // Fetch partners when workspace changes
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      loadPartners()
+    } else {
+      setPartners([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWorkspaceId])
+
+  const loadPartners = async () => {
+    if (!activeWorkspaceId) return
+    try {
+      const data = await partnerService.getPartners(activeWorkspaceId)
+      setPartners(data)
+    } catch (error) {
+      console.error('Failed to load partners:', error)
+      showToast('Failed to load partners', 'error')
+    }
+  }
+
+  const handleAddPartner = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!activeWorkspaceId) return
+    if (!partnerName.trim() || !partnerPercentage) return
+
+    setIsSaving(true)
+    try {
+      const newPartner: Partner = {
+        name: partnerName.trim(),
+        percentage: parseFloat(partnerPercentage),
+        workspaceId: activeWorkspaceId
+      }
+      await partnerService.addPartner(newPartner)
+      showToast('Partner added successfully', 'success')
+      setPartnerName('')
+      setPartnerPercentage('')
+      setShowPartnerModal(false)
+      loadPartners()
+    } catch (error) {
+      console.error(error)
+      showToast('Failed to add partner', 'error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRemovePartner = async (id: string) => {
+    if (!window.confirm('Are you sure you want to remove this partner?')) return
+    try {
+      await partnerService.deletePartner(id)
+      showToast('Partner removed', 'success')
+      loadPartners()
+    } catch (error) {
+      showToast('Failed to remove partner', 'error')
+    }
+  }
+
   const isInviteEmailValid = useMemo(() => {
     const email = inviteEmail.trim()
     if (!email) return false
@@ -180,11 +250,10 @@ export default function AccountPage() {
                 return (
                   <div
                     key={ws.id}
-                    className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm transition ${
-                      isActive
-                        ? 'border-primary-200 bg-primary-50/70 text-primary-900 shadow-sm'
-                        : 'border-gray-200 bg-white hover:border-primary-100 hover:bg-primary-50/40'
-                    }`}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-sm transition ${isActive
+                      ? 'border-primary-200 bg-primary-50/70 text-primary-900 shadow-sm'
+                      : 'border-gray-200 bg-white hover:border-primary-100 hover:bg-primary-50/40'
+                      }`}
                   >
                     <button
                       onClick={() => setWorkspace(ws.id)}
@@ -257,6 +326,44 @@ export default function AccountPage() {
             </p>
           </section>
 
+
+          <section className="space-y-3 rounded-2xl border border-white/60 bg-white/85 p-4 shadow-lg backdrop-blur">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Users size={18} className="text-primary-600" />
+                Partners
+              </div>
+              <button
+                onClick={() => setShowPartnerModal(true)}
+                className="rounded-lg bg-primary-50 px-2 py-1 text-[11px] font-semibold text-primary-700 hover:bg-primary-100 transition-colors"
+                disabled={!activeWorkspaceId}
+              >
+                + Add Partner
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {partners.length > 0 ? (
+                partners.map((partner) => (
+                  <div key={partner.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
+                    <div>
+                      <div className="font-medium text-gray-800">{partner.name}</div>
+                      <div className="text-[11px] text-gray-500">{partner.percentage}% Share</div>
+                    </div>
+                    <button
+                      onClick={() => handleRemovePartner(partner.id!)}
+                      className="rounded-lg border border-red-100 bg-red-50 p-2 text-red-600 transition hover:bg-red-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No partners added yet.</p>
+              )}
+            </div>
+          </section>
+
           <section className="space-y-3 rounded-2xl border border-white/60 bg-white/85 p-4 shadow-lg backdrop-blur">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <Users size={18} className="text-primary-600" />
@@ -296,6 +403,58 @@ export default function AccountPage() {
         </main>
 
         <NavBar />
+
+        {/* Add Partner Modal */}
+        {showPartnerModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl animate-in fade-in zoom-in duration-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Add Partner</h3>
+              <form onSubmit={handleAddPartner} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Partner Name</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                    placeholder="Enter name"
+                    value={partnerName}
+                    onChange={(e) => setPartnerName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Profit Share (%)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                    placeholder="20"
+                    value={partnerPercentage}
+                    onChange={(e) => setPartnerPercentage(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPartnerModal(false)}
+                    className="flex-1 rounded-xl bg-gray-100 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 disabled:opacity-70 transition-all"
+                  >
+                    {isSaving ? 'Adding...' : 'Add Partner'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </AuthGate>
   )
