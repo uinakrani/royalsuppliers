@@ -11,11 +11,14 @@ const DEFAULT_WORKSPACE_OWNER_EMAIL = 'ashish.nakrani.60@gmail.com'
 let activeWorkspaceId: string | null = null
 
 export function getActiveWorkspaceId(): string {
+  // Debug log to trace what workspace ID is active
+  // console.log('DEBUG: getActiveWorkspaceId called. InMemory:', activeWorkspaceId)
   if (activeWorkspaceId) return activeWorkspaceId
 
   if (typeof window !== 'undefined') {
     const stored = window.localStorage.getItem('activeWorkspaceId')
     if (stored) {
+      // console.log('DEBUG: Found in localStorage:', stored)
       activeWorkspaceId = stored
       return stored
     }
@@ -26,6 +29,7 @@ export function getActiveWorkspaceId(): string {
 }
 
 export function setActiveWorkspaceId(id: string) {
+  console.log('DEBUG: setActiveWorkspaceId called with:', id)
   activeWorkspaceId = id
   if (typeof window !== 'undefined') {
     window.localStorage.setItem('activeWorkspaceId', id)
@@ -35,6 +39,7 @@ export function setActiveWorkspaceId(id: string) {
 export function matchesActiveWorkspace(item: { workspaceId?: string } | null | undefined): boolean {
   if (!item) return false
   const current = getActiveWorkspaceId()
+  // console.log(`DEBUG: Matching item ${item['id']} (ws: ${item.workspaceId}) against current: ${current}`)
   if (!item.workspaceId) {
     // Treat missing workspaceId as belonging to the default workspace so legacy
     // data remains visible for the original company.

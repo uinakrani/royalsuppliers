@@ -23,12 +23,20 @@ import LedgerTimelineView from '@/components/LedgerTimelineView'
 
 import { invoiceService } from '@/lib/invoiceService'
 import { Invoice } from '@/types/invoice'
+import { partnerService } from '@/lib/partnerService'
+import { Partner } from '@/types/partner'
 import AuthGate from '@/components/AuthGate'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function LedgerPage() {
-  const { entries, loading: entriesLoading, refresh: refreshLedgerEntries } = useLedgerEntries()
+  const { activeWorkspaceId } = useAuth()
+  const { entries, loading: entriesLoading, refresh: refreshLedgerEntries } = useLedgerEntries({
+    refreshKey: activeWorkspaceId,
+    workspaceId: activeWorkspaceId || undefined
+  })
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [orders, setOrders] = useState<Order[]>([])
+  const [partners, setPartners] = useState<Partner[]>([])
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'entries' | 'timeline' | 'activity' | 'investment'>('entries')
@@ -134,13 +142,29 @@ export default function LedgerPage() {
     }
   }
 
+  // Temporary automatic migration to fix workspace isolation
+  useEffect(() => {
+    // Run this silently in background
+    ledgerService.assignLegacyEntriesToDefaultWorkspace().catch(console.error)
+  }, [])
+
+  const loadPartners = async () => {
+    try {
+      if (activeWorkspaceId) {
+        const data = await partnerService.getPartners(activeWorkspaceId)
+        setPartners(data)
+      }
+    } catch (error) {
+      console.error('Error loading partners:', error)
+    }
+  }
 
   const loadInvestment = async () => {
     try {
       const data = await investmentService.getInvestment()
       setInvestment(data)
       // Don't pre-fill form state here, do it when opening drawer
-      
+
       const history = await investmentService.getActivityLog()
       setInvestmentHistory(history)
     } catch (error) {
@@ -164,6 +188,7 @@ export default function LedgerPage() {
   useEffect(() => {
     // Load investment data (entries are handled by useLedgerEntries hook)
     loadInvestment()
+    loadPartners()
   }, [])
 
   // Load activities
@@ -230,7 +255,7 @@ export default function LedgerPage() {
 
       await investmentService.setInvestment(nextAmount, investmentDate, trimmedNote)
 
-      showToast('Investment updated successfully', 'success')
+
       setShowInvestmentDrawer(false)
       loadInvestment()
     } catch (error) {
@@ -258,11 +283,12 @@ export default function LedgerPage() {
     setDrawerOpen(true)
   }
 
-  const handleSaveEntry = async (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => {
+  const handleSaveEntry = async (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string; partnerId?: string }) => {
     try {
       if (drawerMode === 'edit' && editingEntry?.id) {
         const newPartyName = data.partyName?.trim() || undefined
         const newSupplier = data.supplier?.trim() || undefined
+        const newPartnerId = data.partnerId?.trim() || undefined
 
         await ledgerService.update(editingEntry.id, {
           amount: data.amount,
@@ -270,6 +296,7 @@ export default function LedgerPage() {
           note: data.note,
           supplier: newSupplier,
           partyName: newPartyName,
+          partnerId: newPartnerId,
         })
       } else {
         // Add entry - hook will update automatically when cache is updated
@@ -280,7 +307,9 @@ export default function LedgerPage() {
           'manual',
           data.date,
           data.supplier,
-          data.partyName
+          data.partyName,
+          data.partnerId,
+          { workspaceId: activeWorkspaceId || undefined }
         )
       }
 
@@ -326,7 +355,7 @@ export default function LedgerPage() {
           const isPaid = isOrderPaid(tempOrder)
           const difference = originalTotal - totalPaid
           const tolerance = originalTotal - PAYMENT_TOLERANCE
-          
+
           console.log(`  Order ${order.id} (${order.siteName || 'N/A'}): originalTotal=${originalTotal}, totalPaid=${totalPaid}, remaining=${remaining}, difference=${difference}, isPaid=${isPaid}, tolerance=${tolerance} (paid if >= ${tolerance})`)
 
           return { order, remaining, currentPayments: existingPayments, tempOrder, isPaid, difference, totalPaid, originalTotal }
@@ -1065,6 +1094,7 @@ export default function LedgerPage() {
       <LedgerEntryWizard
         entry={editingEntry || null}
         type={drawerType}
+        partners={partners}
         onClose={() => {
           setDrawerOpen(false)
           setEditingEntry(null)
@@ -1107,638 +1137,638 @@ export default function LedgerPage() {
   return (
     <AuthGate>
       <div className="bg-gray-50" style={{
-      height: '100dvh',
-      minHeight: '100dvh',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden'
-    }}>
-      {/* Header - Fixed at top */}
-      <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40" style={{ flexShrink: 0 }}>
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Wallet size={18} />
-            <h1 className="text-lg font-bold truncate">Ledger</h1>
+        height: '100dvh',
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
+        {/* Header - Fixed at top */}
+        <div className="bg-primary-600 text-white p-2 pt-safe sticky top-0 z-40" style={{ flexShrink: 0 }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Wallet size={18} />
+              <h1 className="text-lg font-bold truncate">Ledger</h1>
+            </div>
+            {activeTab === 'activity' && (
+              <button
+                onClick={(e) => {
+                  createRipple(e)
+                  setShowDateFilter(!showDateFilter)
+                }}
+                className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg active:bg-white/30 transition-colors touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <Calendar size={16} />
+              </button>
+            )}
           </div>
-          {activeTab === 'activity' && (
+          {activeTab === 'entries' && (
+            <div className="bg-white rounded-lg p-2 text-gray-800 flex items-center justify-between">
+              <span className="font-medium" style={{ fontSize: '12px' }}>Balance</span>
+              <span className={`font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`} style={{ fontSize: '12px' }}>
+                {formatIndianCurrency(Math.abs(balance))} {balance >= 0 ? '' : '(Dr)'}
+              </span>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="flex gap-1 mt-2 overflow-x-auto pb-1 no-scrollbar">
             <button
               onClick={(e) => {
                 createRipple(e)
-                setShowDateFilter(!showDateFilter)
+                setActiveTab('entries')
               }}
-              className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg active:bg-white/30 transition-colors touch-manipulation"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
+              className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'entries'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'bg-white/20 text-white/80 active:bg-white/30'
+                }`}
+              style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
             >
-              <Calendar size={16} />
+              <List size={14} />
+              Entries
             </button>
+            <button
+              onClick={(e) => {
+                createRipple(e)
+                setActiveTab('timeline')
+              }}
+              className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'timeline'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'bg-white/20 text-white/80 active:bg-white/30'
+                }`}
+              style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Activity size={14} />
+              Timeline
+            </button>
+            <button
+              onClick={(e) => {
+                createRipple(e)
+                setActiveTab('activity')
+              }}
+              className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'activity'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'bg-white/20 text-white/80 active:bg-white/30'
+                }`}
+              style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
+            >
+              <History size={14} />
+              Log
+            </button>
+            <button
+              onClick={(e) => {
+                createRipple(e)
+                setActiveTab('investment')
+              }}
+              className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'investment'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'bg-white/20 text-white/80 active:bg-white/30'
+                }`}
+              style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Wallet size={14} />
+              Inv.
+            </button>
+          </div>
+
+          {/* Date Filter */}
+          {showDateFilter && activeTab === 'activity' && (
+            <div className="mt-2 bg-white/95 backdrop-blur-xl rounded-lg p-2 space-y-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-gray-800 font-medium" style={{ fontSize: '12px' }}>Date Range</span>
+                <button
+                  onClick={(e) => {
+                    createRipple(e)
+                    setStartDate('')
+                    setEndDate('')
+                  }}
+                  className="text-primary-600 text-xs font-medium active:opacity-70 touch-manipulation"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
           )}
         </div>
-        {activeTab === 'entries' && (
-          <div className="bg-white rounded-lg p-2 text-gray-800 flex items-center justify-between">
-            <span className="font-medium" style={{ fontSize: '12px' }}>Balance</span>
-            <span className={`font-bold ${balance >= 0 ? 'text-green-700' : 'text-red-600'}`} style={{ fontSize: '12px' }}>
-              {formatIndianCurrency(Math.abs(balance))} {balance >= 0 ? '' : '(Dr)'}
-            </span>
-          </div>
-        )}
 
-        {/* Tabs */}
-        <div className="flex gap-1 mt-2 overflow-x-auto pb-1 no-scrollbar">
-          <button
-            onClick={(e) => {
-              createRipple(e)
-              setActiveTab('entries')
-            }}
-            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'entries'
-              ? 'bg-white text-primary-600 shadow-sm'
-              : 'bg-white/20 text-white/80 active:bg-white/30'
-              }`}
-            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
-          >
-            <List size={14} />
-            Entries
-          </button>
-          <button
-            onClick={(e) => {
-              createRipple(e)
-              setActiveTab('timeline')
-            }}
-            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'timeline'
-              ? 'bg-white text-primary-600 shadow-sm'
-              : 'bg-white/20 text-white/80 active:bg-white/30'
-              }`}
-            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
-          >
-            <Activity size={14} />
-            Timeline
-          </button>
-          <button
-            onClick={(e) => {
-              createRipple(e)
-              setActiveTab('activity')
-            }}
-            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'activity'
-              ? 'bg-white text-primary-600 shadow-sm'
-              : 'bg-white/20 text-white/80 active:bg-white/30'
-              }`}
-            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
-          >
-            <History size={14} />
-            Log
-          </button>
-          <button
-            onClick={(e) => {
-              createRipple(e)
-              setActiveTab('investment')
-            }}
-            className={`flex-1 py-2 px-3 whitespace-nowrap rounded-lg font-medium transition-all duration-200 touch-manipulation flex items-center justify-center gap-1.5 ${activeTab === 'investment'
-              ? 'bg-white text-primary-600 shadow-sm'
-              : 'bg-white/20 text-white/80 active:bg-white/30'
-              }`}
-            style={{ fontSize: '13px', WebkitTapHighlightColor: 'transparent' }}
-          >
-            <Wallet size={14} />
-            Inv.
-          </button>
-        </div>
-
-        {/* Date Filter */}
-        {showDateFilter && activeTab === 'activity' && (
-          <div className="mt-2 bg-white/95 backdrop-blur-xl rounded-lg p-2 space-y-2">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-gray-800 font-medium" style={{ fontSize: '12px' }}>Date Range</span>
-              <button
-                onClick={(e) => {
-                  createRipple(e)
-                  setStartDate('')
-                  setEndDate('')
-                }}
-                className="text-primary-600 text-xs font-medium active:opacity-70 touch-manipulation"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                Clear
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Content Area - Fixed height, fits between header and buttons */}
-      <div style={{
-        flex: 1,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        paddingBottom: activeTab === 'entries' ? '9.25rem' : '5rem' // Adjust padding: Large for entries (floating buttons), standard for others (NavBar)
-      }}>
-        {activeTab === 'entries' ? (
-          entriesLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <TruckLoading size={100} />
-            </div>
-          ) : (
-            <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
-              {/* Income Column */}
-              <div className="bg-green-50 rounded-lg p-1.5 border border-green-200 flex flex-col" style={{ minHeight: 0 }}>
-                <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
-                  <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
-                    <PlusCircle size={14} />
-                    Income
-                  </h2>
-                </div>
-                <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300 flex-shrink-0">
-                  <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
-                  <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
-                  {incomeEntries.length === 0 ? (
-                    <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
-                  ) : (
-                    incomeEntries.map(renderEntry)
-                  )}
-                </div>
-              </div>
-
-              {/* Expenses Column */}
-              <div className="bg-red-50 rounded-lg p-1.5 border border-red-200 flex flex-col" style={{ minHeight: 0 }}>
-                <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
-                  <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
-                    <MinusCircle size={14} />
-                    Expenses
-                  </h2>
-                </div>
-                <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300 flex-shrink-0">
-                  <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
-                  <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
-                  {expenseEntries.length === 0 ? (
-                    <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
-                  ) : (
-                    expenseEntries.map(renderEntry)
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        ) : activeTab === 'timeline' ? (
-          <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {entriesLoading ? (
-              <div className="flex-1 flex items-center justify-center py-12">
+        {/* Content Area - Fixed height, fits between header and buttons */}
+        <div style={{
+          flex: 1,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          paddingBottom: activeTab === 'entries' ? '9.25rem' : '5rem' // Adjust padding: Large for entries (floating buttons), standard for others (NavBar)
+        }}>
+          {activeTab === 'entries' ? (
+            entriesLoading ? (
+              <div className="flex-1 flex items-center justify-center">
                 <TruckLoading size={100} />
               </div>
             ) : (
-              <LedgerTimelineView 
-                entries={entries} 
-                investment={investment} 
-                investmentHistory={investmentHistory}
-                invoices={invoices}
-                orders={orders}
-              />
-            )}
-          </div>
-        ) : activeTab === 'investment' ? (
-          /* Investment Tab */
-          <div className="flex-1 overflow-y-auto p-3 space-y-4 pb-28" style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
-            {/* Current Investment Card */}
-            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Wallet size={100} />
-              </div>
-
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <Wallet size={20} className="text-white" />
-                    </div>
-                    <h3 className="text-lg font-bold text-white">Current Investment</h3>
+              <div className="flex-1 grid grid-cols-2 gap-1.5 p-1.5" style={{ minHeight: 0 }}>
+                {/* Income Column */}
+                <div className="bg-green-50 rounded-lg p-1.5 border border-green-200 flex flex-col" style={{ minHeight: 0 }}>
+                  <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                    <h2 className="font-semibold text-green-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                      <PlusCircle size={14} />
+                      Income
+                    </h2>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        createRipple(e)
-                        openInvestmentDrawer('add')
-                      }}
-                      className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm text-sm font-semibold"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        createRipple(e)
-                        openInvestmentDrawer('reduce')
-                      }}
-                      className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm text-sm font-semibold"
-                    >
-                      Reduce
-                    </button>
+                  <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-green-300 flex-shrink-0">
+                    <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                    <div className="font-bold text-green-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalIncome)}</div>
                   </div>
-                </div>
-
-                <div className="mb-4">
-                  <p className="text-sm text-amber-100 mb-1">Total Capital Invested</p>
-                  <p className="text-3xl font-bold">
-                    {investment ? formatIndianCurrency(investment.amount) : formatIndianCurrency(0)}
-                  </p>
-                </div>
-
-                {investment && (
-                  <div className="space-y-2 text-sm text-amber-50">
-                    <div className="flex justify-between border-b border-white/10 pb-2">
-                      <span>Date</span>
-                      <span className="font-medium">{format(new Date(investment.date), 'dd MMM yyyy')}</span>
-                    </div>
-                    {investment.note && (
-                      <div className="flex justify-between border-b border-white/10 pb-2">
-                        <span>Note</span>
-                        <span className="font-medium">{investment.note}</span>
-                      </div>
+                  <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+                    {incomeEntries.length === 0 ? (
+                      <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                    ) : (
+                      incomeEntries.map(renderEntry)
                     )}
-                    <div className="flex justify-between pt-1">
-                      <span>Last Updated</span>
-                      <span className="font-medium">
-                        {investment.updatedAt
-                          ? format(new Date(investment.updatedAt), 'dd MMM yyyy HH:mm')
-                          : format(new Date(investment.createdAt || investment.date), 'dd MMM yyyy HH:mm')
-                        }
-                      </span>
+                  </div>
+                </div>
+
+                {/* Expenses Column */}
+                <div className="bg-red-50 rounded-lg p-1.5 border border-red-200 flex flex-col" style={{ minHeight: 0 }}>
+                  <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                    <h2 className="font-semibold text-red-800 flex items-center gap-1" style={{ fontSize: '12px' }}>
+                      <MinusCircle size={14} />
+                      Expenses
+                    </h2>
+                  </div>
+                  <div className="bg-white rounded-lg p-1.5 mb-1.5 border border-red-300 flex-shrink-0">
+                    <div className="text-gray-600" style={{ fontSize: '11px' }}>Total</div>
+                    <div className="font-bold text-red-700" style={{ fontSize: '12px' }}>{formatIndianCurrency(totalExpenses)}</div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+                    {expenseEntries.length === 0 ? (
+                      <div className="text-center text-gray-400 py-4" style={{ fontSize: '11px' }}>No entries</div>
+                    ) : (
+                      expenseEntries.map(renderEntry)
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          ) : activeTab === 'timeline' ? (
+            <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {entriesLoading ? (
+                <div className="flex-1 flex items-center justify-center py-12">
+                  <TruckLoading size={100} />
+                </div>
+              ) : (
+                <LedgerTimelineView
+                  entries={entries}
+                  investment={investment}
+                  investmentHistory={investmentHistory}
+                  invoices={invoices}
+                  orders={orders}
+                />
+              )}
+            </div>
+          ) : activeTab === 'investment' ? (
+            /* Investment Tab */
+            <div className="flex-1 overflow-y-auto p-3 space-y-4 pb-28" style={{ WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
+              {/* Current Investment Card */}
+              <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Wallet size={100} />
+                </div>
+
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                        <Wallet size={20} className="text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-white">Current Investment</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          createRipple(e)
+                          openInvestmentDrawer('add')
+                        }}
+                        className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm text-sm font-semibold"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          createRipple(e)
+                          openInvestmentDrawer('reduce')
+                        }}
+                        className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors backdrop-blur-sm text-sm font-semibold"
+                      >
+                        Reduce
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* Investment History */}
-            <div>
-              <h3 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <History size={18} className="text-gray-500" />
-                History
-              </h3>
-
-              <div className="space-y-3">
-                {investmentHistory.length === 0 ? (
-                  <div className="text-center text-gray-400 py-8 bg-gray-50 rounded-xl border border-gray-100">
-                    No history available
+                  <div className="mb-4">
+                    <p className="text-sm text-amber-100 mb-1">Total Capital Invested</p>
+                    <p className="text-3xl font-bold">
+                      {investment ? formatIndianCurrency(investment.amount) : formatIndianCurrency(0)}
+                    </p>
                   </div>
-                ) : (
-                  investmentHistory.map((activity) => {
-                    const previousAmount = activity.previousAmount ?? 0
-                    const change = activity.amount - previousAmount
-                    const isAddition = change >= 0
-                    const changeLabel = isAddition ? 'Added' : 'Reduced'
-                    const cardColors = isAddition
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-red-50 border-red-200'
-                    const badgeColors = isAddition
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
-                    const effectiveDate = activity.date || activity.timestamp
 
-                    return (
-                      <div key={activity.id} className={`p-3 rounded-xl border shadow-sm ${cardColors}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1.5 rounded-lg ${badgeColors}`}>
-                              {isAddition ? <Plus size={14} /> : <MinusCircle size={14} />}
-                            </div>
-                            <span className="font-semibold text-sm text-gray-900">
-                              Investment {changeLabel}
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {format(new Date(activity.timestamp), 'dd MMM HH:mm')}
-                          </span>
+                  {investment && (
+                    <div className="space-y-2 text-sm text-amber-50">
+                      <div className="flex justify-between border-b border-white/10 pb-2">
+                        <span>Date</span>
+                        <span className="font-medium">{format(new Date(investment.date), 'dd MMM yyyy')}</span>
+                      </div>
+                      {investment.note && (
+                        <div className="flex justify-between border-b border-white/10 pb-2">
+                          <span>Note</span>
+                          <span className="font-medium">{investment.note}</span>
                         </div>
+                      )}
+                      <div className="flex justify-between pt-1">
+                        <span>Last Updated</span>
+                        <span className="font-medium">
+                          {investment.updatedAt
+                            ? format(new Date(investment.updatedAt), 'dd MMM yyyy HH:mm')
+                            : format(new Date(investment.createdAt || investment.date), 'dd MMM yyyy HH:mm')
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                        <div className="pl-9 space-y-1.5">
-                          <div className="flex justify-between text-xs text-gray-600">
-                            <span className="text-gray-500">Old amount</span>
+              {/* Investment History */}
+              <div>
+                <h3 className="text-base font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <History size={18} className="text-gray-500" />
+                  History
+                </h3>
+
+                <div className="space-y-3">
+                  {investmentHistory.length === 0 ? (
+                    <div className="text-center text-gray-400 py-8 bg-gray-50 rounded-xl border border-gray-100">
+                      No history available
+                    </div>
+                  ) : (
+                    investmentHistory.map((activity) => {
+                      const previousAmount = activity.previousAmount ?? 0
+                      const change = activity.amount - previousAmount
+                      const isAddition = change >= 0
+                      const changeLabel = isAddition ? 'Added' : 'Reduced'
+                      const cardColors = isAddition
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-red-50 border-red-200'
+                      const badgeColors = isAddition
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                      const effectiveDate = activity.date || activity.timestamp
+
+                      return (
+                        <div key={activity.id} className={`p-3 rounded-xl border shadow-sm ${cardColors}`}>
+                          <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-800">
-                                {formatIndianCurrency(previousAmount)}
+                              <div className={`p-1.5 rounded-lg ${badgeColors}`}>
+                                {isAddition ? <Plus size={14} /> : <MinusCircle size={14} />}
+                              </div>
+                              <span className="font-semibold text-sm text-gray-900">
+                                Investment {changeLabel}
                               </span>
-                              {activity.previousAmount === undefined && (
-                                <span className="text-[11px] text-gray-400">(initial)</span>
-                              )}
                             </div>
-                          </div>
-
-                          <div className="flex justify-between text-xs text-gray-600">
-                            <span className="text-gray-500">{changeLabel}</span>
-                            <span className={`font-semibold ${isAddition ? 'text-green-700' : 'text-red-700'}`}>
-                              {isAddition ? '+' : '-'}
-                              {formatIndianCurrency(Math.abs(change))}
+                            <span className="text-xs text-gray-500">
+                              {format(new Date(activity.timestamp), 'dd MMM HH:mm')}
                             </span>
                           </div>
 
-                          <div className="flex justify-between text-xs text-gray-600">
-                            <span className="text-gray-500">Date</span>
-                            <span className="text-gray-700 font-medium">
-                              {format(new Date(effectiveDate), 'dd MMM yyyy')}
-                            </span>
-                          </div>
-
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">New amount</span>
-                            <span className="font-bold text-gray-900">
-                              {formatIndianCurrency(activity.amount)}
-                            </span>
-                          </div>
-
-                          {activity.note && (
+                          <div className="pl-9 space-y-1.5">
                             <div className="flex justify-between text-xs text-gray-600">
-                              <span className="text-gray-500">Note</span>
-                              <div className="text-right">
-                                <div className="text-gray-800 font-medium">
-                                  {activity.note}
-                                </div>
+                              <span className="text-gray-500">Old amount</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-gray-800">
+                                  {formatIndianCurrency(previousAmount)}
+                                </span>
+                                {activity.previousAmount === undefined && (
+                                  <span className="text-[11px] text-gray-400">(initial)</span>
+                                )}
                               </div>
                             </div>
-                          )}
 
-                          <div className="flex justify-between text-[11px] text-gray-500">
-                            <span>Logged</span>
-                            <span>{format(new Date(activity.timestamp), 'dd MMM yyyy HH:mm')}</span>
+                            <div className="flex justify-between text-xs text-gray-600">
+                              <span className="text-gray-500">{changeLabel}</span>
+                              <span className={`font-semibold ${isAddition ? 'text-green-700' : 'text-red-700'}`}>
+                                {isAddition ? '+' : '-'}
+                                {formatIndianCurrency(Math.abs(change))}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-xs text-gray-600">
+                              <span className="text-gray-500">Date</span>
+                              <span className="text-gray-700 font-medium">
+                                {format(new Date(effectiveDate), 'dd MMM yyyy')}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">New amount</span>
+                              <span className="font-bold text-gray-900">
+                                {formatIndianCurrency(activity.amount)}
+                              </span>
+                            </div>
+
+                            {activity.note && (
+                              <div className="flex justify-between text-xs text-gray-600">
+                                <span className="text-gray-500">Note</span>
+                                <div className="text-right">
+                                  <div className="text-gray-800 font-medium">
+                                    {activity.note}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between text-[11px] text-gray-500">
+                              <span>Logged</span>
+                              <span>{format(new Date(activity.timestamp), 'dd MMM yyyy HH:mm')}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })
-                )}
+                      )
+                    })
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          /* Activity Log */
-          <div className="flex-1 overflow-y-auto p-1.5" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {activitiesLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <TruckLoading size={80} />
+          ) : (
+            /* Activity Log */
+            <div className="flex-1 overflow-y-auto p-1.5" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {activitiesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <TruckLoading size={80} />
+                </div>
+              ) : activities.length === 0 ? (
+                <div className="text-center text-gray-400 py-12" style={{ fontSize: '13px' }}>
+                  No activity logs found
+                  {(startDate || endDate) && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Try adjusting the date range
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {activities.map((activity) => renderActivity(activity))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Add Buttons Bar - Floating at bottom, above NavBar - Only show on entries tab */}
+        {activeTab === 'entries' && (
+          <div
+            className="fixed left-0 right-0 z-30 flex items-end justify-center"
+            style={{
+              bottom: '5.25rem',
+              paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
+              style={{
+                padding: '0.75rem',
+                boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
+                pointerEvents: 'auto',
+              }}
+            >
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    createRipple(e)
+                    handleAddEntry('credit')
+                  }}
+                  className="flex-1 bg-green-600 text-white rounded-xl active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    fontSize: '14px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                  title="Add Income"
+                  aria-label="Add Income"
+                >
+                  <Plus size={18} />
+                  <span>Add Income</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    createRipple(e)
+                    handleAddEntry('debit')
+                  }}
+                  className="flex-1 bg-red-600 text-white rounded-xl active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    fontSize: '14px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                  title="Add Expense"
+                  aria-label="Add Expense"
+                >
+                  <Plus size={18} />
+                  <span>Add Expense</span>
+                </button>
               </div>
-            ) : activities.length === 0 ? (
-              <div className="text-center text-gray-400 py-12" style={{ fontSize: '13px' }}>
-                No activity logs found
-                {(startDate || endDate) && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    Try adjusting the date range
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {activities.map((activity) => renderActivity(activity))}
-              </div>
-            )}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Add Buttons Bar - Floating at bottom, above NavBar - Only show on entries tab */}
-      {activeTab === 'entries' && (
-        <div
-          className="fixed left-0 right-0 z-30 flex items-end justify-center"
-          style={{
-            bottom: '5.25rem',
-            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
-            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-            pointerEvents: 'none',
-          }}
-        >
+        {/* Investment Buttons Bar */}
+        {activeTab === 'investment' && (
           <div
-            className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
+            className="fixed left-0 right-0 z-30 flex items-end justify-center"
             style={{
-              padding: '0.75rem',
-              boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
-              pointerEvents: 'auto',
+              bottom: '5.25rem',
+              paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+              pointerEvents: 'none',
             }}
           >
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => {
-                  createRipple(e)
-                  handleAddEntry('credit')
-                }}
-                className="flex-1 bg-green-600 text-white rounded-xl active:bg-green-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
-                style={{
-                  WebkitTapHighlightColor: 'transparent',
-                  fontSize: '14px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-                title="Add Income"
-                aria-label="Add Income"
-              >
-                <Plus size={18} />
-                <span>Add Income</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  createRipple(e)
-                  handleAddEntry('debit')
-                }}
-                className="flex-1 bg-red-600 text-white rounded-xl active:bg-red-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
-                style={{
-                  WebkitTapHighlightColor: 'transparent',
-                  fontSize: '14px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-                title="Add Expense"
-                aria-label="Add Expense"
-              >
-                <Plus size={18} />
-                <span>Add Expense</span>
-              </button>
+            <div
+              className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
+              style={{
+                padding: '0.75rem',
+                boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
+                pointerEvents: 'auto',
+              }}
+            >
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    createRipple(e)
+                    openInvestmentDrawer('add')
+                  }}
+                  className="flex-1 bg-amber-600 text-white rounded-xl active:bg-amber-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    fontSize: '14px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                  title="Add Investment"
+                  aria-label="Add Investment"
+                >
+                  <Plus size={18} />
+                  <span>Add</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    createRipple(e)
+                    openInvestmentDrawer('reduce')
+                  }}
+                  className="flex-1 bg-gray-800 text-white rounded-xl active:bg-gray-900 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    fontSize: '14px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                  title="Reduce Investment"
+                  aria-label="Reduce Investment"
+                >
+                  <MinusCircle size={18} />
+                  <span>Reduce</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Investment Buttons Bar */}
-      {activeTab === 'investment' && (
-        <div
-          className="fixed left-0 right-0 z-30 flex items-end justify-center"
-          style={{
-            bottom: '5.25rem',
-            paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
-            paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
-            pointerEvents: 'none',
+        {/* Delete Confirmation Bottom Sheet */}
+        <BottomSheet
+          isOpen={deleteSheetOpen}
+          onClose={() => {
+            setDeleteSheetOpen(false)
+            setEntryToDelete(null)
           }}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Entry?"
+          message="This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmColor="red"
+        />
+
+        {/* Investment Drawer */}
+        <BottomSheet
+          isOpen={showInvestmentDrawer}
+          onClose={() => setShowInvestmentDrawer(false)}
+          title={investmentMode === 'reduce' ? 'Reduce Investment' : 'Add Investment'}
+          confirmText={investmentMode === 'reduce' ? 'Reduce' : 'Add'}
+          cancelText="Cancel"
+          onConfirm={handleSaveInvestment}
+          confirmColor="amber"
         >
-          <div
-            className="bg-white/95 backdrop-blur-xl border border-gray-200/60 rounded-2xl w-full"
-            style={{
-              padding: '0.75rem',
-              boxShadow: '0 2px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03)',
-              pointerEvents: 'auto',
-            }}
-          >
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => {
-                  createRipple(e)
-                  openInvestmentDrawer('add')
-                }}
-                className="flex-1 bg-amber-600 text-white rounded-xl active:bg-amber-700 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
-                style={{
-                  WebkitTapHighlightColor: 'transparent',
-                  fontSize: '14px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-                title="Add Investment"
-                aria-label="Add Investment"
-              >
-                <Plus size={18} />
-                <span>Add</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  createRipple(e)
-                  openInvestmentDrawer('reduce')
-                }}
-                className="flex-1 bg-gray-800 text-white rounded-xl active:bg-gray-900 transition-colors flex items-center justify-center gap-2 py-3 touch-manipulation font-medium native-press"
-                style={{
-                  WebkitTapHighlightColor: 'transparent',
-                  fontSize: '14px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-                title="Reduce Investment"
-                aria-label="Reduce Investment"
-              >
-                <MinusCircle size={18} />
-                <span>Reduce</span>
-              </button>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {investmentMode === 'reduce' ? 'Amount to reduce' : 'Amount to add'}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                <input
+                  type="number"
+                  value={investmentAmount}
+                  onChange={(e) => setInvestmentAmount(e.target.value)}
+                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                  placeholder="0"
+                />
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('add')}
+                  className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'add' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('reduce')}
+                  className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'reduce' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
+                >
+                  Reduce
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Delete Confirmation Bottom Sheet */}
-      <BottomSheet
-        isOpen={deleteSheetOpen}
-        onClose={() => {
-          setDeleteSheetOpen(false)
-          setEntryToDelete(null)
-        }}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Entry?"
-        message="This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        confirmColor="red"
-      />
-
-      {/* Investment Drawer */}
-      <BottomSheet
-        isOpen={showInvestmentDrawer}
-        onClose={() => setShowInvestmentDrawer(false)}
-        title={investmentMode === 'reduce' ? 'Reduce Investment' : 'Add Investment'}
-        confirmText={investmentMode === 'reduce' ? 'Reduce' : 'Add'}
-        cancelText="Cancel"
-        onConfirm={handleSaveInvestment}
-        confirmColor="amber"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {investmentMode === 'reduce' ? 'Amount to reduce' : 'Amount to add'}
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date
+              </label>
               <input
-                type="number"
-                value={investmentAmount}
-                onChange={(e) => setInvestmentAmount(e.target.value)}
-                className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
-                placeholder="0"
+                type="date"
+                value={investmentDate}
+                onChange={(e) => setInvestmentDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
               />
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleModeChange('add')}
-                className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'add' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('reduce')}
-                className={`px-2 py-1 rounded-lg text-xs font-medium ${investmentMode === 'reduce' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-800'} active:opacity-80`}
-              >
-                Reduce
-              </button>
-            </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={investmentDate}
-              onChange={(e) => setInvestmentDate(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
-            />
-          </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-1">
+              <div className="flex justify-between text-xs text-amber-800">
+                <span>Current total</span>
+                <span className="font-semibold">{formatIndianCurrency(investment?.amount || 0)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-amber-800">
+                <span>{investmentMode === 'reduce' ? 'Reduction' : 'Addition'}</span>
+                <span className="font-semibold">
+                  {investmentAmount && !isNaN(parseFloat(investmentAmount))
+                    ? `${investmentMode === 'reduce' ? '-' : '+'}${formatIndianCurrency(Math.abs(parseFloat(investmentAmount)))}`
+                    : '-'}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold text-amber-900 border-t border-amber-100 pt-2">
+                <span>Total after this change</span>
+                <span>{formatIndianCurrency(projectedInvestment)}</span>
+              </div>
+            </div>
 
-          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-1">
-            <div className="flex justify-between text-xs text-amber-800">
-              <span>Current total</span>
-              <span className="font-semibold">{formatIndianCurrency(investment?.amount || 0)}</span>
-            </div>
-            <div className="flex justify-between text-xs text-amber-800">
-              <span>{investmentMode === 'reduce' ? 'Reduction' : 'Addition'}</span>
-              <span className="font-semibold">
-                {investmentAmount && !isNaN(parseFloat(investmentAmount))
-                  ? `${investmentMode === 'reduce' ? '-' : '+'}${formatIndianCurrency(Math.abs(parseFloat(investmentAmount)))}`
-                  : '-'}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm font-semibold text-amber-900 border-t border-amber-100 pt-2">
-              <span>Total after this change</span>
-              <span>{formatIndianCurrency(projectedInvestment)}</span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Note (required)
+              </label>
+              <textarea
+                value={investmentNote}
+                onChange={(e) => setInvestmentNote(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none resize-none"
+                rows={3}
+                placeholder="Add a note about this investment..."
+              />
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Note (required)
-            </label>
-            <textarea
-              value={investmentNote}
-              onChange={(e) => setInvestmentNote(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none resize-none"
-              rows={3}
-              placeholder="Add a note about this investment..."
-            />
-          </div>
-        </div>
-      </BottomSheet>
+        </BottomSheet>
 
         <NavBar />
       </div>

@@ -138,7 +138,7 @@ export default function Dashboard() {
     }, 100)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, selectedMonth])
+  }, [filters, selectedMonth, activeWorkspaceId])
 
   const loadInvestment = async (): Promise<InvestmentRecord | null> => {
     try {

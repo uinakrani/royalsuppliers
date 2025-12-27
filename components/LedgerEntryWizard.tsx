@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Partner } from '@/types/partner'
+
 import { LedgerEntry } from '@/lib/ledgerService'
 import { X, ChevronLeft, ChevronRight, Check, Edit2, Calendar, DollarSign, ShoppingCart, User, FileText, Trash2 } from 'lucide-react'
 import { orderService } from '@/lib/orderService'
@@ -22,12 +24,12 @@ const formatLocalDate = (date: Date): string => {
 // Helper function to parse ISO date string or YYYY-MM-DD to YYYY-MM-DD in local time
 const parseToLocalDateString = (dateString: string): string => {
   if (!dateString) return formatLocalDate(new Date())
-  
+
   // If it's already YYYY-MM-DD, return as is
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     return dateString
   }
-  
+
   // If it's an ISO string, parse it in local time
   try {
     const date = new Date(dateString)
@@ -46,44 +48,64 @@ const parseToLocalDateString = (dateString: string): string => {
 interface LedgerEntryWizardProps {
   entry?: LedgerEntry | null
   type: 'credit' | 'debit'
+  partners: Partner[]
   onClose: () => void
-  onSave: (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string }) => Promise<void>
+  onSave: (data: { amount: number; date: string; note?: string; supplier?: string; partyName?: string; partnerId?: string }) => Promise<void>
   onDelete?: (entryId: string) => void
   onDeleteConfirm?: (entryId: string) => Promise<void>
 }
 
-type Step = 
+type Step =
   | 'amount'
   | 'date'
+  | 'expenseType'
   | 'supplier'
   | 'partyName'
+  | 'partnerId'
   | 'note'
   | 'review'
 
-const getStepOrder = (type: 'credit' | 'debit'): Step[] => {
-  const baseSteps: Step[] = ['amount', 'date']
-  if (type === 'debit') {
-    return [...baseSteps, 'supplier', 'note']
-  } else {
-    return [...baseSteps, 'partyName', 'note']
-  }
-}
+type ExpenseType = 'general' | 'supplier' | 'withdrawal'
 
-export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDelete, onDeleteConfirm }: LedgerEntryWizardProps) {
-  const stepOrder = getStepOrder(type)
+export default function LedgerEntryWizard({ entry, type, partners, onClose, onSave, onDelete, onDeleteConfirm }: LedgerEntryWizardProps) {
+
+  // Initialize expense type based on entry data
+  const getInitialExpenseType = (): ExpenseType => {
+    if (entry?.partnerId) return 'withdrawal'
+    if (entry?.supplier) return 'supplier'
+    return 'general'
+  }
+
+  const [expenseType, setExpenseType] = useState<ExpenseType>(getInitialExpenseType())
+
+  const getStepOrder = (type: 'credit' | 'debit', expenseType: ExpenseType): Step[] => {
+    const baseSteps: Step[] = ['amount', 'date']
+    if (type === 'debit') {
+      const steps = [...baseSteps, 'expenseType'] as Step[]
+      if (expenseType === 'supplier') return [...steps, 'supplier', 'note']
+      if (expenseType === 'withdrawal') return [...steps, 'partnerId', 'note']
+      return [...steps, 'note'] // general
+    } else {
+      return [...baseSteps, 'partyName', 'note']
+    }
+  }
+
+  const stepOrder = getStepOrder(type, expenseType)
+
   // If editing (entry has id), start at first step, otherwise start at step 0
   const isEditMode = !!(entry?.id)
   const initialStep = 0
   const [currentStep, setCurrentStep] = useState<number>(initialStep)
   const [saving, setSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     amount: entry?.amount || 0,
     date: entry?.date ? parseToLocalDateString(entry.date) : formatLocalDate(new Date()),
     note: entry?.note || '',
     supplier: entry?.supplier || '',
     partyName: entry?.partyName || '',
+    partnerId: entry?.partnerId || '',
   })
 
   // Update formData when entry prop changes
@@ -95,10 +117,11 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
         note: entry.note || '',
         supplier: entry.supplier || '',
         partyName: entry.partyName || '',
+        partnerId: entry.partnerId || '',
       })
+      setExpenseType(getInitialExpenseType())
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry?.id, entry?.date, entry?.amount, entry?.note, entry?.supplier, entry?.partyName])
+  }, [entry?.id, entry?.date, entry?.amount, entry?.note, entry?.supplier, entry?.partyName, entry?.partnerId])
 
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [partyNames, setPartyNames] = useState<string[]>([])
@@ -120,7 +143,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
   const handleClose = useCallback(() => {
     // Don't allow closing while saving
     if (saving) return
-    
+
     onClose()
   }, [saving, onClose])
 
@@ -140,8 +163,6 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       window.removeEventListener('keydown', handleEscape)
     }
   }, [saving, handleClose])
-
-  // No need for auto-show logic since inputs are always visible on their steps
 
   const handleNext = () => {
     if (currentStep < stepOrder.length - 1) {
@@ -173,11 +194,26 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
           setCurrentStep(currentStep + 1)
         }
       }, 300)
+    } else if (step === 'expenseType') {
+      // Always auto advance after selecting type
+      setTimeout(() => {
+        if (currentStep < stepOrder.length - 1) {
+          setCurrentStep(currentStep + 1)
+        }
+      }, 100)
     }
   }
 
   const canSave = (): boolean => {
-    return formData.amount > 0 && !!formData.date
+    if (formData.amount <= 0 || !formData.date) return false
+
+    // For validation based on expense type
+    if (type === 'debit') {
+      if (expenseType === 'withdrawal' && !formData.partnerId) return false
+      // Supplier is optional even if 'supplier' type is selected (can be general expense with supplier tag)
+    }
+
+    return true
   }
 
   // Allow editing dates for all expense entries (including carting and supplier payments)
@@ -193,10 +229,12 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     const labels: Record<Step, string> = {
       amount: 'Amount',
       date: 'Date',
+      expenseType: 'Expense Type',
       supplier: 'Supplier',
       partyName: 'Party Name (Optional)',
+      partnerId: 'Select Partner',
       note: 'Note',
-      review: 'Review', // Kept for type compatibility but not used
+      review: 'Review',
     }
     return labels[step]
   }
@@ -205,10 +243,12 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     const icons: Record<Step, any> = {
       amount: DollarSign,
       date: Calendar,
+      expenseType: FileText,
       supplier: ShoppingCart,
       partyName: User,
+      partnerId: User,
       note: FileText,
-      review: Check // Kept for type compatibility but not used
+      review: Check
     }
     return icons[step]
   }
@@ -219,10 +259,14 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
         return formData.amount > 0
       case 'date':
         return !!formData.date
+      case 'expenseType':
+        return !!expenseType
       case 'supplier':
         return true // Supplier is optional for expense entries
       case 'partyName':
         return true // Party is optional for income entries
+      case 'partnerId':
+        return !!formData.partnerId
       case 'note':
         return true // Optional
       case 'review':
@@ -281,11 +325,70 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                   setFormData({ ...formData, date: val })
                   setTimeout(() => handleAfterEdit(), 100)
                 }}
-                onClose={() => {}}
+                onClose={() => { }}
                 label="Select Date"
                 inline={true}
               />
             )}
+          </div>
+        )
+
+      case 'expenseType':
+        return (
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setExpenseType('general')
+                handleAfterEdit()
+              }}
+              className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${expenseType === 'general' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-100 bg-white hover:bg-gray-50'
+                }`}
+            >
+              <div className={`p-2 rounded-lg ${expenseType === 'general' ? 'bg-primary-100' : 'bg-gray-100'}`}>
+                <FileText size={20} />
+              </div>
+              <div>
+                <div className="font-semibold">General Expense</div>
+                <div className="text-xs opacity-70">Daily costs, travel, food, etc.</div>
+              </div>
+              {expenseType === 'general' && <Check size={20} className="ml-auto" />}
+            </button>
+
+            <button
+              onClick={() => {
+                setExpenseType('supplier')
+                handleAfterEdit()
+              }}
+              className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${expenseType === 'supplier' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-100 bg-white hover:bg-gray-50'
+                }`}
+            >
+              <div className={`p-2 rounded-lg ${expenseType === 'supplier' ? 'bg-primary-100' : 'bg-gray-100'}`}>
+                <ShoppingCart size={20} />
+              </div>
+              <div>
+                <div className="font-semibold">Supplier Payment</div>
+                <div className="text-xs opacity-70">Raw materials, specialized services</div>
+              </div>
+              {expenseType === 'supplier' && <Check size={20} className="ml-auto" />}
+            </button>
+
+            <button
+              onClick={() => {
+                setExpenseType('withdrawal')
+                handleAfterEdit()
+              }}
+              className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${expenseType === 'withdrawal' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-100 bg-white hover:bg-gray-50'
+                }`}
+            >
+              <div className={`p-2 rounded-lg ${expenseType === 'withdrawal' ? 'bg-primary-100' : 'bg-gray-100'}`}>
+                <User size={20} />
+              </div>
+              <div>
+                <div className="font-semibold">Partner Withdrawal</div>
+                <div className="text-xs opacity-70">Personal use, profit withdrawal</div>
+              </div>
+              {expenseType === 'withdrawal' && <Check size={20} className="ml-auto" />}
+            </button>
           </div>
         )
 
@@ -299,7 +402,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                 setFormData({ ...formData, supplier: val })
                 setTimeout(() => handleAfterEdit(), 100)
               }}
-              onClose={() => {}}
+              onClose={() => { }}
               label="Select Supplier (Optional)"
               allowCustom={true}
               onCustomAdd={(val) => {
@@ -328,6 +431,36 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
           </div>
         )
 
+      case 'partnerId':
+        return (
+          <div className="w-full">
+            <div className="space-y-2">
+              {partners.length > 0 ? (
+                partners.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setFormData({ ...formData, partnerId: p.id! })
+                      handleAfterEdit()
+                    }}
+                    className={`w-full p-3 rounded-lg border flex items-center justify-between transition-all ${formData.partnerId === p.id
+                      ? 'border-primary-500 bg-primary-50 text-primary-900'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                  >
+                    <span className="font-medium">{p.name}</span>
+                    {formData.partnerId === p.id && <Check size={18} className="text-primary-600" />}
+                  </button>
+                ))
+              ) : (
+                <div className="text-center p-6 bg-gray-50 rounded-lg text-gray-500">
+                  No partners found in this workspace.
+                </div>
+              )}
+            </div>
+          </div>
+        )
+
       case 'partyName':
         return (
           <div className="w-full">
@@ -338,7 +471,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                 setFormData({ ...formData, partyName: val })
                 setTimeout(() => handleAfterEdit(), 100)
               }}
-              onClose={() => {}}
+              onClose={() => { }}
               label="Select Party Name (Optional)"
               allowCustom={true}
               onCustomAdd={(val) => {
@@ -367,7 +500,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               placeholder="Add a note (optional)"
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
               rows={4}
-              style={{ 
+              style={{
                 WebkitTapHighlightColor: 'transparent',
                 fontFamily: 'inherit'
               }}
@@ -395,10 +528,17 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
           console.error('Error formatting date:', error)
           return 'Not set'
         }
+      case 'expenseType':
+        if (type === 'credit') return 'Income'
+        if (expenseType === 'supplier') return 'Supplier Payment'
+        if (expenseType === 'withdrawal') return 'Withdrawal'
+        return 'General Expense'
       case 'supplier':
         return formData.supplier || ''
       case 'partyName':
         return formData.partyName || ''
+      case 'partnerId':
+        return partners.find(p => p.id === formData.partnerId)?.name || 'Select Partner'
       case 'note':
         return formData.note || ''
       default:
@@ -412,14 +552,20 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       return
     }
 
+    if (type === 'debit' && expenseType === 'withdrawal' && !formData.partnerId) {
+      alert('Please select a partner')
+      return
+    }
+
     setSaving(true)
     try {
       await onSave({
         amount: formData.amount,
         date: formData.date,
         note: (formData.note || '').trim() || undefined,
-        supplier: type === 'debit' ? ((formData.supplier || '').trim() || undefined) : undefined,
+        supplier: type === 'debit' && expenseType === 'supplier' ? ((formData.supplier || '').trim() || undefined) : undefined,
         partyName: type === 'credit' ? ((formData.partyName || '').trim() || undefined) : undefined,
+        partnerId: type === 'debit' && expenseType === 'withdrawal' ? formData.partnerId : undefined
       })
       handleClose()
     } catch (error: any) {
@@ -428,6 +574,8 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
       setSaving(false)
     }
   }
+
+  // ... rest of the file (safeCurrentStep logic, return statement, etc)
 
   // Ensure currentStep is within bounds
   const safeCurrentStep = Math.max(0, Math.min(currentStep, stepOrder.length - 1))
@@ -439,7 +587,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
     const value = getStepValue(step)
     return value && value !== 'Not set' && value !== '₹0' && value !== ''
   })
-  
+
   // Ensure currentStep is within bounds - if not, reset it
   useEffect(() => {
     if (currentStep < 0 || currentStep >= stepOrder.length) {
@@ -468,7 +616,7 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
             </button>
             <div>
               <h1 className="text-base font-bold text-gray-900">
-                {isEditMode ? `Edit ${type === 'credit' ? 'Income' : 'Expense'}` : `New ${type === 'credit' ? 'Income' : 'Expense'}`}
+                {isEditMode ? `Edit ${getStepValue('expenseType')}` : `New ${type === 'credit' ? 'Income' : 'Expense'}`}
               </h1>
               <div className="text-xs text-gray-500">
                 {filledSteps.length} / {allSteps.length} completed
@@ -521,11 +669,10 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
                   <button
                     key={step}
                     onClick={() => handleStepClick(idx)}
-                    className={`px-1.5 py-0.5 bg-white border rounded text-xs text-left active:bg-gray-50 active:scale-95 transition-all duration-150 flex items-center gap-1 ${
-                      isCurrent
-                        ? 'border-primary-400 bg-primary-50'
-                        : 'border-gray-200'
-                    }`}
+                    className={`px-1.5 py-0.5 bg-white border rounded text-xs text-left active:bg-gray-50 active:scale-95 transition-all duration-150 flex items-center gap-1 ${isCurrent
+                      ? 'border-primary-400 bg-primary-50'
+                      : 'border-gray-200'
+                      }`}
                     style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
                     <Icon size={9} className={`flex-shrink-0 ${isCurrent ? 'text-primary-600' : 'text-gray-400'}`} />
@@ -548,13 +695,12 @@ export default function LedgerEntryWizard({ entry, type, onClose, onSave, onDele
               return (
                 <div
                   key={step}
-                  className={`flex-1 h-0.5 rounded-full transition-all duration-200 ${
-                    isComplete
-                      ? 'bg-green-500'
-                      : isCurrent
+                  className={`flex-1 h-0.5 rounded-full transition-all duration-200 ${isComplete
+                    ? 'bg-green-500'
+                    : isCurrent
                       ? 'bg-primary-600'
                       : 'bg-gray-300'
-                  }`}
+                    }`}
                 />
               )
             })}

@@ -170,7 +170,7 @@ export default function AccountPage() {
 
   return (
     <AuthGate>
-      <div className="relative flex min-h-screen flex-col bg-gradient-to-b from-primary-50 via-white to-gray-50 text-gray-900">
+      <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-primary-50 via-white to-gray-50 text-gray-900">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(46,49,251,0.08),_transparent_40%),_radial-gradient(circle_at_bottom_right,_rgba(99,102,241,0.12),_transparent_35%)]" />
 
         <header className="relative z-10 bg-gradient-to-b from-primary-600 via-primary-600 to-primary-500 px-4 pb-6 pt-safe text-white shadow-lg">

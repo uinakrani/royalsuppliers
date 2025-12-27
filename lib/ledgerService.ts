@@ -33,6 +33,7 @@ export interface LedgerEntry {
   source?: LedgerSource
   supplier?: string // For expense entries - supplier of raw materials
   partyName?: string // For income entries - party from which payment received
+  partnerId?: string // For withdrawal entries - partner who withdrew money
   voided?: boolean // Soft-deleted/archived entries stay in timeline but are ignored in totals
   voidedAt?: string // When the entry was voided
   voidReason?: string // Context for voiding (e.g., "updated", "deleted")
@@ -48,6 +49,7 @@ type AddEntryOptions = {
   skipActivityLog?: boolean
   fromSync?: boolean
   createdAtOverride?: string
+  workspaceId?: string
 }
 
 // Lazy load orderService to avoid circular dependencies
@@ -92,13 +94,14 @@ export const ledgerService = {
     date?: string,
     supplier?: string,
     partyName?: string,
+    partnerId?: string,
     options: AddEntryOptions = {}
   ): Promise<string> {
     const rollbackOnFailure = options.rollbackOnFailure ?? true
     const shouldPersistLocally = !options.skipLocalWrite
     const now = new Date().toISOString()
     const createdAtValue = options.createdAtOverride || now
-    const workspaceId = getActiveWorkspaceId()
+    const workspaceId = options.workspaceId || getActiveWorkspaceId()
     // Use provided date or default to now
     // If date is provided, convert it to ISO string with time component
     let dateValue = date || now
@@ -131,6 +134,9 @@ export const ledgerService = {
     }
     if (partyName && partyName.trim()) {
       payload.partyName = partyName.trim()
+    }
+    if (partnerId && partnerId.trim()) {
+      payload.partnerId = partnerId.trim()
     }
 
     let firebaseId: string | undefined
@@ -167,7 +173,7 @@ export const ledgerService = {
               await offlineStorage.put(STORES.LEDGER_ENTRIES, payload)
               const idToDrop = options.useId || localId
               if (idToDrop && idToDrop !== firebaseId) {
-                await offlineStorage.delete(STORES.LEDGER_ENTRIES, idToDrop).catch(() => {})
+                await offlineStorage.delete(STORES.LEDGER_ENTRIES, idToDrop).catch(() => { })
               }
             }
           }
@@ -263,10 +269,17 @@ export const ledgerService = {
     return finalId
   },
 
-  async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean, skipCache?: boolean }): Promise<LedgerEntry[]> {
+  async list(options?: { onRemoteUpdate?: (entries: LedgerEntry[]) => void, preferRemote?: boolean, skipCache?: boolean, workspaceId?: string }): Promise<LedgerEntry[]> {
     try {
       const activeWorkspaceId = getActiveWorkspaceId()
       const fallbackWorkspaceId = WORKSPACE_DEFAULTS.id
+      const targetWorkspaceId = options?.workspaceId || activeWorkspaceId
+
+      // Helper to match workspace
+      const matchWorkspace = (entry: LedgerEntry) => {
+        if (!entry.workspaceId) return targetWorkspaceId === fallbackWorkspaceId
+        return entry.workspaceId === targetWorkspaceId
+      }
 
       // Get cached entries immediately if available and not skipping cache
       let cachedEntries: LedgerEntry[] | null = null
@@ -278,14 +291,14 @@ export const ledgerService = {
 
       if (cachedEntries && cachedEntries.length > 0) {
         // Use cached data immediately
-        entriesToProcess = cachedEntries.filter(matchesActiveWorkspace)
+        entriesToProcess = cachedEntries.filter(matchWorkspace)
         options?.onRemoteUpdate?.(sortLedgerEntries(entriesToProcess))
       } else {
         // No cache available, get from offline storage as fallback
         const localItemsRaw = await offlineStorage.getAll(STORES.LEDGER_ENTRIES)
         entriesToProcess = localItemsRaw
           .map((entry) => (entry.workspaceId ? entry : { ...(entry as LedgerEntry), workspaceId: fallbackWorkspaceId }))
-          .filter(matchesActiveWorkspace)
+          .filter(matchWorkspace)
       }
 
       // Return cached/local data immediately
@@ -299,8 +312,27 @@ export const ledgerService = {
             .then(async (firestoreItems) => {
               // Cache the fresh data
               localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, firestoreItems)
-              // Notify about remote update
-              options?.onRemoteUpdate?.(firestoreItems)
+              // Notify about remote update, filtering for current workspace
+              const filtered = firestoreItems.filter(matchWorkspace)
+              options?.onRemoteUpdate?.(filtered)
+            })
+            .catch((error) => {
+              console.warn('Background fetch failed for ledger entries:', error)
+            })
+        }
+      }
+
+      return sortedEntries
+      if (offlineStorage.isOnline()) {
+        const db = getDb()
+        if (db) {
+          this.getAllFromFirestore()
+            .then(async (firestoreItems) => {
+              // Cache the fresh data
+              localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, firestoreItems)
+              // Notify about remote update, filtering for current workspace
+              const filtered = firestoreItems.filter(matchesActiveWorkspace)
+              options?.onRemoteUpdate?.(filtered)
             })
             .catch((error) => {
               console.warn('Background fetch failed for ledger entries:', error)
@@ -313,6 +345,45 @@ export const ledgerService = {
     } catch (error) {
       console.error('Error in ledgerService.list():', error)
       return []
+    }
+  },
+
+  // One-time migration helper to assign all legacy entries (missing workspaceId) to default workspace
+  async assignLegacyEntriesToDefaultWorkspace(): Promise<number> {
+    if (!offlineStorage.isOnline()) return 0
+
+    const db = getDb()
+    if (!db) return 0
+
+    try {
+      // Fetch all entries
+      const q = query(collection(db, LEDGER_COLLECTION))
+      const snap = await getDocs(q)
+
+      let updateCount = 0
+      const updates: Promise<void>[] = []
+
+      snap.forEach((d) => {
+        const data = d.data()
+        if (!data.workspaceId) {
+          // Found legacy entry, assign to default workspace
+          updateCount++
+          updates.push(updateDoc(doc(db, LEDGER_COLLECTION, d.id), {
+            workspaceId: WORKSPACE_DEFAULTS.id
+          }))
+        }
+      })
+
+      if (updates.length > 0) {
+        console.log(`Creating workspace migration batch for ${updates.length} entries...`)
+        await Promise.all(updates)
+        console.log(`Successfully assigned ${updates.length} legacy entries to Default Workspace`)
+      }
+
+      return updateCount
+    } catch (error) {
+      console.error('Migration failed:', error)
+      return 0
     }
   },
 
@@ -340,6 +411,7 @@ export const ledgerService = {
 
       const item = {
         id: d.id,
+        workspaceId: data.workspaceId,
         type: data.type,
         amount: data.amount,
         note: data.note,
@@ -347,6 +419,7 @@ export const ledgerService = {
         source: data.source,
         supplier: data.supplier,
         partyName: data.partyName,
+        partnerId: data.partnerId,
         voided: data.voided || false,
         voidedAt: data.voidedAt,
         voidReason: data.voidReason,
@@ -354,13 +427,13 @@ export const ledgerService = {
         ...(createdAt ? { createdAt } : {}),
       }
 
-              firestoreItems.push(item)
-              // Cache in local storage
-              offlineStorage.put(STORES.LEDGER_ENTRIES, item)
-              // Also cache in localStorage for faster access
-              const cachedEntries = localStorageCache.get<LedgerEntry[]>(CACHE_KEYS.LEDGER_ENTRIES) || []
-              const updatedCache = cachedEntries.filter(e => e.id !== item.id).concat(item)
-              localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, updatedCache)
+      firestoreItems.push(item)
+      // Cache in local storage
+      offlineStorage.put(STORES.LEDGER_ENTRIES, item)
+      // Also cache in localStorage for faster access
+      const cachedEntries = localStorageCache.get<LedgerEntry[]>(CACHE_KEYS.LEDGER_ENTRIES) || []
+      const updatedCache = cachedEntries.filter(e => e.id !== item.id).concat(item)
+      localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, updatedCache)
     })
 
     return firestoreItems
@@ -399,6 +472,7 @@ export const ledgerService = {
           source: data.source,
           supplier: data.supplier,
           partyName: data.partyName,
+          partnerId: data.partnerId,
           voided: data.voided || false,
           voidedAt: data.voidedAt,
           voidReason: data.voidReason,
@@ -422,7 +496,8 @@ export const ledgerService = {
     // Get local data immediately for instant loading
     offlineStorage.getAll(STORES.LEDGER_ENTRIES).then(localItems => {
       if (localItems.length > 0) {
-        callback(sortLedgerEntries(localItems))
+        const filtered = (localItems as LedgerEntry[]).filter(matchesActiveWorkspace)
+        callback(sortLedgerEntries(filtered))
       } else if (isInitialLoad) {
         // No local data - try to fetch from Firestore once if online
         if (offlineStorage.isOnline()) {
@@ -443,7 +518,8 @@ export const ledgerService = {
 
     // Listen for local store changes to push real-time updates to UI immediately
     const offlineUnsubscribe = offlineStorage.onStoreChange(STORES.LEDGER_ENTRIES, (items) => {
-      callback(sortLedgerEntries(items as LedgerEntry[]))
+      const filtered = (items as LedgerEntry[]).filter(matchesActiveWorkspace)
+      callback(sortLedgerEntries(filtered))
     })
 
     // Set up Firestore real-time listener for background updates
@@ -455,6 +531,8 @@ export const ledgerService = {
       const db = getDb()
       if (!db) return
 
+      // Note: We query all and filter client-side to support legacy data (no workspaceId)
+      // which belongs to default workspace, without complex compound queries.
       const qRef = query(collection(db, LEDGER_COLLECTION), orderBy('date', 'desc'))
       firestoreUnsubscribe = onSnapshot(qRef, (snap) => {
         const items: LedgerEntry[] = []
@@ -473,6 +551,7 @@ export const ledgerService = {
 
           const item = {
             id: d.id,
+            workspaceId: data.workspaceId, // Ensure this field is read
             type: data.type,
             amount: data.amount,
             note: data.note,
@@ -480,6 +559,7 @@ export const ledgerService = {
             source: data.source,
             supplier: data.supplier,
             partyName: data.partyName,
+            partnerId: data.partnerId,
             voided: data.voided || false,
             voidedAt: data.voidedAt,
             voidReason: data.voidReason,
@@ -492,10 +572,16 @@ export const ledgerService = {
           offlineStorage.put(STORES.LEDGER_ENTRIES, item)
         })
 
+        // Filter for the UI callback
+        const workspaceItems = items.filter(matchesActiveWorkspace)
+
         // Only update UI if we have data (avoid empty updates during initial sync)
-        if (items.length > 0) {
-          const sortedItems = sortLedgerEntries(items)
+        if (workspaceItems.length > 0) {
+          const sortedItems = sortLedgerEntries(workspaceItems)
           callback(sortedItems)
+        } else if (items.length > 0 && workspaceItems.length === 0) {
+          // We have data but none match workspace - callback with empty to clear UI if needed
+          callback([])
         }
       }, (error) => {
         console.error('Firestore subscription error:', error)
@@ -605,6 +691,7 @@ export const ledgerService = {
         date: now, // log deletion on the day it happened
         supplier: entry?.supplier,
         partyName: entry?.partyName,
+        partnerId: entry?.partnerId,
         type: entry?.type,
       })
     } catch (error) {
@@ -658,6 +745,7 @@ export const ledgerService = {
                 source: data.source,
                 supplier: data.supplier,
                 partyName: data.partyName,
+                partnerId: data.partnerId,
                 voided: data.voided || false,
                 voidedAt: data.voidedAt,
                 voidReason: data.voidReason,
@@ -690,7 +778,7 @@ export const ledgerService = {
 
   async update(
     id: string,
-    updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string },
+    updates: { amount?: number; note?: string; date?: string; supplier?: string; partyName?: string; partnerId?: string },
     options: { fromOrder?: boolean; rollbackOnFailure?: boolean } = {}
   ): Promise<string> {
     const rollbackOnFailure = options.rollbackOnFailure ?? true
@@ -710,6 +798,7 @@ export const ledgerService = {
     const newNote = updates.note !== undefined ? (updates.note?.trim() || undefined) : oldEntry.note
     const newSupplier = updates.supplier !== undefined ? (updates.supplier?.trim() || undefined) : oldEntry.supplier
     const newPartyName = updates.partyName !== undefined ? (updates.partyName?.trim() || undefined) : oldEntry.partyName
+    const newPartnerId = updates.partnerId !== undefined ? (updates.partnerId?.trim() || undefined) : oldEntry.partnerId
 
     // Step 1: create a brand-new entry for the updated values (append-only)
     const newEntryId = await this.addEntry(
@@ -720,6 +809,7 @@ export const ledgerService = {
       newDate,
       newSupplier || undefined,
       newPartyName || undefined,
+      newPartnerId || undefined,
       { rollbackOnFailure, skipActivityLog: true }
     )
 
@@ -795,6 +885,8 @@ export const ledgerService = {
         previousSupplier: oldEntry.supplier,
         partyName: newPartyName,
         previousPartyName: oldEntry.partyName,
+        partnerId: newPartnerId,
+        previousPartnerId: oldEntry.partnerId,
         type: oldEntry.type,
       })
     } catch (error) {

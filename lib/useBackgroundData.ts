@@ -19,9 +19,10 @@ export function useOrders(
     enabled?: boolean
     refreshInterval?: number // in milliseconds
     skipCache?: boolean
+    refreshKey?: any // Value that triggers a refresh when changed
   }
 ) {
-  const { enabled = true, refreshInterval, skipCache = false } = options || {}
+  const { enabled = true, refreshInterval, skipCache = false, refreshKey } = options || {}
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -54,10 +55,10 @@ export function useOrders(
     }
   }, [enabled, filters, skipCache])
 
-  // Load data on mount and when filters change
+  // Load data on mount and when filters/refreshKey change
   useEffect(() => {
     loadOrders()
-  }, [loadOrders])
+  }, [loadOrders, refreshKey])
 
   // Set up periodic refresh if requested
   useEffect(() => {
@@ -96,8 +97,10 @@ export function useLedgerEntries(options?: {
   enabled?: boolean
   refreshInterval?: number
   skipCache?: boolean
+  refreshKey?: any
+  workspaceId?: string
 }) {
-  const { enabled = true, refreshInterval, skipCache = false } = options || {}
+  const { enabled = true, refreshInterval, skipCache = false, refreshKey, workspaceId } = options || {}
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -114,6 +117,7 @@ export function useLedgerEntries(options?: {
 
       const freshEntries = await ledgerService.list({
         skipCache,
+        workspaceId,
         onRemoteUpdate: (updatedEntries) => {
           setEntries(updatedEntries)
           if (!isBackground) setLoading(false)
@@ -128,12 +132,12 @@ export function useLedgerEntries(options?: {
       setLoading(false)
       console.error('Error loading ledger entries:', error)
     }
-  }, [enabled, skipCache])
+  }, [enabled, skipCache, workspaceId])
 
-  // Load data on mount
+  // Load data on mount and when refreshKey/workspaceId changes
   useEffect(() => {
     loadEntries()
-  }, [loadEntries])
+  }, [loadEntries, refreshKey, workspaceId])
 
   // Set up periodic refresh if requested
   useEffect(() => {
@@ -174,9 +178,10 @@ export function useInvoices(
     enabled?: boolean
     refreshInterval?: number
     skipCache?: boolean
+    refreshKey?: any
   }
 ) {
-  const { enabled = true, refreshInterval, skipCache = false } = options || {}
+  const { enabled = true, refreshInterval, skipCache = false, refreshKey } = options || {}
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -209,10 +214,10 @@ export function useInvoices(
     }
   }, [enabled, filters, skipCache])
 
-  // Load data on mount and when filters change
+  // Load data on mount and when filters/refreshKey change
   useEffect(() => {
     loadInvoices()
-  }, [loadInvoices])
+  }, [loadInvoices, refreshKey])
 
   // Set up periodic refresh if requested
   useEffect(() => {
