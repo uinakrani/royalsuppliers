@@ -231,6 +231,7 @@ class SyncService {
           data.date,
           data.supplier,
           data.partyName,
+          data.partnerId,
           {
             rollbackOnFailure: false,
             useId: item.localId || id,

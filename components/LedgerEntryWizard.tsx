@@ -70,11 +70,11 @@ type ExpenseType = 'general' | 'supplier' | 'withdrawal'
 export default function LedgerEntryWizard({ entry, type, partners, onClose, onSave, onDelete, onDeleteConfirm }: LedgerEntryWizardProps) {
 
   // Initialize expense type based on entry data
-  const getInitialExpenseType = (): ExpenseType => {
+  const getInitialExpenseType = useCallback((): ExpenseType => {
     if (entry?.partnerId) return 'withdrawal'
     if (entry?.supplier) return 'supplier'
     return 'general'
-  }
+  }, [entry?.partnerId, entry?.supplier])
 
   const [expenseType, setExpenseType] = useState<ExpenseType>(getInitialExpenseType())
 
@@ -121,7 +121,7 @@ export default function LedgerEntryWizard({ entry, type, partners, onClose, onSa
       })
       setExpenseType(getInitialExpenseType())
     }
-  }, [entry?.id, entry?.date, entry?.amount, entry?.note, entry?.supplier, entry?.partyName, entry?.partnerId])
+  }, [entry, getInitialExpenseType])
 
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [partyNames, setPartyNames] = useState<string[]>([])

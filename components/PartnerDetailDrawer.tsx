@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Calendar, FileText, Banknote, X } from 'lucide-react'
 import { Partner, Withdrawal } from '@/types/partner'
 import { partnerService } from '@/lib/partnerService'
@@ -28,14 +28,7 @@ export default function PartnerDetailDrawer({
 
     const drawerRef = useRef<HTMLDivElement>(null)
 
-    // Load withdrawals when partner changes or drawer opens
-    useEffect(() => {
-        if (isOpen && partner.id) {
-            loadWithdrawals()
-        }
-    }, [isOpen, partner.id])
-
-    const loadWithdrawals = async () => {
+    const loadWithdrawals = useCallback(async () => {
         try {
             setLoading(true)
             const data = await partnerService.getWithdrawals(partner.id!)
@@ -46,7 +39,14 @@ export default function PartnerDetailDrawer({
         } finally {
             setLoading(false)
         }
-    }
+    }, [partner.id])
+
+    // Load withdrawals when partner changes or drawer opens
+    useEffect(() => {
+        if (isOpen && partner.id) {
+            loadWithdrawals()
+        }
+    }, [isOpen, partner.id, loadWithdrawals])
 
     // Calculate stats
     const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0)

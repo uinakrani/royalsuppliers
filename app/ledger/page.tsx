@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { LedgerEntry, ledgerService } from '@/lib/ledgerService'
 import { useLedgerEntries } from '@/lib/useBackgroundData'
 import { format } from 'date-fns'
@@ -148,7 +148,7 @@ export default function LedgerPage() {
     ledgerService.assignLegacyEntriesToDefaultWorkspace().catch(console.error)
   }, [])
 
-  const loadPartners = async () => {
+  const loadPartners = useCallback(async () => {
     try {
       if (activeWorkspaceId) {
         const data = await partnerService.getPartners(activeWorkspaceId)
@@ -157,9 +157,9 @@ export default function LedgerPage() {
     } catch (error) {
       console.error('Error loading partners:', error)
     }
-  }
+  }, [activeWorkspaceId])
 
-  const loadInvestment = async () => {
+  const loadInvestment = useCallback(async () => {
     try {
       const data = await investmentService.getInvestment()
       setInvestment(data)
@@ -170,7 +170,7 @@ export default function LedgerPage() {
     } catch (error) {
       console.error('Error loading investment:', error)
     }
-  }
+  }, [])
 
   const openInvestmentDrawer = (mode: 'add' | 'reduce' = 'add') => {
     setInvestmentMode(mode)
@@ -189,7 +189,7 @@ export default function LedgerPage() {
     // Load investment data (entries are handled by useLedgerEntries hook)
     loadInvestment()
     loadPartners()
-  }, [])
+  }, [loadInvestment, loadPartners])
 
   // Load activities
   useEffect(() => {

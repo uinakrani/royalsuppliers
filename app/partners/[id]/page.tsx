@@ -101,18 +101,26 @@ export default function PartnerDetailsPage() {
 
         setIsSaving(true)
         try {
-            const withdrawalData: any = {
-                partnerId,
-                amount: parseFloat(amount),
-                date,
-                note
-            }
-
             if (editingWithdrawal) {
-                await partnerService.updateWithdrawal(editingWithdrawal.id!, withdrawalData)
+                await ledgerService.update(editingWithdrawal.id!, {
+                    amount: parseFloat(amount),
+                    date,
+                    note,
+                    partnerId
+                })
                 showToast('Withdrawal updated', 'success')
             } else {
-                await partnerService.addWithdrawal(withdrawalData)
+                await ledgerService.addEntry(
+                    'debit',
+                    parseFloat(amount),
+                    note,
+                    'manual',
+                    date,
+                    undefined, // supplier
+                    undefined, // partyName
+                    partnerId,
+                    { workspaceId: activeWorkspaceId || undefined }
+                )
                 showToast('Withdrawal recorded', 'success')
             }
 
@@ -129,7 +137,7 @@ export default function PartnerDetailsPage() {
     const handleDeleteWithdrawal = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this withdrawal?')) return
         try {
-            await partnerService.deleteWithdrawal(id)
+            await ledgerService.remove(id)
             showToast('Withdrawal deleted', 'success')
             loadData()
         } catch (error) {
