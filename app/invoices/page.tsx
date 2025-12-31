@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { invoiceService } from '@/lib/invoiceService'
 import { orderService } from '@/lib/orderService'
 import { generateInvoicePDF, generateMultipleInvoicesPDF } from '@/lib/pdfService'
@@ -19,16 +19,44 @@ import OrderForm from '@/components/OrderForm'
 import { useRouter } from 'next/navigation'
 import { createRipple } from '@/lib/rippleEffect'
 import AuthGate from '@/components/AuthGate'
-import { useInvoices } from '@/lib/useBackgroundData' // Import the new hook
+import { useInvoices, useOrders } from '@/lib/useBackgroundData' // Import the new hook
 
 export default function InvoicesPage() {
+  const { orders } = useOrders()
   const { invoices, loading: invoicesLoading, refresh: refreshInvoices } = useInvoices()
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([])
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<InvoiceFilters>({})
   const [partyNames, setPartyNames] = useState<string[]>([])
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null)
-  const [invoiceOrders, setInvoiceOrders] = useState<Record<string, Order[]>>({})
+
+  // Group orders by invoice ID using useMemo
+  const invoiceOrders = useMemo(() => {
+    const map: Record<string, Order[]> = {}
+
+    // Initialize map for all invoices
+    invoices.forEach(inv => {
+      if (inv.id) map[inv.id] = []
+    })
+
+    // Populate with orders that match the invoice IDs
+    // We can either iterate orders and check invoiceId, or iterate invoices and find orders
+    // Since we have lists of IDs in invoices, let's use that for O(1) lookups if we map orders by ID first
+
+    // But simplistic approach first:
+    // Create a map of all orders by ID for fast lookup
+    const ordersById = new Map(orders.map(o => [o.id, o]))
+
+    invoices.forEach(inv => {
+      if (inv.id && inv.orderIds) {
+        map[inv.id] = inv.orderIds
+          .map(id => ordersById.get(id))
+          .filter((o): o is Order => !!o)
+      }
+    })
+
+    return map
+  }, [invoices, orders])
   const [showForm, setShowForm] = useState(false)
   const [generatingPDF, setGeneratingPDF] = useState<string | null>(null)
   const router = useRouter()
@@ -237,466 +265,464 @@ export default function InvoicesPage() {
 
   return (
     <AuthGate>
-    <div className="bg-gray-50" style={{ 
-      height: '100dvh',
-      minHeight: '100dvh',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden'
-    }}>
-      {/* Header - Fixed at top */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-4 pt-safe sticky top-0 z-40 shadow-lg" style={{ flexShrink: 0 }}>
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold mb-0.5">Invoices</h1>
-            <p className="text-xs text-primary-100 opacity-90">
-              {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => refreshInvoices()}
-              className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
-              title="Refresh Invoices"
-              style={{
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              <RefreshCw size={20} />
-            </button>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
-              style={{
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              <Filter size={20} />
-            </button>
+      <div className="bg-gray-50" style={{
+        height: '100dvh',
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-4 pt-safe sticky top-0 z-40 shadow-lg" style={{ flexShrink: 0 }}>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold mb-0.5">Invoices</h1>
+              <p className="text-xs text-primary-100 opacity-90">
+                {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => refreshInvoices()}
+                className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
+                title="Refresh Invoices"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <RefreshCw size={20} />
+              </button>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl hover:bg-white/30 active:scale-95 transition-all duration-150 flex items-center justify-center shadow-sm"
+                style={{
+                  WebkitTapHighlightColor: 'transparent',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <Filter size={20} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Content Area - Scrollable, fits between header and nav */}
-      <div style={{ 
-        flex: 1,
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        paddingBottom: '4rem'
-      }}>
-        <div className="max-w-7xl mx-auto">
 
-        {/* Filters Drawer */}
-        <FilterPopup isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Party Name</label>
-              <select
-                value={filterPartyName}
-                onChange={(e) => setFilterPartyName(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
-              >
-                <option value="">All</option>
-                {partyNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-              <input
-                type="date"
-                value={filterStartDate}
-                onChange={(e) => setFilterStartDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-              <input
-                type="date"
-                value={filterEndDate}
-                onChange={(e) => setFilterEndDate(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
-              <select
-                value={filterPaid}
-                onChange={(e) => setFilterPaid(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
-              >
-                <option value="">All</option>
-                <option value="paid">Paid</option>
-                <option value="unpaid">Unpaid</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Overdue Status</label>
-              <select
-                value={filterOverdue}
-                onChange={(e) => setFilterOverdue(e.target.value)}
-                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
-              >
-                <option value="">All</option>
-                <option value="overdue">Overdue</option>
-                <option value="not-overdue">Not Overdue</option>
-              </select>
-            </div>
-            <div className="flex gap-2 pt-2 border-t border-gray-200 sticky bottom-0 bg-white pb-2">
-              <button
-                onClick={() => {
-                  applyFilterForm()
-                  setShowFilters(false)
-                }}
-                className="flex-1 bg-primary-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors"
-              >
-                Apply
-              </button>
-              <button
-                onClick={() => {
-                  resetFilters()
-                  setShowFilters(false)
-                }}
-                className="flex-1 bg-gray-200 text-gray-700 px-2 py-1 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
-              >
-                Reset
-              </button>
+        {/* Content Area - Scrollable, fits between header and nav */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: '4rem'
+        }}>
+          <div className="max-w-7xl mx-auto">
+
+            {/* Filters Drawer */}
+            <FilterPopup isOpen={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Party Name</label>
+                  <select
+                    value={filterPartyName}
+                    onChange={(e) => setFilterPartyName(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
+                  >
+                    <option value="">All</option>
+                    {partyNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={(e) => setFilterStartDate(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={(e) => setFilterEndDate(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
+                  <select
+                    value={filterPaid}
+                    onChange={(e) => setFilterPaid(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
+                  >
+                    <option value="">All</option>
+                    <option value="paid">Paid</option>
+                    <option value="unpaid">Unpaid</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Overdue Status</label>
+                  <select
+                    value={filterOverdue}
+                    onChange={(e) => setFilterOverdue(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg"
+                  >
+                    <option value="">All</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="not-overdue">Not Overdue</option>
+                  </select>
+                </div>
+                <div className="flex gap-2 pt-2 border-t border-gray-200 sticky bottom-0 bg-white pb-2">
+                  <button
+                    onClick={() => {
+                      applyFilterForm()
+                      setShowFilters(false)
+                    }}
+                    className="flex-1 bg-primary-600 text-white px-2 py-1 rounded-lg text-xs font-medium hover:bg-primary-700 transition-colors"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={() => {
+                      resetFilters()
+                      setShowFilters(false)
+                    }}
+                    className="flex-1 bg-gray-200 text-gray-700 px-2 py-1 rounded-lg text-xs font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </FilterPopup>
+
+            {/* Invoices List */}
+            <div className="space-y-3 p-3">
+              {filteredInvoices.length === 0 ? (
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-12 text-center border border-gray-200 shadow-sm" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
+                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText size={40} className="text-gray-400" />
+                  </div>
+                  <p className="text-gray-600 font-medium text-base">No invoices found</p>
+                  <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
+                </div>
+              ) : (
+                filteredInvoices.map((invoice, index) => {
+                  const orders = invoiceOrders[invoice.id!] || []
+                  const remaining = invoice.totalAmount - (invoice.paidAmount || 0)
+                  const isExpanded = expandedInvoice === invoice.id
+                  const paymentPercentage = invoice.totalAmount > 0 ? ((invoice.paidAmount || 0) / invoice.totalAmount) * 100 : 0
+
+                  return (
+                    <div
+                      key={invoice.id}
+                      className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 ease-out"
+                      style={{
+                        animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both`,
+                        WebkitTapHighlightColor: 'transparent'
+                      }}
+                    >
+                      {/* Invoice Header - Modern Design */}
+                      <div className="p-4">
+                        {/* Top Row: Invoice Number and Status */}
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
+                              <div className="p-2 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-sm">
+                                <FileText size={18} className="text-white" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-bold text-gray-900 truncate">{invoice.invoiceNumber}</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">{invoice.partyName}</p>
+                              </div>
+                            </div>
+                            {getStatusBadge(invoice)}
+                          </div>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                createRipple(e)
+                                handleDownloadInvoice(invoice)
+                              }}
+                              disabled={generatingPDF === invoice.id}
+                              className="p-2.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 flex items-center justify-center shadow-sm shadow-primary-500/30 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={generatingPDF === invoice.id ? "Generating PDF..." : "Download Invoice"}
+                              style={{
+                                WebkitTapHighlightColor: 'transparent',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {generatingPDF === invoice.id ? (
+                                <LoadingSpinner size={16} />
+                              ) : (
+                                <Download size={16} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Payment Progress Bar */}
+                        {!invoice.paid && (
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs font-medium text-gray-600">Payment Progress</span>
+                              <span className="text-xs font-bold text-primary-600">{paymentPercentage.toFixed(0)}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500 ease-out shadow-sm"
+                                style={{ width: `${Math.min(100, paymentPercentage)}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Info Cards */}
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200">
+                            <p className="text-xs text-gray-500 mb-1">Site</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{invoice.siteName}</p>
+                          </div>
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200">
+                            <p className="text-xs text-gray-500 mb-1">Due Date</p>
+                            <p className={`text-sm font-semibold ${invoice.overdue ? 'text-red-600' : 'text-gray-900'}`}>
+                              {format(new Date(invoice.dueDate), 'dd MMM yyyy')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Amount Cards */}
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-3 border border-primary-200">
+                            <p className="text-xs text-primary-600 font-medium mb-1">Total Amount</p>
+                            <p className="text-lg font-bold text-primary-700">{formatIndianCurrency(invoice.totalAmount)}</p>
+                          </div>
+                          <div className={`rounded-xl p-3 border ${invoice.paid
+                              ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-200'
+                              : 'bg-gradient-to-br from-red-50 to-red-100 border-red-200'
+                            }`}>
+                            <p className={`text-xs font-medium mb-1 ${invoice.paid ? 'text-green-600' : 'text-red-600'}`}>
+                              {invoice.paid ? 'Paid' : 'Remaining'}
+                            </p>
+                            <p className={`text-lg font-bold ${invoice.paid ? 'text-green-700' : 'text-red-700'}`}>
+                              {formatIndianCurrency(invoice.paid ? (invoice.paidAmount || 0) : remaining)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action Row */}
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                          <div className="flex items-center gap-3 text-xs text-gray-600">
+                            <span className="flex items-center gap-1">
+                              <Package size={12} />
+                              {orders.length} Order{orders.length !== 1 ? 's' : ''}
+                            </span>
+                            <span>•</span>
+                            <span>{invoice.partialPayments?.length || 0} Payment{invoice.partialPayments?.length !== 1 ? 's' : ''}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                createRipple(e)
+                                toggleExpand(invoice.id!)
+                              }}
+                              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-200 active:scale-95 transition-all duration-150"
+                              style={{
+                                WebkitTapHighlightColor: 'transparent',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {isExpanded ? 'Hide Details' : 'View Details'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                createRipple(e)
+                                handleDeleteInvoice(invoice.id!)
+                              }}
+                              className="px-3 py-1.5 bg-red-100 text-red-700 rounded-xl text-xs font-semibold hover:bg-red-200 active:scale-95 transition-all duration-150 flex items-center gap-1.5"
+                              title="Delete Invoice"
+                              style={{
+                                WebkitTapHighlightColor: 'transparent',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              <Trash2 size={12} />
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Invoice Details - Expanded with Animation */}
+                      <div
+                        className={`overflow-hidden transition-all duration-300 ease-out ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                          }`}
+                      >
+                        <div className="p-4 bg-gradient-to-br from-gray-50 to-white border-t border-gray-200">
+                          <div className="space-y-4">
+                            {/* Orders - Modern View */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="p-1.5 bg-primary-100 rounded-lg">
+                                  <Package size={14} className="text-primary-600" />
+                                </div>
+                                <h4 className="text-sm font-bold text-gray-900">Orders ({orders.length})</h4>
+                              </div>
+                              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                {/* Desktop Table Header */}
+                                <div className="hidden sm:grid grid-cols-12 gap-1.5 p-1.5 bg-gray-100 border-b border-gray-200 text-xs font-semibold text-gray-700">
+                                  <div className="col-span-2">Date</div>
+                                  <div className="col-span-5">Material</div>
+                                  <div className="col-span-1 text-right">Weight</div>
+                                  <div className="col-span-2 text-right">Rate</div>
+                                  <div className="col-span-2 text-right">Total</div>
+                                </div>
+                                {/* Table Rows */}
+                                <div className="divide-y divide-gray-200">
+                                  {orders.map((order) => (
+                                    <div key={order.id} className="p-1.5 hover:bg-gray-50">
+                                      {/* Desktop View */}
+                                      <div className="hidden sm:grid grid-cols-12 gap-1.5 text-xs">
+                                        <div className="col-span-2 text-gray-900">
+                                          {format(new Date(order.date), 'dd MMM yyyy')}
+                                        </div>
+                                        <div className="col-span-5 text-gray-900 truncate" title={Array.isArray(order.material) ? order.material.join(', ') : order.material}>
+                                          {Array.isArray(order.material) ? order.material.join(', ') : order.material}
+                                        </div>
+                                        <div className="col-span-1 text-right text-gray-900">
+                                          {order.weight.toFixed(2)}
+                                        </div>
+                                        <div className="col-span-2 text-right text-gray-900">
+                                          {formatIndianCurrency(order.rate)}
+                                        </div>
+                                        <div className="col-span-2 text-right font-semibold text-gray-900">
+                                          {formatIndianCurrency(order.total)}
+                                        </div>
+                                      </div>
+                                      {/* Mobile View */}
+                                      <div className="sm:hidden space-y-1 text-xs">
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex-1">
+                                            <p className="font-semibold text-gray-900">
+                                              {format(new Date(order.date), 'dd MMM yyyy')}
+                                            </p>
+                                            <p className="text-gray-600 mt-0.5">
+                                              {Array.isArray(order.material) ? order.material.join(', ') : order.material}
+                                            </p>
+                                          </div>
+                                          <p className="font-semibold text-gray-900 ml-2">
+                                            {formatIndianCurrency(order.total)}
+                                          </p>
+                                        </div>
+                                        <div className="flex gap-3 text-gray-600">
+                                          <span>Weight: {order.weight.toFixed(2)}</span>
+                                          <span>Rate: {formatIndianCurrency(order.rate)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Payments - Modern View */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <div className="p-1.5 bg-green-100 rounded-lg">
+                                  <CheckCircle size={14} className="text-green-600" />
+                                </div>
+                                <h4 className="text-sm font-bold text-gray-900">Payments ({invoice.partialPayments?.length || 0})</h4>
+                              </div>
+                              {invoice.partialPayments && invoice.partialPayments.length > 0 ? (
+                                <div className="space-y-2">
+                                  {invoice.partialPayments.map((payment, idx) => (
+                                    <div
+                                      key={payment.id}
+                                      className="bg-white p-3 rounded-xl border border-gray-200 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow duration-200"
+                                      style={{ animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both` }}
+                                    >
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className="font-bold text-gray-900 text-sm">{formatIndianCurrency(payment.amount)}</p>
+                                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                                            Paid
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500">{format(new Date(payment.date), 'dd MMM yyyy • HH:mm')}</p>
+                                        {payment.note && (
+                                          <p className="text-xs text-gray-600 mt-1.5 bg-gray-50 px-2 py-1 rounded-lg">{payment.note}</p>
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={(e) => {
+                                          createRipple(e)
+                                          handleRemovePayment(invoice.id!, payment.id)
+                                        }}
+                                        className="ml-3 px-3 py-2 bg-red-100 text-red-700 rounded-xl text-xs font-semibold hover:bg-red-200 active:scale-95 transition-all duration-150 flex items-center gap-1.5"
+                                        style={{
+                                          WebkitTapHighlightColor: 'transparent',
+                                          position: 'relative',
+                                          overflow: 'hidden'
+                                        }}
+                                      >
+                                        <Trash2 size={12} />
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
+                                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <AlertCircle size={20} className="text-gray-400" />
+                                  </div>
+                                  <p className="text-sm text-gray-600 font-medium">No payments recorded</p>
+                                  <p className="text-xs text-gray-500 mt-1">Add a payment to track invoice status</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
-        </FilterPopup>
 
-        {/* Invoices List */}
-        <div className="space-y-3 p-3">
-          {filteredInvoices.length === 0 ? (
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-12 text-center border border-gray-200 shadow-sm" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
-              <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText size={40} className="text-gray-400" />
-              </div>
-              <p className="text-gray-600 font-medium text-base">No invoices found</p>
-              <p className="text-gray-500 text-sm mt-1">Try adjusting your filters</p>
-            </div>
-          ) : (
-            filteredInvoices.map((invoice, index) => {
-              const orders = invoiceOrders[invoice.id!] || []
-              const remaining = invoice.totalAmount - (invoice.paidAmount || 0)
-              const isExpanded = expandedInvoice === invoice.id
-              const paymentPercentage = invoice.totalAmount > 0 ? ((invoice.paidAmount || 0) / invoice.totalAmount) * 100 : 0
-
-              return (
-                <div 
-                  key={invoice.id} 
-                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 ease-out"
-                  style={{ 
-                    animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both`,
-                    WebkitTapHighlightColor: 'transparent'
-                  }}
-                >
-                  {/* Invoice Header - Modern Design */}
-                  <div className="p-4">
-                    {/* Top Row: Invoice Number and Status */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <div className="p-2 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-sm">
-                            <FileText size={18} className="text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold text-gray-900 truncate">{invoice.invoiceNumber}</h3>
-                            <p className="text-xs text-gray-500 mt-0.5">{invoice.partyName}</p>
-                          </div>
-                        </div>
-                        {getStatusBadge(invoice)}
-                      </div>
-                      <div className="flex gap-2 flex-shrink-0">
-                        <button
-                          onClick={(e) => {
-                            createRipple(e)
-                            handleDownloadInvoice(invoice)
-                          }}
-                          disabled={generatingPDF === invoice.id}
-                          className="p-2.5 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 flex items-center justify-center shadow-sm shadow-primary-500/30 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={generatingPDF === invoice.id ? "Generating PDF..." : "Download Invoice"}
-                          style={{
-                            WebkitTapHighlightColor: 'transparent',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          {generatingPDF === invoice.id ? (
-                            <LoadingSpinner size={16} />
-                          ) : (
-                            <Download size={16} />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Payment Progress Bar */}
-                    {!invoice.paid && (
-                      <div className="mb-3">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-medium text-gray-600">Payment Progress</span>
-                          <span className="text-xs font-bold text-primary-600">{paymentPercentage.toFixed(0)}%</span>
-                        </div>
-                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full transition-all duration-500 ease-out shadow-sm"
-                            style={{ width: `${Math.min(100, paymentPercentage)}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Info Cards */}
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200">
-                        <p className="text-xs text-gray-500 mb-1">Site</p>
-                        <p className="text-sm font-semibold text-gray-900 truncate">{invoice.siteName}</p>
-                      </div>
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200">
-                        <p className="text-xs text-gray-500 mb-1">Due Date</p>
-                        <p className={`text-sm font-semibold ${invoice.overdue ? 'text-red-600' : 'text-gray-900'}`}>
-                          {format(new Date(invoice.dueDate), 'dd MMM yyyy')}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Amount Cards */}
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-3 border border-primary-200">
-                        <p className="text-xs text-primary-600 font-medium mb-1">Total Amount</p>
-                        <p className="text-lg font-bold text-primary-700">{formatIndianCurrency(invoice.totalAmount)}</p>
-                      </div>
-                      <div className={`rounded-xl p-3 border ${
-                        invoice.paid 
-                          ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-200' 
-                          : 'bg-gradient-to-br from-red-50 to-red-100 border-red-200'
-                      }`}>
-                        <p className={`text-xs font-medium mb-1 ${invoice.paid ? 'text-green-600' : 'text-red-600'}`}>
-                          {invoice.paid ? 'Paid' : 'Remaining'}
-                        </p>
-                        <p className={`text-lg font-bold ${invoice.paid ? 'text-green-700' : 'text-red-700'}`}>
-                          {formatIndianCurrency(invoice.paid ? (invoice.paidAmount || 0) : remaining)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Action Row */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                      <div className="flex items-center gap-3 text-xs text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <Package size={12} />
-                          {orders.length} Order{orders.length !== 1 ? 's' : ''}
-                        </span>
-                        <span>•</span>
-                        <span>{invoice.partialPayments?.length || 0} Payment{invoice.partialPayments?.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            createRipple(e)
-                            toggleExpand(invoice.id!)
-                          }}
-                          className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-semibold hover:bg-gray-200 active:scale-95 transition-all duration-150"
-                          style={{
-                            WebkitTapHighlightColor: 'transparent',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          {isExpanded ? 'Hide Details' : 'View Details'}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            createRipple(e)
-                            handleDeleteInvoice(invoice.id!)
-                          }}
-                          className="px-3 py-1.5 bg-red-100 text-red-700 rounded-xl text-xs font-semibold hover:bg-red-200 active:scale-95 transition-all duration-150 flex items-center gap-1.5"
-                          title="Delete Invoice"
-                          style={{
-                            WebkitTapHighlightColor: 'transparent',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}
-                        >
-                          <Trash2 size={12} />
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Invoice Details - Expanded with Animation */}
-                  <div 
-                    className={`overflow-hidden transition-all duration-300 ease-out ${
-                      isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-                    }`}
-                  >
-                    <div className="p-4 bg-gradient-to-br from-gray-50 to-white border-t border-gray-200">
-                      <div className="space-y-4">
-                        {/* Orders - Modern View */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="p-1.5 bg-primary-100 rounded-lg">
-                              <Package size={14} className="text-primary-600" />
-                            </div>
-                            <h4 className="text-sm font-bold text-gray-900">Orders ({orders.length})</h4>
-                          </div>
-                          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                            {/* Desktop Table Header */}
-                            <div className="hidden sm:grid grid-cols-12 gap-1.5 p-1.5 bg-gray-100 border-b border-gray-200 text-xs font-semibold text-gray-700">
-                              <div className="col-span-2">Date</div>
-                              <div className="col-span-5">Material</div>
-                              <div className="col-span-1 text-right">Weight</div>
-                              <div className="col-span-2 text-right">Rate</div>
-                              <div className="col-span-2 text-right">Total</div>
-                            </div>
-                            {/* Table Rows */}
-                            <div className="divide-y divide-gray-200">
-                              {orders.map((order) => (
-                                <div key={order.id} className="p-1.5 hover:bg-gray-50">
-                                  {/* Desktop View */}
-                                  <div className="hidden sm:grid grid-cols-12 gap-1.5 text-xs">
-                                    <div className="col-span-2 text-gray-900">
-                                      {format(new Date(order.date), 'dd MMM yyyy')}
-                                    </div>
-                                    <div className="col-span-5 text-gray-900 truncate" title={Array.isArray(order.material) ? order.material.join(', ') : order.material}>
-                                      {Array.isArray(order.material) ? order.material.join(', ') : order.material}
-                                    </div>
-                                    <div className="col-span-1 text-right text-gray-900">
-                                      {order.weight.toFixed(2)}
-                                    </div>
-                                    <div className="col-span-2 text-right text-gray-900">
-                                      {formatIndianCurrency(order.rate)}
-                                    </div>
-                                    <div className="col-span-2 text-right font-semibold text-gray-900">
-                                      {formatIndianCurrency(order.total)}
-                                    </div>
-                                  </div>
-                                  {/* Mobile View */}
-                                  <div className="sm:hidden space-y-1 text-xs">
-                                    <div className="flex justify-between items-start">
-                                      <div className="flex-1">
-                                        <p className="font-semibold text-gray-900">
-                                          {format(new Date(order.date), 'dd MMM yyyy')}
-                                        </p>
-                                        <p className="text-gray-600 mt-0.5">
-                                          {Array.isArray(order.material) ? order.material.join(', ') : order.material}
-                                        </p>
-                                      </div>
-                                      <p className="font-semibold text-gray-900 ml-2">
-                                        {formatIndianCurrency(order.total)}
-                                      </p>
-                                    </div>
-                                    <div className="flex gap-3 text-gray-600">
-                                      <span>Weight: {order.weight.toFixed(2)}</span>
-                                      <span>Rate: {formatIndianCurrency(order.rate)}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Payments - Modern View */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="p-1.5 bg-green-100 rounded-lg">
-                              <CheckCircle size={14} className="text-green-600" />
-                            </div>
-                            <h4 className="text-sm font-bold text-gray-900">Payments ({invoice.partialPayments?.length || 0})</h4>
-                          </div>
-                          {invoice.partialPayments && invoice.partialPayments.length > 0 ? (
-                            <div className="space-y-2">
-                              {invoice.partialPayments.map((payment, idx) => (
-                                <div 
-                                  key={payment.id} 
-                                  className="bg-white p-3 rounded-xl border border-gray-200 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow duration-200"
-                                  style={{ animation: `fadeInUp 0.3s ease-out ${idx * 0.05}s both` }}
-                                >
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <p className="font-bold text-gray-900 text-sm">{formatIndianCurrency(payment.amount)}</p>
-                                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                                        Paid
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-gray-500">{format(new Date(payment.date), 'dd MMM yyyy • HH:mm')}</p>
-                                    {payment.note && (
-                                      <p className="text-xs text-gray-600 mt-1.5 bg-gray-50 px-2 py-1 rounded-lg">{payment.note}</p>
-                                    )}
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      createRipple(e)
-                                      handleRemovePayment(invoice.id!, payment.id)
-                                    }}
-                                    className="ml-3 px-3 py-2 bg-red-100 text-red-700 rounded-xl text-xs font-semibold hover:bg-red-200 active:scale-95 transition-all duration-150 flex items-center gap-1.5"
-                                    style={{
-                                      WebkitTapHighlightColor: 'transparent',
-                                      position: 'relative',
-                                      overflow: 'hidden'
-                                    }}
-                                  >
-                                    <Trash2 size={12} />
-                                    Remove
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="bg-white p-4 rounded-xl border border-gray-200 text-center">
-                              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                                <AlertCircle size={20} className="text-gray-400" />
-                              </div>
-                              <p className="text-sm text-gray-600 font-medium">No payments recorded</p>
-                              <p className="text-xs text-gray-500 mt-1">Add a payment to track invoice status</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })
+          {/* Order Form */}
+          {showForm && (
+            <OrderForm
+              order={null}
+              onClose={() => setShowForm(false)}
+              onSave={async (orderData) => {
+                try {
+                  const orderId = await orderService.createOrder(orderData)
+                  showToast('Order created successfully!', 'success')
+                  setShowForm(false)
+                  // Navigate to orders page and highlight the new order
+                  router.push(`/orders?highlight=${orderId}`)
+                } catch (error: any) {
+                  showToast(error?.message || 'Failed to create order', 'error')
+                  throw error
+                }
+              }}
+            />
           )}
         </div>
-      </div>
 
-      {/* Order Form */}
-      {showForm && (
-        <OrderForm
-          order={null}
-          onClose={() => setShowForm(false)}
-          onSave={async (orderData) => {
-            try {
-              const orderId = await orderService.createOrder(orderData)
-              showToast('Order created successfully!', 'success')
-              setShowForm(false)
-              // Navigate to orders page and highlight the new order
-              router.push(`/orders?highlight=${orderId}`)
-            } catch (error: any) {
-              showToast(error?.message || 'Failed to create order', 'error')
-              throw error
-            }
-          }}
-        />
-      )}
+        {/* Bottom Navigation - Fixed at bottom */}
+        <NavBar />
       </div>
-
-      {/* Bottom Navigation - Fixed at bottom */}
-      <NavBar />
-    </div>
     </AuthGate>
   )
 }
