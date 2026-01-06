@@ -14,7 +14,7 @@ import { Partner } from '@/types/partner'
 
 export default function AccountPage() {
   const { user, profilePhoto, logout, workspaces, activeWorkspaceId, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember } = useAuth()
-  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteIdentifier, setInviteIdentifier] = useState('')
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -86,12 +86,16 @@ export default function AccountPage() {
     }
   }
 
-  const isInviteEmailValid = useMemo(() => {
-    const email = inviteEmail.trim()
-    if (!email) return false
-    // Simple RFC5322-like pattern for typical emails
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  }, [inviteEmail])
+  const isInviteValid = useMemo(() => {
+    const val = inviteIdentifier.trim()
+    if (!val) return false
+    // Check if email
+    if (val.includes('@')) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)
+    }
+    // Check if phone (must start with +91)
+    return val.startsWith('+91') && val.length >= 13
+  }, [inviteIdentifier])
 
   const handleWorkspaceDelete = async (workspaceId: string) => {
     const confirmed = window.confirm('Deleting this workspace may make its data inaccessible. Continue?')
@@ -104,11 +108,11 @@ export default function AccountPage() {
     }
   }
 
-  const handleRemoveMember = async (email: string) => {
+  const handleRemoveMember = async (identifier: string) => {
     const confirmed = window.confirm('Remove this member from the workspace?')
     if (!confirmed) return
     try {
-      await removeMember(email)
+      await removeMember(identifier)
       showToast('Member removed', 'success')
     } catch (err: any) {
       showToast(err?.message || 'Failed to remove member', 'error')
@@ -125,20 +129,29 @@ export default function AccountPage() {
 
   const onInvite = async (e: FormEvent) => {
     e.preventDefault()
-    if (!isInviteEmailValid) {
-      showToast('Enter a valid email before inviting', 'error')
+    if (!isInviteValid) {
+      showToast('Enter a valid phone number or email', 'error')
       return
     }
     setIsSaving(true)
     try {
-      await inviteToWorkspace(inviteEmail.trim().toLowerCase())
+      await inviteToWorkspace(inviteIdentifier.trim())
       showToast('Invitation sent', 'success')
-      setInviteEmail('')
+      setInviteIdentifier('')
     } catch (err: any) {
       showToast(err?.message || 'Failed to send invite', 'error')
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleInviteInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value
+    // If user starts typing a number and it doesn't start with +, add +91
+    if (/^\d/.test(val) && !val.startsWith('+')) {
+      val = '+91' + val
+    }
+    setInviteIdentifier(val)
   }
 
   const onCreateWorkspace = async (e: FormEvent) => {
@@ -178,7 +191,7 @@ export default function AccountPage() {
             <div>
               <p className="text-xs uppercase tracking-[0.14em] text-primary-100/80">Account</p>
               <h1 className="text-xl font-semibold leading-tight">{user.displayName || 'Your account'}</h1>
-              <p className="text-sm text-primary-100/90">{user.email}</p>
+              <p className="text-sm text-primary-100/90">{user.email || user.phoneNumber}</p>
             </div>
             <button
               onClick={() => logout()}
@@ -199,7 +212,7 @@ export default function AccountPage() {
                     <Image src={profilePhoto} alt="Profile" width={56} height={56} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 text-base font-semibold text-primary-700">
-                      {user.email?.[0]?.toUpperCase() || '?'}
+                      {(user.email || user.phoneNumber || '?')[0]?.toUpperCase()}
                     </div>
                   )}
                 </div>
@@ -224,7 +237,7 @@ export default function AccountPage() {
               <div className="flex-1">
                 <p className="text-[11px] uppercase tracking-[0.12em] text-gray-500">Account</p>
                 <h2 className="text-lg font-semibold text-gray-900 leading-tight">{user.displayName || 'Your account'}</h2>
-                <p className="text-sm text-gray-600">{user.email}</p>
+                <p className="text-sm text-gray-600">{user.email || user.phoneNumber}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
                   <span className="rounded-full bg-primary-50 px-2 py-1 text-primary-700">{activeWorkspace?.name || 'No workspace selected'}</span>
                   <span className="rounded-full bg-gray-100 px-2 py-1 text-gray-700">{workspaces.length} workspace{workspaces.length === 1 ? '' : 's'}</span>
@@ -301,28 +314,28 @@ export default function AccountPage() {
           <section className="space-y-3 rounded-2xl border border-white/60 bg-white/85 p-4 shadow-lg backdrop-blur">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <Send size={18} className="text-primary-600" />
-              Invite by email
+              Invite Member
             </div>
             <form onSubmit={onInvite} className="flex gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2">
               <input
-                type="email"
+                type="text"
                 required
                 className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary-200 focus:outline-none"
-                placeholder="name@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Phone number (+91...) or email"
+                value={inviteIdentifier}
+                onChange={handleInviteInputChange}
               />
               <button
                 type="submit"
-                disabled={isSaving || !isInviteEmailValid}
+                disabled={isSaving || !isInviteValid}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-primary-700 disabled:opacity-60"
               >
                 <Send size={14} />
-                Send
+                Invite
               </button>
             </form>
             <p className="text-xs text-gray-500">
-              Invited members will see this workspace when they log in with the same email.
+              Invited members will see this workspace when they log in. Start with +91 for phones.
             </p>
           </section>
 
@@ -370,27 +383,48 @@ export default function AccountPage() {
               Members
             </div>
             <div className="space-y-2">
-              {activeWorkspace && activeWorkspace.memberEmails?.length ? (
-                activeWorkspace.memberEmails.map((m) => {
-                  const isOwnerEmail = activeWorkspace.ownerEmail?.toLowerCase() === m.toLowerCase()
-                  const isOwner = activeWorkspace.ownerId === user?.uid
-                  return (
-                    <div key={m} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
-                      <div>
-                        <div className="font-medium text-gray-800">{m}</div>
-                        {isOwnerEmail && <div className="text-[11px] text-gray-500">Owner</div>}
+              {activeWorkspace && (activeWorkspace.memberEmails?.length || activeWorkspace.memberPhoneNumbers?.length) ? (
+                <>
+                  {activeWorkspace.memberEmails?.map((m) => {
+                    const isOwnerEmail = activeWorkspace.ownerEmail?.toLowerCase() === m.toLowerCase()
+                    const isOwner = activeWorkspace.ownerId === user?.uid
+                    return (
+                      <div key={m} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
+                        <div>
+                          <div className="font-medium text-gray-800">{m}</div>
+                          {isOwnerEmail && <div className="text-[11px] text-gray-500">Owner</div>}
+                        </div>
+                        {isOwner && !isOwnerEmail && (
+                          <button
+                            onClick={() => handleRemoveMember(m)}
+                            className="rounded-lg border border-red-100 bg-red-50 p-2 text-red-600 transition hover:bg-red-100"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
-                      {isOwner && !isOwnerEmail && (
-                        <button
-                          onClick={() => handleRemoveMember(m)}
-                          className="rounded-lg border border-red-100 bg-red-50 p-2 text-red-600 transition hover:bg-red-100"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  )
-                })
+                    )
+                  })}
+
+                  {activeWorkspace.memberPhoneNumbers?.map((m) => {
+                    const isOwner = activeWorkspace.ownerId === user?.uid
+                    return (
+                      <div key={m} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
+                        <div>
+                          <div className="font-medium text-gray-800">{m}</div>
+                        </div>
+                        {isOwner && (
+                          <button
+                            onClick={() => handleRemoveMember(m)}
+                            className="rounded-lg border border-red-100 bg-red-50 p-2 text-red-600 transition hover:bg-red-100"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </>
               ) : (
                 <p className="text-sm text-gray-500">No members to show.</p>
               )}

@@ -1,10 +1,11 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { onAuthStateChanged, updateProfile, User } from 'firebase/auth'
+import { useRouter } from 'next/navigation'
+import { onAuthStateChanged, updateProfile, User, ConfirmationResult, RecaptchaVerifier } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { getAuthInstance, loginWithGoogleSmart, logoutUser, handleRedirectResult, sendEmailLink, signInWithEmailLinkFromUrl } from '@/lib/authClient'
+import { getAuthInstance, loginWithGoogleSmart, logoutUser, handleRedirectResult, sendEmailLink, signInWithEmailLinkFromUrl, loginWithPhone, setupRecaptcha } from '@/lib/authClient'
 import { getDb, getFirebaseApp } from '@/lib/firebase'
 import { workspaceService, Workspace } from '@/lib/workspaceService'
 import { getActiveWorkspaceId, setActiveWorkspaceId, WORKSPACE_DEFAULTS } from '@/lib/workspaceSession'
@@ -27,6 +28,8 @@ type AuthContextType = {
   uploadProfileImage: (file: File) => Promise<string | null>
   deleteWorkspace: (id: string) => Promise<void>
   removeMember: (email: string) => Promise<void>
+  loginWithPhone: (phoneNumber: string, appVerifier: any) => Promise<ConfirmationResult>
+  setUpRecaptcha: (elementId: string) => RecaptchaVerifier
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -39,7 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string | null>(null)
   const [redirecting, setRedirecting] = useState(false)
   const [redirectFailed, setRedirectFailed] = useState(false)
+
   const redirectCheckInFlight = useRef(false)
+  const router = useRouter()
 
   const clearRedirectFlag = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -106,253 +111,223 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const auth = getAuthInstance()
     let unsub: (() => void) | undefined
-    ;(async () => {
-      setLoading(true)
-      await processRedirectIfNeeded(true)
+      ; (async () => {
+        setLoading(true)
+        await processRedirectIfNeeded(true)
 
-      let isMagicLinkUser = false
+        let isMagicLinkUser = false
 
-      // Check for custom magic link authentication first
-      if (typeof window !== 'undefined') {
-        console.log('🔍 Checking for magic link data on AuthContext init')
-        const customUserData = localStorage.getItem('rs-auth-user')
-        const authMethod = localStorage.getItem('rs-auth-method')
-        const currentPath = window.location.pathname
+        // Check for custom magic link authentication first
+        if (typeof window !== 'undefined') {
+          console.log('🔍 Checking for magic link data on AuthContext init')
+          const customUserData = localStorage.getItem('rs-auth-user')
+          const authMethod = localStorage.getItem('rs-auth-method')
+          const currentPath = window.location.pathname
 
-        console.log('🔍 AuthContext init - checking for magic link:', {
-          hasCustomUserData: !!customUserData,
-          customUserData: customUserData ? 'present' : 'null',
-          authMethod,
-          currentPath,
-          currentUser: !!user,
-          timestamp: new Date().toISOString()
-        })
+          console.log('🔍 AuthContext init - checking for magic link:', {
+            hasCustomUserData: !!customUserData,
+            customUserData: customUserData ? 'present' : 'null',
+            authMethod,
+            currentPath,
+            currentUser: !!user,
+            timestamp: new Date().toISOString()
+          })
 
-        if (customUserData && authMethod === 'magic-link') {
-          console.log('🔗 Found custom magic link authentication, setting user')
-          console.log('📦 Raw customUserData:', customUserData.substring(0, 100) + '...')
-          try {
-            const customUser = JSON.parse(customUserData)
-            console.log('👤 Parsed user data:', {
-              uid: customUser.uid,
-              email: customUser.email,
-              displayName: customUser.displayName
-            })
-
-            // Create a mock Firebase user object for compatibility
-            const mockFirebaseUser = {
-              ...customUser,
-              getIdToken: () => Promise.resolve('magic-link-token'),
-              getIdTokenResult: () => Promise.resolve({ claims: {} }),
-            }
-            setUser(mockFirebaseUser as User)
-            isMagicLinkUser = true
-            console.log('✅ Magic link user set successfully')
-
-            // Load workspaces for magic link user
-            console.log('🏢 Loading workspaces for magic link user...')
+          if (customUserData && authMethod === 'magic-link') {
+            console.log('🔗 Found custom magic link authentication, setting user')
+            console.log('📦 Raw customUserData:', customUserData.substring(0, 100) + '...')
             try {
-              let userWorkspaces = await workspaceService.listForUser({
-                uid: mockFirebaseUser.uid,
-                email: mockFirebaseUser.email,
+              const customUser = JSON.parse(customUserData)
+              console.log('👤 Parsed user data:', {
+                uid: customUser.uid,
+                email: customUser.email,
+                displayName: customUser.displayName
               })
 
-              console.log('📋 Found workspaces for magic link user:', userWorkspaces.length)
-
-              if (userWorkspaces.length === 0) {
-                const fallbackName = `${mockFirebaseUser.displayName || 'My'} Workspace`
-                console.log('📝 Creating fallback workspace for magic link user:', fallbackName)
-                const createdId = await workspaceService.createWorkspace(fallbackName, {
-                  uid: mockFirebaseUser.uid,
-                  email: mockFirebaseUser.email
-                })
-                if (createdId) {
-                  userWorkspaces = await workspaceService.listForUser({
-                    uid: mockFirebaseUser.uid,
-                    email: mockFirebaseUser.email
-                  })
-                  console.log('✅ Fallback workspace created for magic link user')
-                }
-              }
-
-              setWorkspaces(userWorkspaces)
-              bootstrapWorkspace(userWorkspaces)
-              console.log('🏢 Workspaces loaded and set for magic link user')
-            } catch (workspaceError) {
-              console.error('❌ Failed to load workspaces for magic link user:', workspaceError)
-              // Set empty workspaces as fallback
-              setWorkspaces([])
-            }
-
-            // Don't set up Firebase listener for magic link users to prevent override
-            console.log('🚫 Skipping Firebase auth listener for magic link user - returning early')
-            setLoading(false)
-            return
-          } catch (parseError) {
-            console.warn('❌ Failed to parse custom user data:', parseError)
-            // Clean up invalid data
-            localStorage.removeItem('rs-auth-user')
-            localStorage.removeItem('rs-auth-method')
-          }
-        } else if (authMethod === 'magic-link' && !customUserData) {
-          console.warn('⚠️ Magic link auth method set but no user data found')
-          localStorage.removeItem('rs-auth-method')
-        }
-      }
-
-      // If no magic link user was found, set up Firebase listener
-      console.log('🔄 Setting up Firebase auth listener (no magic link user found)')
-
-      // Fallback: Re-check for magic link data after a short delay
-      setTimeout(async () => {
-        if (typeof window !== 'undefined') {
-          const fallbackUserData = localStorage.getItem('rs-auth-user')
-          const fallbackAuthMethod = localStorage.getItem('rs-auth-method')
-
-          if (fallbackUserData && fallbackAuthMethod === 'magic-link' && !user && !isMagicLinkUser) {
-            console.log('🔗 Fallback: Found magic link data, setting user')
-            try {
-              const fallbackUser = JSON.parse(fallbackUserData)
+              // Create a mock Firebase user object for compatibility
               const mockFirebaseUser = {
-                ...fallbackUser,
+                ...customUser,
                 getIdToken: () => Promise.resolve('magic-link-token'),
                 getIdTokenResult: () => Promise.resolve({ claims: {} }),
               }
               setUser(mockFirebaseUser as User)
               isMagicLinkUser = true
+              console.log('✅ Magic link user set successfully')
 
-              // Load workspaces for fallback magic link user
-              console.log('🏢 Loading workspaces for fallback magic link user...')
+              // Load workspaces for magic link user
+              console.log('🏢 Loading workspaces for magic link user...')
               try {
                 let userWorkspaces = await workspaceService.listForUser({
                   uid: mockFirebaseUser.uid,
                   email: mockFirebaseUser.email,
                 })
 
-                console.log('📋 Found workspaces for fallback magic link user:', userWorkspaces.length)
+                console.log('📋 Found workspaces for magic link user:', userWorkspaces.length)
 
-                if (userWorkspaces.length === 0) {
-                  const fallbackName = `${mockFirebaseUser.displayName || 'My'} Workspace`
-                  console.log('📝 Creating fallback workspace for fallback magic link user:', fallbackName)
-                  const createdId = await workspaceService.createWorkspace(fallbackName, {
-                    uid: mockFirebaseUser.uid,
-                    email: mockFirebaseUser.email
-                  })
-                  if (createdId) {
-                    userWorkspaces = await workspaceService.listForUser({
-                      uid: mockFirebaseUser.uid,
-                      email: mockFirebaseUser.email
-                    })
-                    console.log('✅ Fallback workspace created for magic link user')
-                  }
-                }
+                // Auto-creation disabled for magic link users too
+                // if (userWorkspaces.length === 0) { ... }
 
                 setWorkspaces(userWorkspaces)
                 bootstrapWorkspace(userWorkspaces)
-                console.log('🏢 Workspaces loaded and set for fallback magic link user')
+                console.log('🏢 Workspaces loaded and set for magic link user')
               } catch (workspaceError) {
-                console.error('❌ Failed to load workspaces for fallback magic link user:', workspaceError)
+                console.error('❌ Failed to load workspaces for magic link user:', workspaceError)
                 // Set empty workspaces as fallback
                 setWorkspaces([])
               }
 
+              // Don't set up Firebase listener for magic link users to prevent override
+              console.log('🚫 Skipping Firebase auth listener for magic link user - returning early')
               setLoading(false)
-              console.log('✅ Fallback: Magic link user set successfully')
-            } catch (error) {
-              console.warn('❌ Fallback: Failed to parse magic link data:', error)
+              return
+            } catch (parseError) {
+              console.warn('❌ Failed to parse custom user data:', parseError)
+              // Clean up invalid data
+              localStorage.removeItem('rs-auth-user')
+              localStorage.removeItem('rs-auth-method')
             }
+          } else if (authMethod === 'magic-link' && !customUserData) {
+            console.warn('⚠️ Magic link auth method set but no user data found')
+            localStorage.removeItem('rs-auth-method')
           }
         }
-      }, 1000)
 
-      // Only set up Firebase listener if we're not using magic link authentication
-      if (!isMagicLinkUser) {
-        unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-          console.log('🔥 Firebase auth state changed:', {
-            hasFirebaseUser: !!firebaseUser,
-            firebaseUserEmail: firebaseUser?.email,
-            currentUser: !!user
-          })
+        // If no magic link user was found, set up Firebase listener
+        console.log('🔄 Setting up Firebase auth listener (no magic link user found)')
 
-          setLoading(true)
-          try {
-            if (firebaseUser) {
-              setUser(firebaseUser)
-              let photoUrl = firebaseUser.photoURL || null
-              if (typeof window !== 'undefined' && firebaseUser.email) {
-                localStorage.setItem('rs-last-email', firebaseUser.email)
+        // Fallback: Re-check for magic link data after a short delay
+        setTimeout(async () => {
+          if (typeof window !== 'undefined') {
+            const fallbackUserData = localStorage.getItem('rs-auth-user')
+            const fallbackAuthMethod = localStorage.getItem('rs-auth-method')
+
+            if (fallbackUserData && fallbackAuthMethod === 'magic-link' && !user && !isMagicLinkUser) {
+              console.log('🔗 Fallback: Found magic link data, setting user')
+              try {
+                const fallbackUser = JSON.parse(fallbackUserData)
+                const mockFirebaseUser = {
+                  ...fallbackUser,
+                  getIdToken: () => Promise.resolve('magic-link-token'),
+                  getIdTokenResult: () => Promise.resolve({ claims: {} }),
+                }
+                setUser(mockFirebaseUser as User)
+                isMagicLinkUser = true
+
+                // Load workspaces for fallback magic link user
+                console.log('🏢 Loading workspaces for fallback magic link user...')
+                try {
+                  let userWorkspaces = await workspaceService.listForUser({
+                    uid: mockFirebaseUser.uid,
+                    email: mockFirebaseUser.email,
+                  })
+
+                  console.log('📋 Found workspaces for fallback magic link user:', userWorkspaces.length)
+
+                  // Auto-creation disabled for fallback magic link users
+                  // if (userWorkspaces.length === 0) { ... }
+
+                  setWorkspaces(userWorkspaces)
+                  bootstrapWorkspace(userWorkspaces)
+                  console.log('🏢 Workspaces loaded and set for fallback magic link user')
+                } catch (workspaceError) {
+                  console.error('❌ Failed to load workspaces for fallback magic link user:', workspaceError)
+                  // Set empty workspaces as fallback
+                  setWorkspaces([])
+                }
+
+                setLoading(false)
+                console.log('✅ Fallback: Magic link user set successfully')
+              } catch (error) {
+                console.warn('❌ Fallback: Failed to parse magic link data:', error)
               }
+            }
+          }
+        }, 1000)
 
-              const db = getDb()
-              if (db) {
-                const userDoc = doc(db, 'users', firebaseUser.uid)
-                const snap = await getDoc(userDoc)
-                const now = new Date().toISOString()
-                if (snap.exists()) {
-                  const data = snap.data() as any
-                  if (data.photoURL) {
-                    photoUrl = data.photoURL
-                  }
-                  await setDoc(
-                    userDoc,
-                    {
-                      lastLoginAt: now,
+        // Only set up Firebase listener if we're not using magic link authentication
+        if (!isMagicLinkUser) {
+          unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+            console.log('🔥 Firebase auth state changed:', {
+              hasFirebaseUser: !!firebaseUser,
+              firebaseUserEmail: firebaseUser?.email,
+              currentUser: !!user
+            })
+
+            setLoading(true)
+            try {
+              if (firebaseUser) {
+                setUser(firebaseUser)
+                let photoUrl = firebaseUser.photoURL || null
+                if (typeof window !== 'undefined' && firebaseUser.email) {
+                  localStorage.setItem('rs-last-email', firebaseUser.email)
+                }
+
+                const db = getDb()
+                if (db) {
+                  const userDoc = doc(db, 'users', firebaseUser.uid)
+                  const snap = await getDoc(userDoc)
+                  const now = new Date().toISOString()
+                  if (snap.exists()) {
+                    const data = snap.data() as any
+                    if (data.photoURL) {
+                      photoUrl = data.photoURL
+                    }
+                    await setDoc(
+                      userDoc,
+                      {
+                        lastLoginAt: now,
+                        displayName: firebaseUser.displayName,
+                        email: firebaseUser.email,
+                        photoURL: photoUrl,
+                      },
+                      { merge: true }
+                    )
+                  } else {
+                    await setDoc(userDoc, {
                       displayName: firebaseUser.displayName,
                       email: firebaseUser.email,
                       photoURL: photoUrl,
-                    },
-                    { merge: true }
-                  )
-                } else {
-                  await setDoc(userDoc, {
-                    displayName: firebaseUser.displayName,
-                    email: firebaseUser.email,
-                    photoURL: photoUrl,
-                    createdAt: now,
-                    lastLoginAt: now,
-                  })
+                      createdAt: now,
+                      lastLoginAt: now,
+                    })
+                  }
                 }
-              }
 
-              // Ensure the default workspace exists for legacy data (owner only).
-              if (firebaseUser.email && firebaseUser.email.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
-                await workspaceService.ensureDefaultWorkspace(firebaseUser.uid, firebaseUser.email || null)
-              }
-
-              let userWorkspaces = await workspaceService.listForUser({
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-              })
-              if (userWorkspaces.length === 0) {
-                const fallbackName = `${firebaseUser.displayName || 'My'} Workspace`
-                const createdId = await workspaceService.createWorkspace(fallbackName, { uid: firebaseUser.uid, email: firebaseUser.email })
-                if (createdId) {
-                  userWorkspaces = await workspaceService.listForUser({ uid: firebaseUser.uid, email: firebaseUser.email })
+                // Ensure the default workspace exists for legacy data (owner only).
+                if (firebaseUser.email && firebaseUser.email.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
+                  await workspaceService.ensureDefaultWorkspace(firebaseUser.uid, firebaseUser.email || null)
                 }
+
+                let userWorkspaces = await workspaceService.listForUser({
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  phoneNumber: firebaseUser.phoneNumber,
+                })
+                // Auto-creation disabled to support onboarding flow
+                // if (userWorkspaces.length === 0) { ... }
+                setWorkspaces(userWorkspaces)
+                bootstrapWorkspace(userWorkspaces)
+                setProfilePhoto(photoUrl)
+              } else {
+                setUser(null)
+                setProfilePhoto(null)
+                setWorkspaces([])
+                setActiveWorkspaceIdState(null)
               }
-              setWorkspaces(userWorkspaces)
-              bootstrapWorkspace(userWorkspaces)
-              setProfilePhoto(photoUrl)
-            } else {
-              setUser(null)
-              setProfilePhoto(null)
-              setWorkspaces([])
-              setActiveWorkspaceIdState(null)
+            } finally {
+              setLoading(false)
+              setRedirecting(false)
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('rs-auth-redirect')
+              }
             }
-          } finally {
-            setLoading(false)
-            setRedirecting(false)
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('rs-auth-redirect')
-            }
-          }
-        })
-      } else {
-        console.log('🚫 Skipping Firebase auth listener setup for magic link user')
-        setLoading(false)
-        setRedirecting(false)
-      }
-    })()
+          })
+        } else {
+          console.log('🚫 Skipping Firebase auth listener setup for magic link user')
+          setLoading(false)
+          setRedirecting(false)
+        }
+      })()
 
     return () => {
       if (unsub) unsub()
@@ -437,7 +412,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (name: string) => {
       if (!user) return null
       const id = await workspaceService.createWorkspace(name, { uid: user.uid, email: user.email })
-      const updated = await workspaceService.listForUser({ uid: user.uid, email: user.email })
+      const updated = await workspaceService.listForUser({ uid: user.uid, email: user.email, phoneNumber: user.phoneNumber })
       setWorkspaces(updated)
       setWorkspace(id)
       return id
@@ -450,7 +425,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!activeWorkspaceId) throw new Error('No active workspace')
       await workspaceService.inviteMember(activeWorkspaceId, email)
       if (user) {
-        const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email })
+        const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email, phoneNumber: user.phoneNumber })
         setWorkspaces(refreshed)
       }
     },
@@ -492,7 +467,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (id: string) => {
       if (!user) throw new Error('Not authenticated')
       await workspaceService.deleteWorkspace(id, { uid: user.uid })
-      const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email })
+      const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email, phoneNumber: user.phoneNumber })
       setWorkspaces(refreshed)
 
       if (activeWorkspaceId === id) {
@@ -500,12 +475,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (next) {
           setWorkspace(next.id)
         } else {
-          setActiveWorkspaceIdState(WORKSPACE_DEFAULTS.id)
-          setActiveWorkspaceId(WORKSPACE_DEFAULTS.id)
+          setActiveWorkspaceIdState(null)
+          // If no workspaces left, go to onboarding
+          router.replace('/onboarding')
         }
       }
     },
-    [user, activeWorkspaceId, setWorkspace]
+    [user, activeWorkspaceId, setWorkspace, router]
   )
 
   const removeMember = useCallback(
@@ -513,11 +489,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!user) throw new Error('Not authenticated')
       if (!activeWorkspaceId) throw new Error('No active workspace')
       await workspaceService.removeMember(activeWorkspaceId, email, { uid: user.uid })
-      const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email })
+      const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email, phoneNumber: user.phoneNumber })
       setWorkspaces(refreshed)
     },
     [user, activeWorkspaceId]
   )
+
+  const loginWithPhoneFn = useCallback(async (phoneNumber: string, appVerifier: any) => {
+    return await loginWithPhone(phoneNumber, appVerifier)
+  }, [])
+
+  const setUpRecaptchaFn = useCallback((elementId: string) => {
+    return setupRecaptcha(elementId)
+  }, [])
 
   const value = useMemo(
     () => ({
@@ -538,8 +522,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       deleteWorkspace,
       removeMember,
       clearRedirectFlag,
+      loginWithPhone: loginWithPhoneFn,
+      setUpRecaptcha: setUpRecaptchaFn,
     }),
-    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, loginWithEmail, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag]
+    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, loginWithEmail, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag, loginWithPhoneFn, setUpRecaptchaFn]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,6 +1,6 @@
 'use client'
 
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence, signInWithRedirect, getRedirectResult, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence, signInWithRedirect, getRedirectResult, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth'
 import { getFirebaseApp } from './firebase'
 
 let authInitialized = false
@@ -43,7 +43,7 @@ function getAuthInstance() {
     // Additional PWA-specific handling
     if (typeof window !== 'undefined') {
       const isPWA = (window.navigator as any).standalone === true ||
-                    window.matchMedia('(display-mode: standalone)').matches
+        window.matchMedia('(display-mode: standalone)').matches
 
       if (isPWA) {
         console.log('📱 PWA detected, ensuring auth persistence')
@@ -174,6 +174,29 @@ export async function signInWithEmailLinkFromUrl(url: string) {
     }
   } catch (error) {
     console.error('Error signing in with email link:', error)
+    throw error
+  }
+}
+
+// Phone Authentication Functions
+export function setupRecaptcha(elementId: string) {
+  const auth = getAuthInstance()
+  const recaptchaVerifier = new RecaptchaVerifier(auth, elementId, {
+    size: 'invisible',
+    callback: () => {
+      console.log('reCAPTCHA solved')
+    },
+  })
+  return recaptchaVerifier
+}
+
+export async function loginWithPhone(phoneNumber: string, appVerifier: any): Promise<ConfirmationResult> {
+  const auth = getAuthInstance()
+  try {
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+    return confirmationResult
+  } catch (error) {
+    console.error('Error signing in with phone number:', error)
     throw error
   }
 }
