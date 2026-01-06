@@ -23,7 +23,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Royal Suppliers - Order Management',
   description: 'Order and invoice management system',
-  manifest: '/manifest.json?v=3',
+  // manifest: '/manifest.json?v=3', // Handled by app/manifest.ts
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default', // Use default to show theme color properly
@@ -54,17 +54,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png" />
+        <link rel="icon" href="/api/icon?size=192p" />
+        <link rel="apple-touch-icon" href="/api/icon?size=192p" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/api/icon?size=192p" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/api/icon" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
         <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#2e31fb" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-title" content="Royal Suppliers" />
-        <style dangerouslySetInnerHTML={{__html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           /* iOS Status Bar Color - Match header color (#2e31fb) */
           @supports (-webkit-touch-callout: none) {
             html {

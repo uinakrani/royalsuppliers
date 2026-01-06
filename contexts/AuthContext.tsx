@@ -69,15 +69,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const found = list.find((ws) => ws.id === stored)
       if (found) {
         setActiveWorkspaceIdState(found.id)
-        setActiveWorkspaceId(found.id)
+        setActiveWorkspaceId(found.id, found.name)
         return
       }
       if (list.length > 0) {
         setActiveWorkspaceIdState(list[0].id)
-        setActiveWorkspaceId(list[0].id)
+        setActiveWorkspaceId(list[0].id, list[0].name)
       } else {
         setActiveWorkspaceIdState(WORKSPACE_DEFAULTS.id)
-        setActiveWorkspaceId(WORKSPACE_DEFAULTS.id)
+        setActiveWorkspaceId(WORKSPACE_DEFAULTS.id, WORKSPACE_DEFAULTS.name)
       }
     },
     []
@@ -406,8 +406,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setWorkspace = useCallback((id: string) => {
     setActiveWorkspaceIdState(id)
-    setActiveWorkspaceId(id)
-  }, [])
+    const ws = workspaces.find(w => w.id === id)
+    setActiveWorkspaceId(id, ws?.name)
+  }, [workspaces])
 
   const createWorkspace = useCallback(
     async (name: string) => {
