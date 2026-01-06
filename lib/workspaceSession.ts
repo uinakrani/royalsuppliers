@@ -28,17 +28,11 @@ export function getActiveWorkspaceId(): string {
   return activeWorkspaceId
 }
 
-export function setActiveWorkspaceId(id: string, name?: string) {
-  console.log('DEBUG: setActiveWorkspaceId called with:', id, name)
+export function setActiveWorkspaceId(id: string) {
+  console.log('DEBUG: setActiveWorkspaceId called with:', id)
   activeWorkspaceId = id
   if (typeof window !== 'undefined') {
     window.localStorage.setItem('activeWorkspaceId', id)
-
-    // Set cookies for server-side access (manifest etc)
-    document.cookie = `activeWorkspaceId=${id}; path=/; max-age=31536000; SameSite=Lax`
-    if (name) {
-      document.cookie = `activeWorkspaceName=${encodeURIComponent(name)}; path=/; max-age=31536000; SameSite=Lax`
-    }
   }
 }
 

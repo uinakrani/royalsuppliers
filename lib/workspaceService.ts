@@ -13,6 +13,7 @@ export interface Workspace {
   memberPhoneNumbers?: string[]
   createdAt: string
   currentUserIsOwner?: boolean
+  iconUrl?: string | null
 }
 
 export const workspaceService = {
@@ -228,6 +229,26 @@ export const workspaceService = {
 
     await updateDoc(wsRef, {
       name: newName.trim(),
+      updatedAt: new Date().toISOString()
+    })
+  },
+
+  async updateWorkspaceIcon(workspaceId: string, iconUrl: string | null, user: { uid: string }): Promise<void> {
+    const db = getDb()
+    if (!db) throw new Error('Firestore not ready')
+
+    const wsRef = doc(db, 'workspaces', workspaceId)
+    const snap = await getDoc(wsRef)
+
+    if (!snap.exists()) throw new Error('Workspace not found')
+
+    const data = snap.data() as Workspace
+    if (data.ownerId !== user.uid) {
+      throw new Error('Only the workspace owner can update the icon')
+    }
+
+    await updateDoc(wsRef, {
+      iconUrl: iconUrl,
       updatedAt: new Date().toISOString()
     })
   },

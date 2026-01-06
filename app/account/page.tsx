@@ -13,7 +13,7 @@ import { partnerService } from '@/lib/partnerService'
 import { Partner } from '@/types/partner'
 
 export default function AccountPage() {
-  const { user, profilePhoto, logout, workspaces, activeWorkspaceId, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, renameWorkspace, removeMember } = useAuth()
+  const { user, profilePhoto, logout, workspaces, activeWorkspaceId, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, renameWorkspace, removeMember, updateWorkspaceIcon } = useAuth()
   const [inviteIdentifier, setInviteIdentifier] = useState('')
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -28,6 +28,10 @@ export default function AccountPage() {
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [workspaceToRename, setWorkspaceToRename] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+
+  // Icon Upload State
+  const workspaceIconInputRef = useRef<HTMLInputElement | null>(null)
+  const [workspaceToUpdateIcon, setWorkspaceToUpdateIcon] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -212,6 +216,20 @@ export default function AccountPage() {
     }
   }
 
+  const onWorkspaceIconUpload = async (file: File) => {
+    if (!workspaceToUpdateIcon) return
+    setIsSaving(true)
+    try {
+      await updateWorkspaceIcon(workspaceToUpdateIcon, file)
+      showToast('Workspace icon updated', 'success')
+      setWorkspaceToUpdateIcon(null)
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update workspace icon', 'error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <AuthGate>
       <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-gradient-to-b from-primary-50 via-white to-gray-50 text-gray-900">
@@ -304,19 +322,40 @@ export default function AccountPage() {
                       className="flex-1 text-left"
                     >
                       <div className="flex items-center gap-2">
+                        <div className="relative h-6 w-6 overflow-hidden rounded-md border border-gray-200">
+                          {ws.iconUrl ? (
+                            <Image src={ws.iconUrl} alt="WS" width={24} height={24} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[10px] font-bold text-gray-400">
+                              {ws.name[0]?.toUpperCase()}
+                            </div>
+                          )}
+                        </div>
                         <div className="font-semibold">{ws.name}</div>
                         {isActive && <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-primary-700 shadow">Active</span>}
                       </div>
                       <div className="text-[12px] text-gray-500">Owner: {ws.ownerEmail || 'unknown'}</div>
                     </button>
                     {isOwner && (
-                      <button
-                        onClick={() => openRenameModal(ws.id, ws.name)}
-                        className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-gray-600 transition hover:bg-gray-100"
-                        title="Rename workspace"
-                      >
-                        <Edit2 size={14} />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setWorkspaceToUpdateIcon(ws.id)
+                            workspaceIconInputRef.current?.click()
+                          }}
+                          className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-gray-600 transition hover:bg-gray-100"
+                          title="Update Icon"
+                        >
+                          <Upload size={14} />
+                        </button>
+                        <button
+                          onClick={() => openRenameModal(ws.id, ws.name)}
+                          className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-gray-600 transition hover:bg-gray-100"
+                          title="Rename workspace"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      </>
                     )}
                     {isActive && <CheckCircle size={16} className="text-primary-600" />}
                     {isOwner && !isDefault && (
@@ -568,8 +607,22 @@ export default function AccountPage() {
             </div>
           </div>
         )}
+
+
+        {/* Hidden Input for Workspace Icon */}
+        <input
+          ref={workspaceIconInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) onWorkspaceIconUpload(file)
+            // Reset value so same file can be selected again
+            e.target.value = ''
+          }}
+        />
       </div>
-    </AuthGate>
+    </AuthGate >
   )
 }
-

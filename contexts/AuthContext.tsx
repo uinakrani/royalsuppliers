@@ -31,6 +31,7 @@ type AuthContextType = {
   removeMember: (email: string) => Promise<void>
   loginWithPhone: (phoneNumber: string, appVerifier: any) => Promise<ConfirmationResult>
   setUpRecaptcha: (elementId: string) => RecaptchaVerifier
+  updateWorkspaceIcon: (workspaceId: string, file: File) => Promise<string | null>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -66,18 +67,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrapWorkspace = useCallback(
     (list: Workspace[]) => {
       const stored = getActiveWorkspaceId()
-      const found = list.find((ws) => ws.id === stored)
+
+      // Check URL search params for workspaceId
+      let urlWorkspaceId: string | null = null
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        urlWorkspaceId = params.get('workspaceId')
+      }
+
+      const targetId = urlWorkspaceId || stored
+      const found = list.find((ws) => ws.id === targetId)
+
       if (found) {
         setActiveWorkspaceIdState(found.id)
-        setActiveWorkspaceId(found.id, found.name)
+        setActiveWorkspaceId(found.id)
         return
       }
       if (list.length > 0) {
         setActiveWorkspaceIdState(list[0].id)
-        setActiveWorkspaceId(list[0].id, list[0].name)
+        setActiveWorkspaceId(list[0].id)
       } else {
         setActiveWorkspaceIdState(WORKSPACE_DEFAULTS.id)
-        setActiveWorkspaceId(WORKSPACE_DEFAULTS.id, WORKSPACE_DEFAULTS.name)
+        setActiveWorkspaceId(WORKSPACE_DEFAULTS.id)
       }
     },
     []
@@ -406,9 +417,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setWorkspace = useCallback((id: string) => {
     setActiveWorkspaceIdState(id)
-    const ws = workspaces.find(w => w.id === id)
-    setActiveWorkspaceId(id, ws?.name)
-  }, [workspaces])
+    setActiveWorkspaceId(id)
+  }, [])
 
   const createWorkspace = useCallback(
     async (name: string) => {
@@ -515,6 +525,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return setupRecaptcha(elementId)
   }, [])
 
+  const updateWorkspaceIcon = useCallback(
+    async (workspaceId: string, file: File) => {
+      if (!user) return null
+      const app = getFirebaseApp()
+      if (!app) throw new Error('Firebase app not initialized')
+      const storage = getStorage(app)
+      const path = `workspaces/${workspaceId}/icon-${Date.now()}-${file.name}`
+      const storageRef = ref(storage, path)
+      await uploadBytes(storageRef, file)
+      const url = await getDownloadURL(storageRef)
+
+      await workspaceService.updateWorkspaceIcon(workspaceId, url, { uid: user.uid })
+      const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email, phoneNumber: user.phoneNumber })
+      setWorkspaces(refreshed)
+      return url
+    },
+    [user]
+  )
+
   const value = useMemo(
     () => ({
       user,
@@ -537,8 +566,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearRedirectFlag,
       loginWithPhone: loginWithPhoneFn,
       setUpRecaptcha: setUpRecaptchaFn,
+      updateWorkspaceIcon,
     }),
-    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, loginWithEmail, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag, loginWithPhoneFn, setUpRecaptchaFn]
+    [user, loading, redirecting, redirectFailed, profilePhoto, workspaces, activeWorkspaceId, login, loginWithEmail, logout, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember, clearRedirectFlag, loginWithPhoneFn, setUpRecaptchaFn, updateWorkspaceIcon]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
