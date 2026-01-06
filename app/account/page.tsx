@@ -288,7 +288,7 @@ export default function AccountPage() {
             </div>
             <div className="space-y-2">
               {workspaces.map((ws) => {
-                const isOwner = user?.uid === ws.ownerId
+                const isOwner = !!ws.currentUserIsOwner
                 const isDefault = ws.id === 'royal-construction'
                 const isActive = ws.id === activeWorkspaceId
                 return (

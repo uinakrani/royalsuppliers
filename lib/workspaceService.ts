@@ -12,6 +12,7 @@ export interface Workspace {
   memberEmails: string[]
   memberPhoneNumbers?: string[]
   createdAt: string
+  currentUserIsOwner?: boolean
 }
 
 export const workspaceService = {
@@ -57,6 +58,13 @@ export const workspaceService = {
       }
     }
 
+    // Helper to check ownership
+    const checkOwnership = (wsData: Workspace) => {
+      if (wsData.ownerId === user.uid) return true
+      if (searchEmail && wsData.ownerEmail && wsData.ownerEmail.toLowerCase() === searchEmail.toLowerCase()) return true
+      return false
+    }
+
     const memberQuery = searchEmail
       ? query(collection(db, 'workspaces'), where('memberEmails', 'array-contains', searchEmail))
       : null
@@ -72,13 +80,15 @@ export const workspaceService = {
 
     ownedSnap.forEach((docSnap) => {
       const data = docSnap.data() as Workspace
-      workspaces.push({ ...data, id: docSnap.id })
+      const isOwner = checkOwnership(data)
+      workspaces.push({ ...data, id: docSnap.id, currentUserIsOwner: isOwner })
     })
 
     if (memberSnap) {
       memberSnap.forEach((docSnap) => {
         const data = docSnap.data() as Workspace
         const ws = { ...data, id: docSnap.id } as Workspace
+        ws.currentUserIsOwner = checkOwnership(data)
         if (!workspaces.find((w) => w.id === ws.id)) {
           workspaces.push(ws)
         }
@@ -94,6 +104,7 @@ export const workspaceService = {
       phoneSnap.forEach((docSnap) => {
         const data = docSnap.data() as Workspace
         const ws = { ...data, id: docSnap.id } as Workspace
+        ws.currentUserIsOwner = checkOwnership(data)
         if (!workspaces.find((w) => w.id === ws.id)) {
           workspaces.push(ws)
         }
@@ -104,7 +115,10 @@ export const workspaceService = {
     if (workspaces.length === 0 && searchEmail && searchEmail.toLowerCase() === WORKSPACE_DEFAULTS.ownerEmail.toLowerCase()) {
       // Create/Ensure default workspace with the ALIASED email if applicable
       const defaultWs = await this.ensureDefaultWorkspace(user.uid, searchEmail)
-      if (defaultWs) workspaces.push(defaultWs)
+      if (defaultWs) {
+        defaultWs.currentUserIsOwner = true
+        workspaces.push(defaultWs)
+      }
     }
 
     return workspaces
