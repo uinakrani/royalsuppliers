@@ -27,6 +27,7 @@ type AuthContextType = {
   inviteToWorkspace: (email: string) => Promise<void>
   uploadProfileImage: (file: File) => Promise<string | null>
   deleteWorkspace: (id: string) => Promise<void>
+  renameWorkspace: (id: string, newName: string) => Promise<void>
   removeMember: (email: string) => Promise<void>
   loginWithPhone: (phoneNumber: string, appVerifier: any) => Promise<ConfirmationResult>
   setUpRecaptcha: (elementId: string) => RecaptchaVerifier
@@ -484,6 +485,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user, activeWorkspaceId, setWorkspace, router]
   )
 
+  const renameWorkspace = useCallback(
+    async (id: string, newName: string) => {
+      if (!user) throw new Error('Not authenticated')
+      await workspaceService.renameWorkspace(id, newName, { uid: user.uid })
+      const refreshed = await workspaceService.listForUser({ uid: user.uid, email: user.email, phoneNumber: user.phoneNumber })
+      setWorkspaces(refreshed)
+    },
+    [user]
+  )
+
   const removeMember = useCallback(
     async (email: string) => {
       if (!user) throw new Error('Not authenticated')
@@ -520,6 +531,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       inviteToWorkspace,
       uploadProfileImage,
       deleteWorkspace,
+      renameWorkspace,
       removeMember,
       clearRedirectFlag,
       loginWithPhone: loginWithPhoneFn,

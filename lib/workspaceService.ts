@@ -193,5 +193,29 @@ export const workspaceService = {
     await setDoc(wsRef, { deleted: true }, { merge: true })
     await import('firebase/firestore').then(({ deleteDoc }) => deleteDoc(wsRef))
   },
+
+  async renameWorkspace(workspaceId: string, newName: string, user: { uid: string }): Promise<void> {
+    const db = getDb()
+    if (!db) throw new Error('Firestore not ready')
+
+    const wsRef = doc(db, 'workspaces', workspaceId)
+    const snap = await getDoc(wsRef)
+
+    if (!snap.exists()) throw new Error('Workspace not found')
+
+    const data = snap.data() as Workspace
+    if (data.ownerId !== user.uid) {
+      throw new Error('Only the workspace owner can rename this workspace')
+    }
+
+    if (!newName.trim()) {
+      throw new Error('Workspace name cannot be empty')
+    }
+
+    await updateDoc(wsRef, {
+      name: newName.trim(),
+      updatedAt: new Date().toISOString()
+    })
+  },
 }
 

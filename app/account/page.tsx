@@ -4,7 +4,7 @@ import { FormEvent, useRef, useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import AuthGate from '@/components/AuthGate'
-import { LogOut, Plus, Send, Building2, Upload, CheckCircle, Trash2, AlertTriangle, Users } from 'lucide-react'
+import { LogOut, Plus, Send, Building2, Upload, CheckCircle, Trash2, AlertTriangle, Users, Edit2 } from 'lucide-react'
 import NavBar from '@/components/NavBar'
 import { showToast } from '@/components/Toast'
 
@@ -13,7 +13,7 @@ import { partnerService } from '@/lib/partnerService'
 import { Partner } from '@/types/partner'
 
 export default function AccountPage() {
-  const { user, profilePhoto, logout, workspaces, activeWorkspaceId, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, removeMember } = useAuth()
+  const { user, profilePhoto, logout, workspaces, activeWorkspaceId, setWorkspace, createWorkspace, inviteToWorkspace, uploadProfileImage, deleteWorkspace, renameWorkspace, removeMember } = useAuth()
   const [inviteIdentifier, setInviteIdentifier] = useState('')
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -23,6 +23,11 @@ export default function AccountPage() {
   const [showPartnerModal, setShowPartnerModal] = useState(false)
   const [partnerName, setPartnerName] = useState('')
   const [partnerPercentage, setPartnerPercentage] = useState('')
+
+  // Rename State
+  const [showRenameModal, setShowRenameModal] = useState(false)
+  const [workspaceToRename, setWorkspaceToRename] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -140,6 +145,32 @@ export default function AccountPage() {
       setInviteIdentifier('')
     } catch (err: any) {
       showToast(err?.message || 'Failed to send invite', 'error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+
+
+  const openRenameModal = (id: string, currentName: string) => {
+    setWorkspaceToRename(id)
+    setRenameValue(currentName)
+    setShowRenameModal(true)
+  }
+
+  const handleRenameSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!workspaceToRename || !renameValue.trim()) return
+
+    setIsSaving(true)
+    try {
+      await renameWorkspace(workspaceToRename, renameValue.trim())
+      showToast('Workspace renamed', 'success')
+      setShowRenameModal(false)
+      setWorkspaceToRename(null)
+      setRenameValue('')
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to rename workspace', 'error')
     } finally {
       setIsSaving(false)
     }
@@ -278,6 +309,15 @@ export default function AccountPage() {
                       </div>
                       <div className="text-[12px] text-gray-500">Owner: {ws.ownerEmail || 'unknown'}</div>
                     </button>
+                    {isOwner && (
+                      <button
+                        onClick={() => openRenameModal(ws.id, ws.name)}
+                        className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-gray-600 transition hover:bg-gray-100"
+                        title="Rename workspace"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
                     {isActive && <CheckCircle size={16} className="text-primary-600" />}
                     {isOwner && !isDefault && (
                       <button
@@ -483,6 +523,45 @@ export default function AccountPage() {
                     className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 disabled:opacity-70 transition-all"
                   >
                     {isSaving ? 'Adding...' : 'Add Partner'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Rename Workspace Modal */}
+        {showRenameModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl animate-in fade-in zoom-in duration-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Rename Workspace</h3>
+              <form onSubmit={handleRenameSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Workspace Name</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                    placeholder="Enter new name"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRenameModal(false)}
+                    className="flex-1 rounded-xl bg-gray-100 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 disabled:opacity-70 transition-all"
+                  >
+                    {isSaving ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
