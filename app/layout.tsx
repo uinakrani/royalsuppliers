@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { cookies } from 'next/headers'
 import './globals.css'
 import PWARegister from '@/components/PWARegister'
 import PWAInstallPrompt from '@/components/PWAInstallPrompt'
@@ -51,13 +52,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const cookieStore = cookies()
+  const workspaceId = cookieStore.get('activeWorkspaceId')?.value || ''
+  const iconSuffix = workspaceId ? `&ws=${workspaceId}` : ''
+
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/api/icon?size=192p" />
-        <link rel="apple-touch-icon" href="/api/icon?size=192p" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/api/icon?size=192p" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/api/icon" />
+        <link rel="icon" href={`/api/icon?size=192p${iconSuffix}`} />
+        <link rel="apple-touch-icon" href={`/api/icon?size=192p${iconSuffix}`} />
+        <link rel="apple-touch-icon" sizes="192x192" href={`/api/icon?size=192p${iconSuffix}`} />
+        <link rel="apple-touch-icon" sizes="512x512" href={`/api/icon?${iconSuffix.replace('&', '')}`} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#2e31fb" />
@@ -210,4 +215,3 @@ export default function RootLayout({
     </html>
   )
 }
-
