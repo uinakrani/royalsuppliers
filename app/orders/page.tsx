@@ -873,7 +873,7 @@ function OrdersPageContent() {
         return
       }
 
-    console.log('Redistribution is handled server-side by orderService.redistributeSupplierPayment; skipping duplicate client distribution.')
+      console.log('Redistribution is handled server-side by orderService.redistributeSupplierPayment; skipping duplicate client distribution.')
     } catch (error) {
       console.error('❌ Error redistributing ledger entry:', error)
       throw error
@@ -1155,7 +1155,7 @@ function OrdersPageContent() {
   const getPartyGroups = useCallback((): PartyGroup[] => {
     // Use only ledger income entries (credits with partyName) as the single source of truth
     const partyPayments = ledgerEntries
-      .filter((entry) => entry.type === 'credit' && entry.partyName)
+      .filter((entry) => entry.type === 'credit' && entry.partyName && !entry.voided)
       .map((entry) => ({
         id: entry.id,
         partyName: entry.partyName!,
@@ -1288,7 +1288,7 @@ function OrdersPageContent() {
 
     // Sort groups by party name
     return groups.sort((a, b) => a.partyName.localeCompare(b.partyName))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ledgerEntries, invoices, orders, selectedMonth, filteredOrders])
 
   const partyGroups = useMemo(
@@ -1405,7 +1405,7 @@ function OrdersPageContent() {
         const ledgerEntryIds = new Set(supplierLedgerEntries.map(p => p.id).filter(Boolean))
         const ledgerCartingPayments = existingPayments.filter(p => p.ledgerEntryId && !ledgerEntryIds.has(p.ledgerEntryId))
         const cartingTotal = directPayments.reduce((s, p) => s + Number(p.amount || 0), 0) +
-                            ledgerCartingPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+          ledgerCartingPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
         return sum + cartingTotal
       }, 0)
 
@@ -1655,11 +1655,10 @@ function OrdersPageContent() {
                 <button
                   key={month}
                   onClick={() => setSelectedMonth(month)}
-                  className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                    selectedMonth === month
+                  className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${selectedMonth === month
                       ? 'bg-primary-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
-                  }`}
+                    }`}
                   style={{
                     WebkitTapHighlightColor: 'transparent',
                   }}
@@ -1699,8 +1698,8 @@ function OrdersPageContent() {
               setViewMode('allOrders')
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${viewMode === 'allOrders'
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+              ? 'bg-primary-600 text-white'
+              : 'bg-gray-100 text-gray-700 active:bg-gray-200'
               }`}
             style={{
               WebkitTapHighlightColor: 'transparent',
@@ -1716,8 +1715,8 @@ function OrdersPageContent() {
               setViewMode('byParty')
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${viewMode === 'byParty'
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+              ? 'bg-primary-600 text-white'
+              : 'bg-gray-100 text-gray-700 active:bg-gray-200'
               }`}
             style={{
               WebkitTapHighlightColor: 'transparent',
@@ -1733,8 +1732,8 @@ function OrdersPageContent() {
               setViewMode('suppliers')
             }}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all native-press ${viewMode === 'suppliers'
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 active:bg-gray-200'
+              ? 'bg-primary-600 text-white'
+              : 'bg-gray-100 text-gray-700 active:bg-gray-200'
               }`}
             style={{
               WebkitTapHighlightColor: 'transparent',
@@ -1853,154 +1852,154 @@ function OrdersPageContent() {
               </div>
             </div>
             <div className="p-2 space-y-2">
-            {partySummaries.map((group, index) => {
-              const balance = group.totalSelling - group.totalPaid
-              const { outstandingAmount, remainingProfit, useAdjustedProfit: showProfitCalc, effectiveProfit } = group
-              const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
-              const paymentPercentage = group.totalSelling > 0 ? (group.totalPaid / group.totalSelling) * 100 : 0
+              {partySummaries.map((group, index) => {
+                const balance = group.totalSelling - group.totalPaid
+                const { outstandingAmount, remainingProfit, useAdjustedProfit: showProfitCalc, effectiveProfit } = group
+                const lastPaymentDateObj = safeParseDate(group.lastPaymentDate)
+                const paymentPercentage = group.totalSelling > 0 ? (group.totalPaid / group.totalSelling) * 100 : 0
 
-              return (
-                <div
-                  key={group.partyName}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:border-primary-300 active:scale-[0.99] native-press"
-                  style={{
-                    animation: `fadeInUp 0.3s ease-out ${index * 0.04}s both`,
-                    WebkitTapHighlightColor: 'transparent',
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).closest('button')) return
-                    createRipple(e)
-                    handlePartyGroupClick(group)
-                  }}
-                >
-                  <div className="p-2.5">
-                    {/* Header Row - Minimal */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <User size={13} className="text-primary-600 flex-shrink-0" />
-                          <h3 className="font-bold text-sm text-gray-900 truncate">{group.partyName}</h3>
+                return (
+                  <div
+                    key={group.partyName}
+                    className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:border-primary-300 active:scale-[0.99] native-press"
+                    style={{
+                      animation: `fadeInUp 0.3s ease-out ${index * 0.04}s both`,
+                      WebkitTapHighlightColor: 'transparent',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest('button')) return
+                      createRipple(e)
+                      handlePartyGroupClick(group)
+                    }}
+                  >
+                    <div className="p-2.5">
+                      {/* Header Row - Minimal */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <User size={13} className="text-primary-600 flex-shrink-0" />
+                            <h3 className="font-bold text-sm text-gray-900 truncate">{group.partyName}</h3>
+                          </div>
+                          {group.orders.length > 0 && group.orders[0].siteName && (
+                            <p className="text-[10px] text-gray-500 truncate ml-4.5">{group.orders[0].siteName}</p>
+                          )}
                         </div>
-                        {group.orders.length > 0 && group.orders[0].siteName && (
-                          <p className="text-[10px] text-gray-500 truncate ml-4.5">{group.orders[0].siteName}</p>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            createRipple(e)
+                            const balance = group.totalSelling - group.totalPaid
+                            try {
+                              const amountStr = await sweetAlert.prompt({
+                                title: 'Add Payment',
+                                message: `Remaining balance: ${formatIndianCurrency(balance)}`,
+                                inputLabel: 'Payment Amount',
+                                inputPlaceholder: 'Enter amount',
+                                inputType: 'text',
+                                formatCurrencyInr: true,
+                                confirmText: 'Add Payment',
+                                cancelText: 'Cancel'
+                              })
+
+                              if (!amountStr) return
+
+                              const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
+                              if (isNaN(amount) || amount <= 0) {
+                                showToast('Invalid amount', 'error')
+                                return
+                              }
+
+                              const note = await sweetAlert.prompt({
+                                title: 'Payment Note (optional)',
+                                inputLabel: 'Note',
+                                inputPlaceholder: 'Add a note (optional)',
+                                inputType: 'text',
+                                required: false,
+                                confirmText: 'Save',
+                                cancelText: 'Skip',
+                              })
+
+                              await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
+                              showToast('Payment added successfully!', 'success')
+                              refreshOrders()
+                            } catch (error: any) {
+                              if (error?.message && !error.message.includes('SweetAlert')) {
+                                showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
+                              }
+                            }
+                          }}
+                          className="p-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 active:bg-primary-800 transition-all native-press flex items-center justify-center flex-shrink-0"
+                          style={{
+                            WebkitTapHighlightColor: 'transparent',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+
+                      {/* Stats - consistent layout for all month selections */}
+                      <div className="mb-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className={`p-2 rounded-lg ${balance >= 0 ? 'bg-orange-50' : 'bg-green-50'}`}>
+                            <div className={`text-[10px] font-medium mb-0.5 ${balance >= 0 ? 'text-orange-600' : 'text-green-600'}`}>Outstanding</div>
+                            <div className={`text-sm font-bold ${balance >= 0 ? 'text-orange-700' : 'text-green-700'}`}>
+                              {formatIndianCurrency(Math.abs(balance))}
+                            </div>
+                          </div>
+                          <div className={`p-2 rounded-lg ${effectiveProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                            <div className={`text-[10px] font-medium mb-0.5 ${effectiveProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Total Profit</div>
+                            <div className={`text-sm font-bold ${effectiveProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                              {formatIndianCurrency(effectiveProfit)}
+                            </div>
+                          </div>
+                          <div className="bg-blue-50 p-2 rounded-lg">
+                            <div className="text-[10px] text-blue-600 font-medium mb-0.5">Total Paid by Party</div>
+                            <div className="text-sm font-bold text-blue-700">
+                              {formatIndianCurrency(group.totalPaid)}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 p-2 rounded-lg">
+                            <div className="text-[10px] text-gray-600 font-medium mb-0.5">Total Orders</div>
+                            <div className="text-sm font-bold text-gray-700">
+                              {formatIndianCurrency(group.totalSelling)}
+                            </div>
+                          </div>
+                        </div>
+                        {showProfitCalc && (
+                          <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
+                            <div className="text-[10px] font-semibold text-green-700 mb-0.5">Profit after clearing dues</div>
+                            <div className="text-xs font-bold text-gray-900">
+                              {`${formatIndianCurrency(group.totalProfit)} - ${formatIndianCurrency(outstandingAmount)} = ${formatIndianCurrency(remainingProfit)}`}
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          createRipple(e)
-                          const balance = group.totalSelling - group.totalPaid
-                          try {
-                            const amountStr = await sweetAlert.prompt({
-                              title: 'Add Payment',
-                              message: `Remaining balance: ${formatIndianCurrency(balance)}`,
-                              inputLabel: 'Payment Amount',
-                              inputPlaceholder: 'Enter amount',
-                              inputType: 'text',
-                              formatCurrencyInr: true,
-                              confirmText: 'Add Payment',
-                              cancelText: 'Cancel'
-                            })
 
-                            if (!amountStr) return
-
-                            const amount = Math.abs(parseFloat(String(amountStr).replace(/,/g, '')))
-                            if (isNaN(amount) || amount <= 0) {
-                              showToast('Invalid amount', 'error')
-                              return
-                            }
-
-                            const note = await sweetAlert.prompt({
-                              title: 'Payment Note (optional)',
-                              inputLabel: 'Note',
-                              inputPlaceholder: 'Add a note (optional)',
-                              inputType: 'text',
-                              required: false,
-                              confirmText: 'Save',
-                              cancelText: 'Skip',
-                            })
-
-                            await partyPaymentService.addPayment(group.partyName, amount, note || undefined)
-                            showToast('Payment added successfully!', 'success')
-                            refreshOrders()
-                          } catch (error: any) {
-                            if (error?.message && !error.message.includes('SweetAlert')) {
-                              showToast(`Failed to add payment: ${error?.message || 'Unknown error'}`, 'error')
-                            }
-                          }
-                        }}
-                        className="p-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 active:bg-primary-800 transition-all native-press flex items-center justify-center flex-shrink-0"
-                        style={{
-                          WebkitTapHighlightColor: 'transparent',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-
-                    {/* Stats - consistent layout for all month selections */}
-                    <div className="mb-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className={`p-2 rounded-lg ${balance >= 0 ? 'bg-orange-50' : 'bg-green-50'}`}>
-                          <div className={`text-[10px] font-medium mb-0.5 ${balance >= 0 ? 'text-orange-600' : 'text-green-600'}`}>Outstanding</div>
-                          <div className={`text-sm font-bold ${balance >= 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                            {formatIndianCurrency(Math.abs(balance))}
-                          </div>
+                      {/* Footer - Minimal */}
+                      <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
+                        {lastPaymentDateObj && group.lastPaymentAmount !== null ? (
+                          <span className="text-[10px] text-gray-500">
+                            {format(lastPaymentDateObj, 'dd MMM')} • {formatIndianCurrency(group.lastPaymentAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">No payments</span>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-gray-500">
+                            {group.orders.length} order{group.orders.length !== 1 ? 's' : ''}
+                          </span>
+                          <ChevronRight size={11} className="text-gray-400" />
                         </div>
-                        <div className={`p-2 rounded-lg ${effectiveProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                          <div className={`text-[10px] font-medium mb-0.5 ${effectiveProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Total Profit</div>
-                          <div className={`text-sm font-bold ${effectiveProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {formatIndianCurrency(effectiveProfit)}
-                          </div>
-                        </div>
-                        <div className="bg-blue-50 p-2 rounded-lg">
-                          <div className="text-[10px] text-blue-600 font-medium mb-0.5">Total Paid by Party</div>
-                          <div className="text-sm font-bold text-blue-700">
-                            {formatIndianCurrency(group.totalPaid)}
-                          </div>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded-lg">
-                          <div className="text-[10px] text-gray-600 font-medium mb-0.5">Total Orders</div>
-                          <div className="text-sm font-bold text-gray-700">
-                            {formatIndianCurrency(group.totalSelling)}
-                          </div>
-                        </div>
-                      </div>
-                      {showProfitCalc && (
-                        <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
-                          <div className="text-[10px] font-semibold text-green-700 mb-0.5">Profit after clearing dues</div>
-                          <div className="text-xs font-bold text-gray-900">
-                            {`${formatIndianCurrency(group.totalProfit)} - ${formatIndianCurrency(outstandingAmount)} = ${formatIndianCurrency(remainingProfit)}`}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Footer - Minimal */}
-                    <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
-                      {lastPaymentDateObj && group.lastPaymentAmount !== null ? (
-                        <span className="text-[10px] text-gray-500">
-                          {format(lastPaymentDateObj, 'dd MMM')} • {formatIndianCurrency(group.lastPaymentAmount)}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-gray-400">No payments</span>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-gray-500">
-                          {group.orders.length} order{group.orders.length !== 1 ? 's' : ''}
-                        </span>
-                        <ChevronRight size={11} className="text-gray-400" />
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
           </>
         ) : viewMode === 'suppliers' ? (
           // Suppliers View - Two Column Grid
@@ -2047,7 +2046,7 @@ function OrdersPageContent() {
                         <div className={`rounded-lg p-2 border ${group.remainingAmount > 0
                           ? 'bg-gradient-to-br from-red-50 to-orange-50 border-red-200/50'
                           : 'bg-gradient-to-br from-green-50 to-green-100 border-green-200/50'
-                        }`}>
+                          }`}>
                           <div className={`text-[10px] mb-0.5 font-medium ${group.remainingAmount > 0 ? 'text-red-700' : 'text-green-700'}`}>
                             Owed to Supplier
                           </div>
@@ -2274,12 +2273,12 @@ function OrdersPageContent() {
                         setHighlightedRowId(order.id || null)
                       }}
                       className={`flex items-center touch-manipulation transition-colors ${highlightedRowId === order.id
-                          ? 'bg-yellow-100'
-                          : selectedOrders.has(order.id!)
-                            ? 'bg-primary-50'
-                            : isPaid
-                              ? 'bg-green-50/30'
-                              : 'bg-white'
+                        ? 'bg-yellow-100'
+                        : selectedOrders.has(order.id!)
+                          ? 'bg-primary-50'
+                          : isPaid
+                            ? 'bg-green-50/30'
+                            : 'bg-white'
                         }`}
                       style={{
                         WebkitTapHighlightColor: 'transparent',
@@ -2409,7 +2408,7 @@ function OrdersPageContent() {
                         <div className="text-blue-600 text-[10px] leading-tight">
                           {formatIndianCurrency(order.additionalCost)}
                         </div>
-                        
+
                         {/* Profit Display Logic */}
                         <div className={`font-semibold text-[11px] leading-tight ${order.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {formatIndianCurrency(order.profit)}
@@ -2748,7 +2747,7 @@ function OrdersPageContent() {
               Clear Filter
             </button>
           )}
-          
+
           {partyNames.length === 0 ? (
             <div className="text-center text-gray-500 py-8">No parties found</div>
           ) : (
@@ -2763,16 +2762,15 @@ function OrdersPageContent() {
                     // User said "selecting one option should close". 
                     // So we set the filter to THIS option (single select behavior) and close.
                     // If they want to clear, they use Clear Filter.
-                    
+
                     // Implementing single-select style for quick filter:
                     const newSet = new Set<string>()
                     newSet.add(partyName)
                     setInlinePartyFilter(newSet)
                     setActiveColumnFilter(null)
                   }}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${
-                    isSelected ? 'bg-primary-50 text-primary-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
-                  }`}
+                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${isSelected ? 'bg-primary-50 text-primary-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
                 >
                   <span className="truncate">{partyName}</span>
                   {isSelected && <div className="w-2 h-2 rounded-full bg-primary-600" />}
@@ -2802,7 +2800,7 @@ function OrdersPageContent() {
               Clear Filter
             </button>
           )}
-          
+
           {getUniqueMaterials().length === 0 ? (
             <div className="text-center text-gray-500 py-8">No materials found</div>
           ) : (
@@ -2817,9 +2815,8 @@ function OrdersPageContent() {
                     setInlineMaterialFilter(newSet)
                     setActiveColumnFilter(null)
                   }}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${
-                    isSelected ? 'bg-primary-50 text-primary-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
-                  }`}
+                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors flex items-center justify-between ${isSelected ? 'bg-primary-50 text-primary-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
                 >
                   <span className="truncate">{material}</span>
                   {isSelected && <div className="w-2 h-2 rounded-full bg-primary-600" />}

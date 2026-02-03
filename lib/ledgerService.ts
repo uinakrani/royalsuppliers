@@ -669,6 +669,11 @@ export const ledgerService = {
     // Keep the entry locally but mark it as voided
     await offlineStorage.put(STORES.LEDGER_ENTRIES, voidedEntry)
 
+    // Update localStorage cache
+    const cachedEntries = localStorageCache.get<LedgerEntry[]>(CACHE_KEYS.LEDGER_ENTRIES) || []
+    const updatedCache = cachedEntries.map(e => e.id === id ? voidedEntry : e)
+    localStorageCache.set(CACHE_KEYS.LEDGER_ENTRIES, updatedCache)
+
     // Cleanup associated order payments for any orderExpense ledger entry (including supplier-tagged)
     if (entry?.source === 'orderExpense') {
       try {
