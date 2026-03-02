@@ -1648,7 +1648,7 @@ function OrdersPageContent() {
 
       {/* Month Selection Bar - Shared across views */}
       {(viewMode === 'byParty' || viewMode === 'allOrders' || viewMode === 'suppliers') && (
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10 pt-safe">
           <div className="px-4 py-3">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
               {generateMonthOptions().map((month) => (
@@ -1656,8 +1656,8 @@ function OrdersPageContent() {
                   key={month}
                   onClick={() => setSelectedMonth(month)}
                   className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${selectedMonth === month
-                      ? 'bg-primary-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                    ? 'bg-primary-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
                     }`}
                   style={{
                     WebkitTapHighlightColor: 'transparent',
